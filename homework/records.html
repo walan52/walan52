@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>積欠作業紀錄</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f9f9f9;
+      padding: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px 12px;
+      text-align: center;
+    }
+    th {
+      background: #eee;
+    }
+    button {
+      padding: 6px 12px;
+      background: #f44336;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #d32f2f;
+    }
+    .top-buttons {
+      margin-bottom: 15px;
+    }
+    .top-buttons button {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>全部積欠作業紀錄</h2>
+
+  <div class="top-buttons">
+    <button onclick="goBack()">返回上一頁</button>
+    <button onclick="clearAll()">清除全部資料</button>
+  </div>
+
+  <table id="recordTable">
+    <thead>
+      <tr>
+        <th>日期</th>
+        <th>座號</th>
+        <th>姓名</th>
+        <th>積欠作業</th>
+        <th>刪除</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    // Firebase 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyBvjO6-SZG0TXny9RNowA7e7rRdK1Z58oE",
+      authDomain: "water-7b4fe.firebaseapp.com",
+      databaseURL: "https://water-7b4fe-default-rtdb.firebaseio.com",
+      projectId: "water-7b4fe",
+      storageBucket: "water-7b4fe.appspot.com",
+      messagingSenderId: "66478103908",
+      appId: "1:66478103908:web:2e6b82f27e536181666e71"
+    };
+
+    // 初始化 Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 檢查登入狀態
+    if (!localStorage.getItem("studentNo")) {
+      alert("請先登入");
+      window.location.href = "index.html";
+    } else {
+      loadRecords();
+    }
+
+    function loadRecords() {
+      const tbody = document.querySelector("#recordTable tbody");
+      tbody.innerHTML = "";
+      db.ref("records").once("value", snapshot => {
+        snapshot.forEach(child => {
+          const data = child.val();
+          const key = child.key;
+          const tr = document.createElement("tr");
+
+          tr.innerHTML = `
+            <td>${data.date || ""}</td>
+            <td>${data.no || ""}</td>
+            <td>${data.name || ""}</td>
+            <td>${data.subject || ""}：${data.page || ""}</td>
+            <td><button onclick="deleteRecord('${key}')">刪除</button></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      });
+    }
+
+    function deleteRecord(key) {
+      if (confirm("確定刪除這筆紀錄？")) {
+        db.ref("records/" + key).remove().then(() => {
+          alert("已刪除！");
+          loadRecords();
+        });
+      }
+    }
+
+    function clearAll() {
+      if (confirm("⚠️ 確定清除全部積欠作業？")) {
+        db.ref("records").remove().then(() => {
+          alert("已清除全部紀錄！");
+          loadRecords();
+        });
+      }
+    }
+
+    function goBack() {
+      window.location.href = "teacher.html";
+    }
+  </script>
+</body>
+</html>

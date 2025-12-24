@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>學生作業繳交狀態（僅觀看）</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #tableContainer {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid #ccc;
+    }
+    table {
+      border-collapse: collapse;
+      margin-top: 20px;
+      width: max-content;
+      min-width: 100%;
+    }
+    th, td {
+      border: 1px solid #999;
+      padding: 6px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    th {
+      background: #f0f0f0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .未交 {
+      background-color: #fbb;
+    }
+    .未訂正 {
+      background-color: #ff9;
+    }
+    .OK {
+      background-color: #9f9;
+    }
+    #filterButtons {
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 6px 12px;
+      margin-right: 10px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background-color: #4caf50;
+      color: white;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h2>學生作業繳交狀態（僅觀看）</h2>
+
+  <div id="filterButtons">
+    <button onclick="showUnfinished()">顯示作業未全OK學生（依未OK數排序）</button>
+    <button onclick="showNetStudents()">顯示有網學生</button>
+  </div>
+
+  <div id="tableContainer">
+    <table id="studentTable">
+      <thead>
+        <tr id="headerRow">
+          <th>座號</th>
+          <th>姓名</th>
+        </tr>
+      </thead>
+      <tbody id="studentBody"></tbody>
+    </table>
+  </div>
+
+<script>
+  // ✅ Firebase 初始化（已替換為你提供的新資料）
+  const firebaseConfig = {
+    apiKey: "AIzaSyBIZByjsGNwP949OSVsyi7-PjU7Cpz-gzI",
+    authDomain: "student-score-app-6cca6.firebaseapp.com",
+    databaseURL: "https://student-score-app-6cca6-default-rtdb.firebaseio.com",
+    projectId: "student-score-app-6cca6",
+    storageBucket: "student-score-app-6cca6.firebasestorage.app",
+    messagingSenderId: "887092013369",
+    appId: "1:887092013369:web:42abc19c8cacca737b20e8",
+    measurementId: "G-8SREJH2ER3"
+  };
+
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const studentTableBody = document.getElementById("studentBody");
+  const headerRow = document.getElementById("headerRow");
+
+  let allAssignments = {};
+  let allStudents = {};
+
+  // 監聽 assignments
+  db.ref("assignments").on("value", snapshot => {
+    allAssignments = snapshot.val() || {};
+    renderTable();
+  });
+
+  // 監聽 students
+  db.ref("students").on("value", snapshot => {
+    allStudents = snapshot.val() || {};
+    renderTable();
+  });
+
+  // 顯示未OK學生
+  function showUnfinished() {
+    renderTable("unfinished");
+  }
+
+  // 顯示有網學生
+  function showNetStudents() {
+    renderTable("hasNet");
+  }
+
+  // 渲染表格
+  function renderTable(mode = "unfinished") {
+    studentTableBody.innerHTML = "";
+    headerRow.innerHTML = "<th>座號</th><th>姓名</th>";
+
+    const assignmentList = Object.keys(allAssignments).filter(a => !a.includes("電腦"));
+
+    // 統計每個作業的未OK數
+    const assignmentStats = {};
+    assignmentList.forEach(a => assignmentStats[a] = 0);
+
+    Object.values(allStudents).forEach(student => {
+      const { assignments = {} } = student;
+      assignmentList.forEach(a => {
+        const status = assignments[a] || "未交";
+        if (status !== "OK") assignmentStats[a]++;
+      });
+    });
+
+    // 依未OK數排序（由大到小）
+    const sortedAssignments = assignmentList.sort((a, b) => assignmentStats[b] - assignmentStats[a]);
+
+    // 產生表頭
+    sortedAssignments.forEach(a => {
+      const th = document.createElement("th");
+      th.textContent = `${a} (${assignmentStats[a]})`;
+      headerRow.appendChild(th);
+    });
+
+    // 整理學生資料
+    const studentArray = Object.values(allStudents).map(student => {
+      const { id, name, assignments = {}, netStatus = "無網" } = student;
+
+      let notOKCount = 0;
+      sortedAssignments.forEach(a => {
+        const status = assignments[a] || "未交";
+        if (status !== "OK") notOKCount++;
+      });
+
+      return { id, name, assignments, netStatus, notOKCount };
+    });
+
+    // 篩選模式
+    let filtered = [];
+    if (mode === "unfinished") {
+      filtered = studentArray
+        .filter(s => s.notOKCount > 0)
+        .sort((a, b) => b.notOKCount - a.notOKCount || a.id - b.id);
+    } else if (mode === "hasNet") {
+      filtered = studentArray.filter(s => s.netStatus === "有網");
+    } else {
+      filtered = studentArray;
+    }
+
+    // 顯示資料
+    filtered.forEach(student => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${student.id}</td><td>${student.name}</td>`;
+
+      sortedAssignments.forEach(a => {
+        const status = student.assignments[a] || "未交";
+        const td = document.createElement("td");
+        td.textContent = status;
+        td.className = status;
+        tr.appendChild(td);
+      });
+
+      studentTableBody.appendChild(tr);
+    });
+  }
+</script>
+</body>
+</html>

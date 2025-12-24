@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>借出記錄</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #fffaf0; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    button { padding: 5px; }
+  </style>
+</head>
+<body>
+  <h2>教學指引借出記錄</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>借出日期</th>
+        <th>職稱</th>
+        <th>教師姓名</th>
+        <th>教學指引</th>
+        <th>歸還</th>
+      </tr>
+    </thead>
+    <tbody id="borrowListBody"></tbody>
+  </table>
+
+  <script>
+    // 初始化 Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 讀取借出資料
+    function renderList() {
+      const tbody = document.getElementById("borrowListBody");
+      tbody.innerHTML = "";
+      db.ref("borrowed").once("value", snapshot => {
+        const data = snapshot.val() || {};
+        Object.entries(data).forEach(([key, item]) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${item.date}</td>
+            <td>${item.position}</td>
+            <td>${item.name}</td>
+            <td>${item.subject}</td>
+            <td>${item.returned ? item.returned : `<button onclick="returnItem('${key}', '${item.subject}')">歸還</button>`}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      });
+    }
+
+    // 歸還功能
+    function returnItem(key, subject) {
+      const today = new Date().toISOString().split("T")[0].replace(/-/g, "/");
+
+      // 1. 更新歸還欄位
+      db.ref("borrowed/" + key + "/returned").set(`${today} 歸還`);
+
+      // 2. 增加教學指引本數
+      const subjectRef = db.ref("teachersubject/" + subject); // ← 這裡改成 teachersubject
+      subjectRef.once("value", snap => {
+        const current = snap.val() || 0;
+        subjectRef.set(current + 1);
+      });
+
+      // 3. 重載畫面
+      setTimeout(renderList, 500);
+    }
+
+    renderList();
+  </script>
+
+  <hr>
+  <a href="index.html">回到預借畫面</a>
+</body>
+</html>

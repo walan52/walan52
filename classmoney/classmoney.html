@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>班費收支管理系統（Firebase + 匯出Excel + 直接輸入金額）</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { margin-top: 30px; }
+    .box { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background-color: #f0f0f0; }
+    button { cursor: pointer; }
+  </style>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <!-- SheetJS for Excel Export -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>班費收支管理系統（Firebase + 匯出Excel + 直接輸入金額）</h1>
+
+  <div class="box">
+    <h2>設定班費總額</h2>
+    <label>班費總額：<input type="number" id="initialTotal" placeholder="輸入班費總額"></label>
+    <button onclick="setInitialTotal()">設定</button>
+  </div>
+
+  <div class="box">
+    <h2>新增收支記錄</h2>
+
+    <label>日期：<input type="date" id="date"></label><br><br>
+    <label>項目：<input type="text" id="item" placeholder="例：買衛生紙、班費收入"></label><br><br>
+    <label>單價：<input type="number" id="price" placeholder="輸入單價（可空白）"></label><br><br>
+    <label>數量：<input type="number" id="qty" placeholder="輸入數量（可空白，預設1）"></label><br><br>
+    <label>直接輸入金額：<input type="number" id="directAmount" placeholder="有填此欄即以此金額為準"></label><br><br>
+
+    <button onclick="addRecord()">新增記錄</button>
+  </div>
+
+  <div class="box">
+    <h2>收支紀錄</h2>
+    <button onclick="exportExcel()">匯出 Excel</button>
+    <table>
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>項目</th>
+          <th>單價</th>
+          <th>數量</th>
+          <th>金額</th>
+          <th>刪除</th>
+        </tr>
+      </thead>
+      <tbody id="recordTable"></tbody>
+    </table>
+  </div>
+
+  <div class="box">
+    <h2>目前班費餘額</h2>
+    <h3 id="total">尚未設定班費總額</h3>
+  </div>
+
+<script>
+  // Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyBIZByjsGNwP949OSVsyi7-PjU7Cpz-gzI",
+    authDomain: "student-score-app-6cca6.firebaseapp.com",
+    databaseURL: "https://student-score-app-6cca6-default-rtdb.firebaseio.com",
+    projectId: "student-score-app-6cca6",
+    storageBucket: "student-score-app-6cca6.firebasestorage.app",
+    messagingSenderId: "887092013369",
+    appId: "1:887092013369:web:42abc19c8cacca737b20e8",
+    measurementId: "G-8SREJH2ER3"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  let records = [];
+  let initialTotal = 0;
+
+  function setInitialTotal() {
+    const t = Number(document.getElementById('initialTotal').value);
+    if (!t || t < 0) {
+      alert('請輸入有效的班費總額');
+      return;
+    }
+    initialTotal = t;
+    saveInitialTotal();
+    renderTable();
+  }
+
+  function saveInitialTotal() {
+    db.ref('classFee/initialTotal').set(initialTotal);
+  }
+
+  function addRecord() {
+    const date = document.getElementById('date').value || '';
+    const item = document.getElementById('item').value.trim() || '未命名項目';
+    let price = document.getElementById('price').value;
+    let qty = document.getElementById('qty').value;
+    let directAmount = document.getElementById('directAmount').value;
+
+    if (!date) {
+      alert('請輸入日期');
+      return;
+    }
+    // 數量沒填或非數字，預設1
+    qty = qty === '' || isNaN(Number(qty)) ? 1 : Number(qty);
+    if (qty <= 0) {
+      alert('數量必須大於0');
+      return;
+    }
+
+    price = price === '' ? 0 : Number(price);
+    if (isNaN(price) || price < 0) {
+      alert('單價請輸入有效的數字或留空');
+      return;
+    }
+
+    directAmount = directAmount === '' ? null : Number(directAmount);
+    if (directAmount !== null && (isNaN(directAmount) || directAmount < 0)) {
+      alert('直接輸入金額請輸入有效數字或留空');
+      return;
+    }
+
+    // 直接輸入金額優先
+    const amount = directAmount !== null ? directAmount : price * qty;
+
+    records.push({ date, item, price, qty, amount });
+    saveRecords();
+    clearInputs();
+    renderTable();
+  }
+
+  function clearInputs() {
+    document.getElementById('date').value = '';
+    document.getElementById('item').value = '';
+    document.getElementById('price').value = '';
+    document.getElementById('qty').value = '';
+    document.getElementById('directAmount').value = '';
+  }
+
+  function deleteRecord(index) {
+    if (confirm('確定要刪除此筆資料嗎？')) {
+      records.splice(index, 1);
+      saveRecords();
+      renderTable();
+    }
+  }
+
+  function saveRecords() {
+    db.ref('classFee/records').set(records);
+  }
+
+  function loadData() {
+    db.ref('classFee/initialTotal').on('value', snapshot => {
+      const val = snapshot.val();
+      if (val !== null) {
+        initialTotal = val;
+        document.getElementById('initialTotal').value = initialTotal;
+        renderTable();
+      }
+    });
+
+    db.ref('classFee/records').on('value', snapshot => {
+      const val = snapshot.val();
+      if (val) {
+        records = val;
+        renderTable();
+      }
+    });
+  }
+
+  function renderTable() {
+    const table = document.getElementById('recordTable');
+    table.innerHTML = '';
+    let total = initialTotal;
+
+    records.forEach((r, i) => {
+      total -= r.amount;
+      // 單價是0顯示空白，數量是1顯示空白
+      const displayPrice = (r.price === 0) ? '' : r.price;
+      const displayQty = (r.qty === 1) ? '' : r.qty;
+      const row = `
+        <tr>
+          <td>${r.date}</td>
+          <td>${r.item}</td>
+          <td>${displayPrice}</td>
+          <td>${displayQty}</td>
+          <td>${r.amount}</td>
+          <td><button onclick="deleteRecord(${i})">刪除</button></td>
+        </tr>`;
+      table.innerHTML += row;
+    });
+
+    document.getElementById('total').innerText = total >= 0 ? total + ' 元' : `餘額不足：${total} 元`;
+  }
+
+  function exportExcel() {
+    if (records.length === 0) {
+      alert('沒有資料可以匯出');
+      return;
+    }
+
+    const ws_data = [
+      ['日期', '項目', '單價', '數量', '金額']
+    ];
+    records.forEach(r => {
+      ws_data.push([
+        r.date, 
+        r.item, 
+        r.price === 0 ? '' : r.price, 
+        r.qty === 1 ? '' : r.qty, 
+        r.amount
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '班費收支');
+    XLSX.writeFile(wb, '班費收支記錄.xlsx');
+  }
+
+  loadData();
+
+</script>
+</body>
+</html>

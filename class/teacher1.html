@@ -1,0 +1,183 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>學生作業確認繳交</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+    th, td { border: 1px solid #999; padding: 6px; text-align: center; }
+    th { background: #f0f0f0; }
+    button { margin: 2px; }
+    .未交 { background-color: #fbb; cursor: pointer; }
+    .未訂正 { background-color: #ff9; cursor: pointer; }
+    .OK { background-color: #9f9; cursor: pointer; }
+    .delete-btn { font-size: 10px; color: red; cursor: pointer; border: none; background: none; }
+  </style>
+</head>
+<body>
+  <h2>學生作業確認繳交系統（老師頁面）</h2>
+  <input type="file" id="fileInput" accept=".csv">
+  <button onclick="addAssignment()">新增作業項目</button>
+  <input type="text" id="assignmentInput" placeholder="輸入作業名稱">
+  <button onclick="exportCSV()">匯出紀錄</button>
+  <br>
+  <table id="studentTable">
+    <thead>
+      <tr id="headerRow">
+        <th>座號</th>
+        <th>姓名</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="studentBody"></tbody>
+  </table>
+
+<script>
+  // Firebase 初始化
+  const firebaseConfig = {
+    apiKey: "AIzaSyCojnWzneUgiM_OTJYqf9oniIIYpyyuT_0",
+    authDomain: "test-d18a6.firebaseapp.com",
+    databaseURL: "https://test-d18a6-default-rtdb.firebaseio.com",
+    projectId: "test-d18a6",
+    storageBucket: "test-d18a6.firebasestorage.app",
+    messagingSenderId: "441961430247",
+    appId: "1:441961430247:web:643e53ce778132cfa47642"
+  };
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const studentTableBody = document.getElementById("studentBody");
+  const headerRow = document.getElementById("headerRow");
+
+  // 匯入 CSV 學生名單
+  document.getElementById("fileInput").addEventListener("change", function(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const rows = e.target.result.split("\n").map(r => r.split(","));
+      rows.forEach(([id, name]) => {
+        if (id && name) {
+          const studentRef = db.ref("students/" + id.trim());
+          studentRef.once("value", snapshot => {
+            if (!snapshot.exists()) {
+              studentRef.set({ id: id.trim(), name: name.trim() });
+            }
+          });
+        }
+      });
+    };
+    reader.readAsText(file);
+  });
+
+  // 新增作業項目
+  function addAssignment() {
+    const assignment = document.getElementById("assignmentInput").value.trim();
+    if (!assignment) return;
+    db.ref("assignments/" + assignment).set(true);
+    document.getElementById("assignmentInput").value = "";
+  }
+
+  // 點擊切換狀態
+  function toggleStatus(studentId, assignment, currentStatus) {
+    let newStatus;
+    if (currentStatus === "未交") newStatus = "未訂正";
+    else if (currentStatus === "未訂正") newStatus = "OK";
+    else newStatus = "未交";
+
+    db.ref(`students/${studentId}/assignments/${assignment}`).set(newStatus);
+  }
+
+  // 刪除學生
+  function deleteStudent(id) {
+    if (confirm("確定要刪除這位學生嗎？")) {
+      db.ref("students/" + id).remove();
+    }
+  }
+
+  // 刪除作業項目
+  function deleteAssignment(name) {
+    if (confirm(`確定要刪除作業「${name}」嗎？`)) {
+      // 刪掉作業設定
+      db.ref("assignments/" + name).remove();
+      // 刪掉所有學生該作業的紀錄
+      db.ref("students").once("value", snapshot => {
+        const students = snapshot.val() || {};
+        Object.keys(students).forEach(id => {
+          db.ref(`students/${id}/assignments/${name}`).remove();
+        });
+      });
+    }
+  }
+
+  // 匯出 CSV
+  function exportCSV() {
+    db.ref("students").once("value", snapshot => {
+      const students = snapshot.val();
+      if (!students) return;
+
+      const headers = ["座號","姓名"];
+      const assignments = [];
+
+      headerRow.querySelectorAll("th").forEach((th, idx) => {
+        if (idx > 2) assignments.push(th.textContent.replace("刪除","").trim());
+      });
+      headers.push(...assignments);
+
+      let csvContent = headers.join(",") + "\n";
+      Object.values(students).forEach(student => {
+        const row = [student.id, student.name];
+        assignments.forEach(a => {
+          row.push(student.assignments && student.assignments[a] ? student.assignments[a] : "未交");
+        });
+        csvContent += row.join(",") + "\n";
+      });
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "作業紀錄.csv";
+      a.click();
+    });
+  }
+
+  // 即時更新表格
+  db.ref("assignments").on("value", snapshot => {
+    const assignments = snapshot.val() || {};
+    headerRow.innerHTML = "<th>座號</th><th>姓名</th><th>操作</th>";
+    Object.keys(assignments).forEach(a => {
+      const th = document.createElement("th");
+      th.innerHTML = `${a} <button class="delete-btn" onclick="deleteAssignment('${a}')">刪除</button>`;
+      headerRow.appendChild(th);
+    });
+  });
+
+  db.ref("students").on("value", snapshot => {
+    const students = snapshot.val() || {};
+    studentTableBody.innerHTML = "";
+    db.ref("assignments").once("value", snap => {
+      const assignments = snap.val() || {};
+      Object.values(students).forEach(student => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${student.id}</td><td>${student.name}</td>
+          <td><button onclick="deleteStudent('${student.id}')">刪除</button></td>`;
+        Object.keys(assignments).forEach(a => {
+          const status = student.assignments && student.assignments[a] ? student.assignments[a] : "未交";
+          const td = document.createElement("td");
+          td.textContent = status;
+          td.className = status;
+          td.onclick = () => toggleStatus(student.id, a, status);
+          tr.appendChild(td);
+        });
+        studentTableBody.appendChild(tr);
+      });
+    });
+  });
+</script>
+</body>
+</html>
+```

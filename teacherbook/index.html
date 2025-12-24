@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>教師手冊領用</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #f0f8ff; padding: 20px; }
+    input, button { margin: 5px 0; padding: 5px; }
+    .manual-item { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; }
+    .manual-item span { flex-grow: 1; }
+    .manual-item button { background-color: red; color: white; border: none; cursor: pointer; padding: 2px 6px; }
+  </style>
+</head>
+<body>
+  <h2>教師手冊領用表單</h2>
+  <label>班級：<input type="text" id="classInput" /></label><br>
+  <label>教師姓名：<input type="text" id="teacherInput" /></label><br>
+
+  <fieldset>
+    <legend>勾選手冊：</legend>
+    <div id="manualList"></div>
+    <input type="text" id="newManualInput" placeholder="新增手冊名稱" />
+    <button onclick="addManual()">➕ 新增手冊</button>
+  </fieldset><br>
+
+  <button onclick="submitForm()">✅ 送出</button>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const manualListDiv = document.getElementById('manualList');
+
+    function renderManuals(snapshot) {
+      manualListDiv.innerHTML = '';
+      snapshot.forEach(child => {
+        const key = child.key;
+        const name = child.val();
+        const div = document.createElement('div');
+        div.className = 'manual-item';
+        div.innerHTML = `
+          <label><input type="checkbox" value="${name}"> <span>${name}</span></label>
+          <button onclick="deleteManual('${key}')">✕</button>
+        `;
+        manualListDiv.appendChild(div);
+      });
+    }
+
+    function loadManuals() {
+      db.ref('manualOptions').on('value', renderManuals);
+    }
+
+    function addManual() {
+      const name = document.getElementById('newManualInput').value.trim();
+      if (name) {
+        db.ref('manualOptions').push(name);
+        document.getElementById('newManualInput').value = '';
+      }
+    }
+
+    function deleteManual(key) {
+      if (confirm("確定要刪除此手冊項目嗎？")) {
+        db.ref('manualOptions/' + key).remove();
+      }
+    }
+
+    function submitForm() {
+      const className = document.getElementById('classInput').value.trim();
+      const teacherName = document.getElementById('teacherInput').value.trim();
+      const checked = Array.from(document.querySelectorAll('#manualList input[type="checkbox"]:checked'))
+                           .map(cb => cb.value);
+
+      if (!className || !teacherName || checked.length === 0) {
+        alert("請填寫班級、姓名，並至少勾選一項手冊");
+        return;
+      }
+
+      db.ref("manualClaims").push({
+        class: className,
+        teacher: teacherName,
+        manuals: checked,
+        timestamp: Date.now()
+      });
+
+      alert("已送出！");
+      document.getElementById('classInput').value = '';
+      document.getElementById('teacherInput').value = '';
+      document.querySelectorAll('#manualList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    }
+
+    loadManuals();
+  </script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>課堂即時回應系統（學生端）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      -webkit-overflow-scrolling: touch;
+      margin: 0;
+      padding: 0;
+      background: #f9f9f9;
+      font-family: "微軟正黑體";
+    }
+
+    .box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      max-width: 400px;
+      margin: 20px auto;
+      box-sizing: border-box;
+    }
+
+    input, button, textarea {
+      margin: 10px 0;
+      padding: 14px;
+      width: 80%;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 18px;
+      box-sizing: border-box;
+      font-family: "微軟正黑體";
+    }
+
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background: #2980b9;
+    }
+
+    #messageBox {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #2c3e50;
+      margin-top: 20px;
+      user-select: none;
+    }
+
+    #scoreDisplay {
+      margin-top: 15px;
+      font-size: 1.3rem;
+      color: #34495e;
+      font-weight: 600;
+    }
+
+    #buzzBtn {
+      margin-top: 15px;
+      background: #e74c3c;
+      font-weight: 700;
+      font-size: 1.3rem;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      user-select: none;
+      display: none; /* 預設隱藏 */
+    }
+
+    #buzzBtn:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    #buzzStatus {
+      margin-top: 15px;
+      font-weight: 700;
+      color: #c0392b;
+      font-size: 1.2rem;
+      user-select: none;
+      min-height: 1.4em;
+    }
+
+    #notice {
+      margin-top: 20px;
+      font-size: 1.1rem;
+      color: #16a085;
+      font-weight: 700;
+      min-height: 1.2em;
+    }
+
+    /* 響應式：小螢幕調整 */
+    @media screen and (max-width: 600px) {
+      .box {
+        max-width: 95%;
+        padding: 15px;
+      }
+      input, button, textarea, #buzzBtn {
+        width: 95%;
+        font-size: 1.2rem;
+        padding: 14px;
+      }
+      #messageBox {
+        font-size: 2.2rem;
+      }
+      #scoreDisplay {
+        font-size: 1.5rem;
+      }
+      #buzzBtn {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="box" id="setupBox">
+    <h2>請輸入座號與暱稱</h2>
+    <input id="seatInput" type="number" placeholder="座號" />
+    <input id="nameInput" type="text" placeholder="暱稱" />
+    <button onclick="enterSystem()">進入答題</button>
+    <div id="notice"></div>
+  </div>
+
+  <div class="box" id="messageBox" style="display:none;">
+    專心上課，不要打瞌睡 ~~~
+    <div id="scoreDisplay">目前分數：0 分</div>
+    <button id="buzzBtn" onclick="tryBuzz()">搶答</button>
+    <div id="buzzStatus"></div>
+    <div id="notice"></div>
+  </div>
+
+  <div class="box" id="quizBox" style="display:none;">
+    <h3 id="questionText">等待老師出題中...</h3>
+    <textarea id="answerInput" placeholder="請輸入答案" rows="5"></textarea>
+    <button onclick="submitAnswer()">送出答案</button>
+    <p id="scoreText"></p>
+    <div id="notice"></div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC5aW_wP20TbBPMqUeGQaPw9MH0dpRjgaQ",
+      authDomain: "respect-833f3.firebaseapp.com",
+      databaseURL: "https://respect-833f3-default-rtdb.firebaseio.com",
+      projectId: "respect-833f3",
+      storageBucket: "respect-833f3.firebasestorage.app",
+      messagingSenderId: "360277137589",
+      appId: "1:360277137589:web:6a7b8bf0763ef5d43446fc"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let seat = "";
+    let name = "";
+
+    // 顯示提示訊息（取代 alert）
+    function showNotice(msg, color="#16a085") {
+      document.querySelectorAll("#notice").forEach(n => {
+        n.innerText = msg;
+        n.style.color = color;
+      });
+      setTimeout(() => {
+        document.querySelectorAll("#notice").forEach(n => n.innerText = "");
+      }, 3000);
+    }
+
+    async function enterSystem() {
+      seat = document.getElementById("seatInput").value.trim();
+      name = document.getElementById("nameInput").value.trim();
+      if (!seat || !name) {
+        showNotice("⚠️ 請輸入座號與暱稱", "#e67e22");
+        return;
+      }
+
+      // 讀取座號資料
+      const studentRef = db.ref("students/" + seat);
+      const snapshot = await studentRef.once("value");
+      const data = snapshot.val();
+
+      if (data) {
+        // 有資料，更新暱稱但不變動分數
+        await studentRef.update({ nickname: name });
+      } else {
+        // 無資料，建立暱稱及分數0
+        await studentRef.set({ nickname: name, score: 0 });
+      }
+
+      document.getElementById("setupBox").style.display = "none";
+      document.getElementById("messageBox").style.display = "block";
+      document.getElementById("quizBox").style.display = "none";
+
+      // 題目監聽
+      db.ref("questions/current").on("value", snapshot => {
+        const data = snapshot.val();
+        if (data && data.text && data.text.trim() !== "") {
+          document.getElementById("questionText").innerText = data.text;
+          document.getElementById("quizBox").style.display = "block";
+          document.getElementById("messageBox").style.display = "none";
+        } else {
+          document.getElementById("quizBox").style.display = "none";
+          document.getElementById("messageBox").style.display = "block";
+          hideBuzzButton();
+          clearBuzzStatus();
+        }
+      });
+
+      // 分數監聽
+      db.ref("students/" + seat + "/score").on("value", s => {
+        const score = s.val() || 0;
+        document.getElementById("scoreText").innerText = "目前分數：" + score + " 分";
+        document.getElementById("scoreDisplay").innerText = "目前分數：" + score + " 分";
+      });
+
+      // 搶答狀態監聽
+      db.ref("buzzing").on("value", snap => {
+        const buzzSeat = snap.val();
+        if (buzzSeat === "countdown") {
+          hideBuzzButton();
+          document.getElementById("buzzStatus").innerText = "搶答倒數中，請稍後...";
+        } else if (!buzzSeat) {
+          showBuzzButton(true);
+          document.getElementById("buzzStatus").innerText = "現在可以搶答！";
+        } else if (buzzSeat === seat) {
+          showBuzzButton(false);
+          document.getElementById("buzzStatus").innerText = "你已成功搶答！請準備回答。";
+        } else {
+          showBuzzButton(false);
+          document.getElementById("buzzStatus").innerText = `座號 ${buzzSeat} 已搶答，請等待老師重置搶答。`;
+        }
+      });
+
+      // Firebase 連線監測
+      db.ref(".info/connected").on("value", snap => {
+        if (snap.val() === false) {
+          showNotice("⚠️ 已離線，將自動重試連線", "#e74c3c");
+        } else {
+          showNotice("✅ 已重新連線！");
+        }
+      });
+    }
+
+    function showBuzzButton(enabled) {
+      const btn = document.getElementById("buzzBtn");
+      btn.style.display = "inline-block";
+      btn.disabled = !enabled;
+    }
+
+    function hideBuzzButton() {
+      const btn = document.getElementById("buzzBtn");
+      btn.style.display = "none";
+      btn.disabled = true;
+    }
+
+    function clearBuzzStatus() {
+      document.getElementById("buzzStatus").innerText = "";
+    }
+
+    function tryBuzz() {
+      db.ref("buzzing").transaction(currentValue => {
+        if (!currentValue) return seat;
+        return;
+      }, (error, committed) => {
+        if (error) {
+          showNotice("搶答失敗，請稍後再試", "#e74c3c");
+        } else if (!committed) {
+          showNotice("已有人搶答，請等待老師重置", "#e67e22");
+        } else {
+          showNotice("🎉 恭喜你，搶答成功！");
+        }
+      });
+    }
+
+    function submitAnswer() {
+      const answer = document.getElementById("answerInput").value.trim();
+      if (!answer) {
+        showNotice("請輸入答案", "#e67e22");
+        return;
+      }
+      db.ref("students/" + seat + "/answer").set(answer).then(() => {
+        showNotice("✅ 已送出！");
+        document.getElementById("answerInput").value = "";
+        document.getElementById("quizBox").style.display = "none";
+        document.getElementById("messageBox").style.display = "block";
+      });
+    }
+  </script>
+</body>
+</html>

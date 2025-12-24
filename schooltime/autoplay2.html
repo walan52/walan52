@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<title>多筆定時播放音檔（含網址與YouTube音檔，音量最大）</title>
+<style>
+  body {
+    font-family: Arial;
+    text-align: center;
+    padding: 30px;
+  }
+  input, button, select {
+    font-size: 18px;
+    padding: 8px;
+    margin: 5px;
+  }
+  table {
+    margin: 20px auto;
+    border-collapse: collapse;
+    width: 90%;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 18px;
+  }
+  iframe, audio {
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<h2>⏰ 多筆定時播放音檔（含內建語音，網址與YouTube支援）</h2>
+
+<!-- 時間輸入 -->
+<input type="time" id="timeInput" />
+
+<!-- 選擇音檔類型 -->
+<select id="sourceType">
+  <option value="file">上傳音檔</option>
+  <option value="url">音訊網址</option>
+</select>
+
+<!-- 上傳檔案 -->
+<input type="file" id="fileInput" accept="audio/*" style="display:inline-block;" />
+
+<!-- 網址輸入 -->
+<input type="text" id="urlInput" placeholder="請輸入音訊或YouTube網址" style="display:none; width:300px;" />
+
+<button onclick="addSchedule()">新增音檔或網址</button>
+
+<br /><br />
+
+<!-- 內建語音按鈕 -->
+<button onclick="addBuiltInVoice('start')">➕ 新增上課語音</button>
+<button onclick="addBuiltInVoice('end')">➕ 新增放學語音</button>
+<button onclick="addBuiltInVoice('nap')">➕ 新增午休語音</button>
+
+<h3>目前設定</h3>
+<table>
+  <thead>
+    <tr>
+      <th>時間</th>
+      <th>音檔名稱 / 來源</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody id="scheduleList"></tbody>
+</table>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<script>
+// Firebase 初始化設定（你提供的）
+const firebaseConfig = {
+  apiKey: "AIzaSyCojnWzneUgiM_OTJYqf9oniIIYpyyuT_0",
+  authDomain: "test-d18a6.firebaseapp.com",
+  databaseURL: "https://test-d18a6-default-rtdb.firebaseio.com",
+  projectId: "test-d18a6",
+  storageBucket: "test-d18a6.firebasestorage.app",
+  messagingSenderId: "441961430247",
+  appId: "1:441961430247:web:643e53ce778132cfa47642"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database().ref("schedules");
+
+let schedules = [];  // 本地暫存陣列
+
+// 內建語音文字
+const builtInTexts = {
+  start: "上課囉！講話就來領一張搗蛋愛數卷。",
+  end: "放學囉！一分鐘後離開教室，不然領一張搗蛋愛數卷。",
+  nap: "午休時間到囉!趴下睡覺，講話就領一張搗蛋愛數卷。"
+};
+
+// 當切換音檔來源，顯示或隱藏欄位
+document.getElementById('sourceType').addEventListener('change', function() {
+  if(this.value === 'file') {
+    document.getElementById('fileInput').style.display = 'inline-block';
+    document.getElementById('urlInput').style.display = 'none';
+  } else {
+    document.getElementById('fileInput').style.display = 'none';
+    document.getElementById('urlInput').style.display = 'inline-block';
+  }
+});
+
+// 建立語音物件（文字轉語音）
+function createVoice(text) {
+  return {
+    play: () => {
+      let msg = new SpeechSynthesisUtterance(text);
+      msg.lang = "zh-TW";
+      msg.rate = 1;
+      msg.pitch = 1;
+      msg.volume = 1.0;
+      speechSynthesis.speak(msg);
+    }
+  };
+}
+
+// 判斷是不是YouTube網址
+function isYouTubeUrl(url) {
+  return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//.test(url);
+}
+
+// 由YouTube網址取得影片ID
+function getYouTubeID(url) {
+  let reg = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|embed|shorts|watch)(?:\?v=|\/))|youtu\.be\/)([^&\?\/]+)/;
+  let match = url.match(reg);
+  return match ? match[1] : null;
+}
+
+// 新增內建語音
+function addBuiltInVoice(type) {
+  const time = document.getElementById("timeInput").value;
+  if (!time) {
+    alert("請先設定時間！");
+    return;
+  }
+  if (!builtInTexts[type]) {
+    alert("內建語音類型錯誤！");
+    return;
+  }
+
+  const scheduleObj = {
+    time: time,
+    type: 'built-in',
+    textType: type,
+    name: `內建語音 - ${type === 'start' ? '上課語音' : (type === 'end' ? '放學語音' : '午休語音')}`
+  };
+
+  db.push(scheduleObj);
+}
+
+// 新增排程項目（上傳音檔或網址）
+function addSchedule() {
+  const time = document.getElementById("timeInput").value;
+  if (!time) {
+    alert("請選擇時間！");
+    return;
+  }
+
+  const sourceType = document.getElementById("sourceType").value;
+
+  if (sourceType === "file") {
+    const file = document.getElementById("fileInput").files[0];
+    if (!file) {
+      alert("請選擇音檔！");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64Data = e.target.result;
+      const scheduleObj = {
+        time: time,
+        type: 'file',
+        name: file.name,
+        base64Audio: base64Data
+      };
+      db.push(scheduleObj);
+    };
+    reader.readAsDataURL(file);
+  } else if (sourceType === "url") {
+    const url = document.getElementById("urlInput").value.trim();
+    if (!url) {
+      alert("請輸入網址！");
+      return;
+    }
+
+    if (isYouTubeUrl(url)) {
+      const videoId = getYouTubeID(url);
+      if (!videoId) {
+        alert("無效的YouTube網址！");
+        return;
+      }
+      const scheduleObj = {
+        time: time,
+        type: 'youtube',
+        url: url,
+        videoId: videoId,
+        name: `YouTube影片: ${url}`
+      };
+      db.push(scheduleObj);
+    } else {
+      const scheduleObj = {
+        time: time,
+        type: 'url',
+        url: url,
+        name: `網址音訊: ${url}`
+      };
+      db.push(scheduleObj);
+    }
+  }
+}
+
+// 更新表格列表
+function renderList() {
+  const tbody = document.getElementById("scheduleList");
+  tbody.innerHTML = "";
+
+  schedules.forEach((sch, index) => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td>${sch.time}</td>
+      <td>${sch.name}</td>
+      <td><button onclick="removeSchedule('${sch.key}')">刪除</button></td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+}
+
+// 刪除
+function removeSchedule(key) {
+  db.child(key).remove();
+}
+
+// 載入 Firebase 資料並更新本地 schedules 陣列及顯示
+db.on("value", snapshot => {
+  schedules = [];
+  snapshot.forEach(child => {
+    const val = child.val();
+    val.key = child.key;
+    schedules.push(val);
+  });
+  renderList();
+});
+
+let openedYoutubeWindows = {};
+
+// 每秒檢查是否到時間播放
+setInterval(() => {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const currentTime = `${hh}:${mm}`;
+
+  schedules.forEach(sch => {
+    if (sch.time === currentTime) {
+      if (!sch.played) {
+        if (sch.type === 'built-in' && builtInTexts[sch.textType]) {
+          createVoice(builtInTexts[sch.textType]).play();
+        } else if (sch.type === 'file' && sch.base64Audio) {
+          const audio = new Audio(sch.base64Audio);
+          audio.volume = 1.0;
+          audio.play();
+        } else if (sch.type === 'youtube' && sch.url) {
+          // 開新分頁播放 YouTube 網址
+          if (!openedYoutubeWindows[sch.key] || openedYoutubeWindows[sch.key].closed) {
+            openedYoutubeWindows[sch.key] = window.open(sch.url, '_blank');
+          } else {
+            openedYoutubeWindows[sch.key].focus();
+          }
+        } else if (sch.type === 'url' && sch.url) {
+          const audio = new Audio(sch.url);
+          audio.volume = 1.0;
+          audio.play();
+        }
+        sch.played = true;
+      }
+    } else {
+      // 如果時間不符，標記未播放，且關閉開啟的 youtube 分頁(可選)
+      if (sch.type === 'youtube' && openedYoutubeWindows[sch.key] && !openedYoutubeWindows[sch.key].closed) {
+        openedYoutubeWindows[sch.key].close();
+      }
+      sch.played = false;
+    }
+  });
+}, 1000);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>老師管理</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+    .container { max-width: 1000px; margin: auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #2e7d32; }
+    .input-group { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+    .input-group input { padding: 10px; border: 1px solid #ccc; border-radius: 8px; flex: 1 1 45%; }
+    .input-group button { padding: 10px; background: #43a047; color: #fff; border: none; border-radius: 8px; cursor: pointer; flex: 1 1 100%; }
+    .student-section-container { display: flex; gap: 20px; flex-wrap: wrap; }
+    .student-section { flex: 1; min-width: 300px; }
+    .student-card { background: #fff; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 10px; display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .btn-score { padding: 5px 8px; border: none; border-radius: 6px; cursor: pointer; color: #fff; }
+    .btn-plus { background: #4caf50; } .btn-plus:hover { background: #388e3c; }
+    .btn-minus { background: #e53935; } .btn-minus:hover { background: #c62828; }
+    .btn-bar { display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap; }
+    .btn-bar button { background: #757575; color: white; padding: 10px 14px; border: none; border-radius: 8px; cursor: pointer; }
+    .btn-bar button:hover { background: #616161; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>老師管理</h1>
+    <div class="input-group">
+      <input type="number" id="seat" placeholder="座號">
+      <input type="text" id="name" placeholder="姓名">
+      <button onclick="addStudent()">新增學生</button>
+    </div>
+    <div class="student-section-container">
+      <div class="student-section"><div>1~10 號</div><div id="list1"></div></div>
+      <div class="student-section"><div>11~20 號</div><div id="list2"></div></div>
+      <div class="student-section"><div>21~30 號</div><div id="list3"></div></div>
+    </div>
+    <div class="btn-bar">
+      <button onclick="exportData()">匯出資料（CSV）</button>
+      <button onclick="document.getElementById('fileInput').click()">匯入資料（CSV）</button>
+      <button onclick="clearData()">清除所有資料</button>
+      <button onclick="goExchange()">點數兌換系統</button>
+	  <button onclick="goHomeworkInput()">新增聯絡簿</button>
+      <button onclick="goHomeworkView()">查看聯絡簿</button>
+      <button onclick="logout()">登出</button>
+    </div>
+    <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="importData(event)">
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    if (localStorage.getItem("adminLogin") !== "true") {
+      alert("請先登入");
+      location.href = "login.html";
+    }
+
+    function logout() {
+      localStorage.removeItem("adminLogin");
+      location.href = "login.html";
+    }
+	function goHomeworkInput() {
+      location.href = "homework_input.html";
+    }
+
+    function goHomeworkView() {
+      location.href = "homework.html";
+    }
+
+
+    function goExchange() {
+      location.href = "exchange.html";
+    }
+
+    function addStudent() {
+      const seat = document.getElementById("seat").value.trim();
+      const name = document.getElementById("name").value.trim();
+      if (seat && name) {
+        const newRef = db.ref("students").push();
+        newRef.set({ seat: parseInt(seat), name, score: 0, password: "8010865" });
+        alert(`已新增學生 ${name} (${seat}號)，初始密碼：8010865`);
+        document.getElementById("seat").value = "";
+        document.getElementById("name").value = "";
+      } else {
+        alert("請輸入座號和姓名！");
+      }
+    }
+
+    function loadStudents() {
+      db.ref("students").on("value", snapshot => {
+        ["list1", "list2", "list3"].forEach(id => document.getElementById(id).innerHTML = "");
+        const data = snapshot.val();
+        if (!data) return;
+        const arr = Object.entries(data).map(([id, s]) => ({ id, ...s }));
+        arr.sort((a, b) => a.seat - b.seat);
+        arr.forEach(s => {
+          const card = document.createElement("div");
+          card.className = "student-card";
+          card.innerHTML = `
+            <div>${s.name} (${s.seat}號)</div>
+            <div>${s.score}</div>
+            <div>
+              <button class="btn-score btn-plus" onclick="changeScore('${s.id}', ${s.score}, 1)">+1</button>
+              <button class="btn-score btn-minus" onclick="changeScore('${s.id}', ${s.score}, -1)">-1</button>
+            </div>
+          `;
+          if (s.seat <= 10) document.getElementById("list1").appendChild(card);
+          else if (s.seat <= 20) document.getElementById("list2").appendChild(card);
+          else document.getElementById("list3").appendChild(card);
+        });
+      });
+    }
+
+    function changeScore(id, current, delta) {
+      db.ref("students/" + id).update({ score: current + delta });
+    }
+
+    function clearData() {
+      if (confirm("確定要清除所有資料嗎？")) {
+        db.ref("students").remove();
+      }
+    }
+
+    function exportData() {
+      db.ref("students").once("value").then(snapshot => {
+        const data = snapshot.val();
+        if (!data) { alert("沒有資料可匯出！"); return; }
+        let csv = "座號,姓名,分數\n";
+        Object.values(data).sort((a, b) => a.seat - b.seat).forEach(s => {
+          csv += `${s.seat},${s.name},${s.score}\n`;
+        });
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "students.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const lines = e.target.result.split('\n').map(line => line.trim()).filter(line => line);
+        if (lines.length < 2) {
+          alert("CSV 格式錯誤！");
+          return;
+        }
+        const header = lines[0].split(',');
+        if (header[0] !== "座號" || header[1] !== "姓名" || header[2] !== "分數") {
+          alert("CSV 標題必須是：座號,姓名,分數");
+          return;
+        }
+        const updates = {};
+        for (let i = 1; i < lines.length; i++) {
+          const [seatStr, name, scoreStr] = lines[i].split(',');
+          const seat = parseInt(seatStr);
+          const score = parseInt(scoreStr);
+          const newRef = db.ref("students").push();
+          updates[newRef.key] = { seat, name, score, password: "8010865" };
+        }
+        db.ref("students").set(updates);
+        alert("資料已匯入！");
+      };
+      reader.readAsText(file, 'utf-8');
+    }
+
+    loadStudents();
+  </script>
+</body>
+</html>

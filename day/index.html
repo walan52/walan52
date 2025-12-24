@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>待辦月曆</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f0f0f0;
+      padding: 20px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .month-btn {
+      font-size: 1.2em;
+      cursor: pointer;
+      padding: 5px 12px;
+    }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+    }
+    .weekday {
+      text-align: center;
+      font-weight: bold;
+      padding: 5px 0;
+      background: #ddd;
+      border-radius: 4px;
+    }
+    .day {
+      background: #fff;
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      transition: background 0.3s;
+    }
+    .day:hover {
+      background: #e0f7fa;
+    }
+    .today {
+      background-color: #cceeff !important;
+      border: 2px solid #2196f3;
+    }
+    .date-num {
+      font-size: 1em;
+      font-weight: bold;
+      margin-bottom: 5px;
+      text-align: right;
+    }
+    .todo-list {
+      font-size: 0.85em;
+      color: #d32f2f;
+      margin-left: 5px;
+      padding-left: 10px;
+      line-height: 1.3em;
+    }
+    .todo-list li {
+      list-style-type: "📌 ";
+      margin-bottom: 2px;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <button class="month-btn" onclick="changeMonth(-1)">← 上月</button>
+    <h2 id="monthTitle"></h2>
+    <button class="month-btn" onclick="changeMonth(1)">下月 →</button>
+  </div>
+
+  <div class="calendar" id="weekdayRow">
+    <div class="weekday">日</div>
+    <div class="weekday">一</div>
+    <div class="weekday">二</div>
+    <div class="weekday">三</div>
+    <div class="weekday">四</div>
+    <div class="weekday">五</div>
+    <div class="weekday">六</div>
+  </div>
+
+  <div class="calendar" id="calendar"></div>
+
+  <script>
+    // Firebase 初始化
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let current = new Date();
+
+    async function renderCalendar() {
+      const year = current.getFullYear();
+      const month = current.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const calendar = document.getElementById('calendar');
+      const monthTitle = document.getElementById('monthTitle');
+
+      calendar.innerHTML = '';
+      monthTitle.textContent = `${year} 年 ${month + 1} 月`;
+
+      // 開頭空白補齊
+      for (let i = 0; i < firstDay.getDay(); i++) {
+        const empty = document.createElement('div');
+        calendar.appendChild(empty);
+      }
+
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      for (let d = 1; d <= lastDay.getDate(); d++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+        const todos = await fetchTodos(dateStr);
+
+        const dayBox = document.createElement('div');
+        dayBox.className = 'day';
+        if (dateStr === todayStr) {
+          dayBox.classList.add('today');
+        }
+
+        const dateLabel = document.createElement('div');
+        dateLabel.className = 'date-num';
+        dateLabel.textContent = d;
+
+        const todoList = document.createElement('ul');
+        todoList.className = 'todo-list';
+
+        if (todos.length > 0) {
+          todos.forEach(todo => {
+            const li = document.createElement('li');
+            li.textContent = todo;
+            todoList.appendChild(li);
+          });
+        } else {
+          const li = document.createElement('li');
+          li.textContent = '';
+          li.style.listStyle = 'none';
+          todoList.appendChild(li);
+        }
+
+        dayBox.appendChild(dateLabel);
+        dayBox.appendChild(todoList);
+        dayBox.addEventListener('click', () => {
+          window.location.href = `todo.html?date=${dateStr}`;
+        });
+
+        calendar.appendChild(dayBox);
+      }
+    }
+
+    function changeMonth(offset) {
+      current.setMonth(current.getMonth() + offset);
+      renderCalendar();
+    }
+
+    function fetchTodos(dateStr) {
+      return db.ref(`todos/${dateStr}`).once('value').then(snapshot => {
+        const data = snapshot.val();
+        return data ? Object.values(data) : [];
+      });
+    }
+
+    renderCalendar();
+  </script>
+</body>
+</html>

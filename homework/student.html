@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>學生查詢積欠作業</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #eef2f5;
+      padding: 20px;
+    }
+    h2 {
+      color: #333;
+    }
+    input, button {
+      padding: 8px;
+      margin: 5px;
+      border-radius: 5px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+    }
+    th, td {
+      border: 1px solid #aaa;
+      padding: 10px;
+      text-align: center;
+    }
+    th {
+      background: #ddd;
+    }
+    #recordTable {
+      display: none;
+    }
+    #changePasswordDiv {
+      display: none;
+      margin-top: 20px;
+      background: #fff;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      max-width: 400px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>學生查詢積欠作業</h2>
+
+  <div id="loginDiv">
+    <label>座號：<input type="text" id="stuNo" /></label><br>
+    <label>密碼：<input type="password" id="stuPass" /></label><br>
+    <button onclick="studentLogin()">登入</button>
+    <button onclick="showChangePassword()">修改密碼</button>
+  </div>
+
+  <div id="changePasswordDiv">
+    <h3>修改密碼</h3>
+    <label>座號：<input type="text" id="changeNo" /></label><br>
+    <label>舊密碼：<input type="password" id="oldPass" /></label><br>
+    <label>新密碼：<input type="password" id="newPass" /></label><br>
+    <button onclick="changePassword()">確認修改</button>
+    <button onclick="hideChangePassword()">取消</button>
+  </div>
+
+  <div id="recordDiv" style="display:none;">
+    <h3 id="studentTitle"></h3>
+    <button onclick="logout()" style="background-color: #f44336;">登出</button>
+    <table id="recordTable">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>科目</th>
+          <th>頁數</th>
+        </tr>
+      </thead>
+      <tbody id="recordBody"></tbody>
+    </table>
+    <p id="noRecordMsg" style="color:red;"></p>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBvjO6-SZG0TXny9RNowA7e7rRdK1Z58oE",
+      authDomain: "water-7b4fe.firebaseapp.com",
+      projectId: "water-7b4fe",
+      storageBucket: "water-7b4fe.appspot.com",
+      messagingSenderId: "66478103908",
+      appId: "1:66478103908:web:2e6b82f27e536181666e71",
+      databaseURL: "https://water-7b4fe-default-rtdb.firebaseio.com"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function studentLogin() {
+      const stuNo = document.getElementById("stuNo").value.trim();
+      const stuPass = document.getElementById("stuPass").value.trim();
+
+      db.ref("students/" + stuNo).once("value", snapshot => {
+        const student = snapshot.val();
+        const realPass = student?.password || "test";
+
+        if (!student) {
+          alert("找不到學生座號！");
+          return;
+        }
+
+        if (stuPass !== realPass) {
+          alert("密碼錯誤！");
+          return;
+        }
+
+        document.getElementById("loginDiv").style.display = "none";
+        document.getElementById("recordDiv").style.display = "block";
+        document.getElementById("studentTitle").innerText = `座號：${stuNo}　姓名：${student.name}`;
+
+        db.ref("records").once("value", snap => {
+          let hasRecord = false;
+          const tbody = document.getElementById("recordBody");
+          tbody.innerHTML = "";
+
+          snap.forEach(child => {
+            const data = child.val();
+            if (data.no === stuNo) {
+              hasRecord = true;
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                <td>${data.date || ""}</td>
+                <td>${data.subject || ""}</td>
+                <td>${data.page || ""}</td>
+              `;
+              tbody.appendChild(tr);
+            }
+          });
+
+          if (hasRecord) {
+            document.getElementById("recordTable").style.display = "table";
+            document.getElementById("noRecordMsg").innerText = "";
+          } else {
+            document.getElementById("recordTable").style.display = "none";
+            document.getElementById("noRecordMsg").innerText = "沒有積欠作業。";
+          }
+        });
+      });
+    }
+
+    function showChangePassword() {
+      document.getElementById("changePasswordDiv").style.display = "block";
+    }
+
+    function hideChangePassword() {
+      document.getElementById("changePasswordDiv").style.display = "none";
+    }
+
+    function changePassword() {
+      const no = document.getElementById("changeNo").value.trim();
+      const oldPass = document.getElementById("oldPass").value.trim();
+      const newPass = document.getElementById("newPass").value.trim();
+
+      if (!no || !oldPass || !newPass) {
+        alert("請完整填寫所有欄位！");
+        return;
+      }
+
+      db.ref("students/" + no).once("value", snapshot => {
+        const student = snapshot.val();
+        const realPass = student?.password || "test";
+
+        if (!student) {
+          alert("找不到學生座號！");
+          return;
+        }
+
+        if (oldPass !== realPass) {
+          alert("舊密碼錯誤！");
+          return;
+        }
+
+        db.ref("students/" + no + "/password").set(newPass, (error) => {
+          if (error) {
+            alert("密碼修改失敗！");
+          } else {
+            alert("密碼修改成功！");
+            hideChangePassword();
+          }
+        });
+      });
+    }
+
+    function logout() {
+      document.getElementById("recordDiv").style.display = "none";
+      document.getElementById("loginDiv").style.display = "block";
+      document.getElementById("stuNo").value = "";
+      document.getElementById("stuPass").value = "";
+      document.getElementById("recordBody").innerHTML = "";
+      document.getElementById("recordTable").style.display = "none";
+      document.getElementById("noRecordMsg").innerText = "";
+      document.getElementById("studentTitle").innerText = "";
+    }
+  </script>
+
+</body>
+</html>

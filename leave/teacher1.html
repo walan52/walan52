@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>老師請假資料管理</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #eef; }
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    button {
+      background: red; color: white; border: none; padding: 5px 10px; border-radius: 5px;
+    }
+    #loginForm { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 5px rgba(0,0,0,0.1); width: 300px; margin: 0 auto; }
+    #leaveList { display: none; }
+  </style>
+</head>
+<body>
+  <h2>老師請假資料管理</h2>
+
+  <div id="loginForm">
+    <h3>請先登入</h3>
+    <input type="text" id="username" placeholder="帳號"><br><br>
+    <input type="password" id="password" placeholder="密碼"><br><br>
+    <button onclick="login()">登入</button>
+    <p id="loginError" style="color:red;"></p>
+  </div>
+
+  <div id="leaveList"></div>
+
+  <script>
+    // Firebase 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const leaveList = document.getElementById('leaveList');
+
+    // 登入驗證
+    function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const loginError = document.getElementById('loginError');
+
+      if (username === 'walan52' && password === 'source88') {
+        document.getElementById('loginForm').style.display = 'none';
+        leaveList.style.display = 'block';
+        loadLeaves();
+      } else {
+        loginError.textContent = "帳號或密碼錯誤，請重試。";
+      }
+    }
+
+    // 顯示資料
+    function loadLeaves() {
+      db.ref('leaves').on('value', snapshot => {
+        leaveList.innerHTML = '';
+        snapshot.forEach(child => {
+          const data = child.val();
+          const key = child.key;
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `
+            <p><strong>姓名：</strong>${data.name}</p>
+            <p><strong>起始日期：</strong>${data.startDate}</p>
+            ${data.endDate ? `<p><strong>結束日期：</strong>${data.endDate}</p>` : ''}
+            <p><strong>事由：</strong>${data.reason}</p>
+            <button onclick="deleteLeave('${key}')">刪除</button>
+          `;
+          leaveList.appendChild(card);
+        });
+      });
+    }
+
+    function deleteLeave(key) {
+      if (confirm("確定要刪除這筆資料嗎？")) {
+        db.ref('leaves/' + key).remove();
+      }
+    }
+  </script>
+</body>
+</html>

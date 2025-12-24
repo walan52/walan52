@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>學生兌換紀錄</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+    .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #2e7d32; }
+    #clearAllBtn {
+      display: block;
+      margin: 10px auto 20px auto;
+      background-color: #d32f2f;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #clearAllBtn:hover {
+      background-color: #b71c1c;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #e8f5e9; }
+    button.delete-btn {
+      background-color: #e53935;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button.delete-btn:hover {
+      background-color: #c62828;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>學生兌換紀錄</h1>
+    <button id="clearAllBtn" onclick="clearAllRecords()">刪除所有紀錄</button>
+    <table>
+      <thead>
+        <tr>
+          <th>學生姓名</th>
+          <th>兌換品項</th>
+          <th>兌換時間</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="recordList"></tbody>
+    </table>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function loadRecords() {
+      const list = document.getElementById("recordList");
+      list.innerHTML = "";
+
+      db.ref("exchange_records").once("value").then(snapshot => {
+        const data = snapshot.val();
+        if (!data) {
+          list.innerHTML = "<tr><td colspan='4'>目前沒有兌換紀錄</td></tr>";
+          return;
+        }
+
+        Object.entries(data).forEach(([key, record]) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${record.studentName || "未知"}</td>
+            <td>${record.itemName || "未知"}</td>
+            <td>${record.timestamp ? new Date(record.timestamp).toLocaleString() : "未知"}</td>
+            <td><button class="delete-btn" onclick="deleteRecord('${key}')">刪除</button></td>
+          `;
+          list.appendChild(tr);
+        });
+      });
+    }
+
+    function deleteRecord(key) {
+      if (confirm("確定要刪除此筆兌換紀錄嗎？")) {
+        db.ref("exchange_records/" + key).remove()
+          .then(() => {
+            alert("刪除成功！");
+            loadRecords();
+          })
+          .catch(error => {
+            alert("刪除失敗：" + error.message);
+          });
+      }
+    }
+
+    function clearAllRecords() {
+      if (confirm("確定要刪除所有兌換紀錄嗎？此動作無法復原！")) {
+        db.ref("exchange_records").remove()
+          .then(() => {
+            alert("所有紀錄已刪除！");
+            loadRecords();
+          })
+          .catch(error => {
+            alert("刪除失敗：" + error.message);
+          });
+      }
+    }
+
+    loadRecords();
+  </script>
+</body>
+</html>

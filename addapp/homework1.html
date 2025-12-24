@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>聯絡簿紀錄</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+    .container {
+  max-width: 100%;  /* 原本可能是 800px，可調更寬 */
+  margin: auto;
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+
+.content {
+  font-size: 72px;
+  line-height: 1.4em;
+  word-break: break-word;
+  white-space: pre-wrap;  /* 保留換行 */
+}
+
+    .date { font-size: 0.9em; color: #757575; margin-top: 8px; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>聯絡簿紀錄</h1>
+    <div id="list"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    db.ref("homeworks").once("value").then(snapshot => {
+      const data = snapshot.val();
+      const list = document.getElementById("list");
+      if (!data) {
+        list.innerHTML = "<div>目前沒有聯絡簿紀錄。</div>";
+        return;
+      }
+      Object.values(data).reverse().forEach(r => {
+        const div = document.createElement("div");
+        div.className = "record";
+        div.innerHTML = `<div class="content">${r.content}</div><div class="date">${r.date}</div>`;
+        list.appendChild(div);
+      });
+    });
+  </script>
+</body>
+</html>

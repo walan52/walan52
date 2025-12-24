@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>班費收支瀏覽頁面</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1, h2 { margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background-color: #f0f0f0; }
+    #totalBalance { font-size: 1.2em; margin-top: 20px; font-weight: bold; }
+  </style>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+</head>
+<body>
+  <h1>班費收支瀏覽頁面</h1>
+  
+  <div>
+    <h2>班費總額與剩餘餘額</h2>
+    <div id="totalBalance">載入中...</div>
+  </div>
+
+  <div>
+    <h2>收支記錄</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>項目</th>
+          <th>單價</th>
+          <th>數量</th>
+          <th>金額</th>
+        </tr>
+      </thead>
+      <tbody id="recordTable">
+        <tr><td colspan="5">載入中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+<script>
+  // Firebase config (請用你自己的 Firebase 專案設定)
+  const firebaseConfig = {
+    apiKey: "AIzaSyBIZByjsGNwP949OSVsyi7-PjU7Cpz-gzI",
+    authDomain: "student-score-app-6cca6.firebaseapp.com",
+    databaseURL: "https://student-score-app-6cca6-default-rtdb.firebaseio.com",
+    projectId: "student-score-app-6cca6",
+    storageBucket: "student-score-app-6cca6.firebasestorage.app",
+    messagingSenderId: "887092013369",
+    appId: "1:887092013369:web:42abc19c8cacca737b20e8",
+    measurementId: "G-8SREJH2ER3"
+  };
+
+  // 初始化 Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  let initialTotal = 0;
+  let records = [];
+
+  function render() {
+    const table = document.getElementById('recordTable');
+    table.innerHTML = '';
+    let total = initialTotal;
+
+    if(records.length === 0) {
+      table.innerHTML = '<tr><td colspan="5">尚無資料</td></tr>';
+    } else {
+      records.forEach(r => {
+        total -= r.amount;
+        const displayPrice = (r.price === 0) ? '' : r.price;
+        const displayQty = (r.qty === 1) ? '' : r.qty;
+        const row = `
+          <tr>
+            <td>${r.date}</td>
+            <td>${r.item}</td>
+            <td>${displayPrice}</td>
+            <td>${displayQty}</td>
+            <td>${r.amount}</td>
+          </tr>`;
+        table.innerHTML += row;
+      });
+    }
+
+    const totalDiv = document.getElementById('totalBalance');
+    totalDiv.innerText = total >= 0 ? 
+      `班費總額：${initialTotal} 元，剩餘餘額：${total} 元` : 
+      `班費總額：${initialTotal} 元，餘額不足：${total} 元`;
+  }
+
+  // 監聽 Firebase 資料
+  db.ref('classFee/initialTotal').on('value', snapshot => {
+    const val = snapshot.val();
+    if (val !== null) {
+      initialTotal = val;
+      render();
+    }
+  });
+
+  db.ref('classFee/records').on('value', snapshot => {
+    const val = snapshot.val();
+    records = val ? val : [];
+    render();
+  });
+
+</script>
+</body>
+</html>

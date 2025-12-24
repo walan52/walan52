@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>教師登入</title>
+  <style>
+    body {
+      font-family: "微軟正黑體";
+      background: #eef;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .box {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      width: 320px;
+      text-align: center;
+    }
+    h2 {
+      margin-bottom: 20px;
+      color: #2c3e50;
+    }
+    input {
+      width: 90%;
+      padding: 10px;
+      font-size: 18px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      width: 95%;
+      padding: 10px;
+      background: #27ae60;
+      color: white;
+      border: none;
+      font-size: 18px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1e8449;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>教師登入</h2>
+    <input id="acc" placeholder="帳號" />
+    <input id="pwd" type="password" placeholder="密碼" />
+    <button onclick="login()">登入</button>
+  </div>
+
+  <script>
+    function login() {
+      const acc = document.getElementById("acc").value.trim();
+      const pwd = document.getElementById("pwd").value.trim();
+
+      if (acc === "walan52" && pwd === "source88") {
+        localStorage.setItem("teacherLogin", "yes");
+        window.location.href = "teacher.html";
+      } else {
+        alert("帳號或密碼錯誤！");
+      }
+    }
+  </script>
+</body>
+</html>

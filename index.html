@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>分組網頁連結管理</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f0f8ff; }
+    input, button { padding: 6px; margin: 5px; }
+    .group-block { border: 1px solid #ccc; margin: 10px 0; padding: 10px; background: #fff; }
+    .group-title { font-weight: bold; font-size: 18px; margin-bottom: 5px; }
+    .link-item { margin: 4px 0; }
+    .link-item a { color: blue; text-decoration: underline; margin-right: 10px; }
+    .link-item button { background: red; color: white; border: none; padding: 4px 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <h2>新增網頁連結（可分組）</h2>
+  
+  <label>分組名稱：</label>
+  <input type="text" id="groupName" placeholder="例如：搜尋引擎">
+  <label>網頁名稱：</label>
+  <input type="text" id="siteName" placeholder="例如：Google">
+  <label>連結網址：</label>
+  <input type="text" id="siteURL" placeholder="例如：https://www.google.com">
+  <button onclick="addLink()">新增</button>
+
+  <h3>分類連結清單：</h3>
+  <div id="groupContainer"></div>
+
+  <script>
+    // 初始化 Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const groupContainer = document.getElementById('groupContainer');
+
+    function addLink() {
+      const group = document.getElementById('groupName').value.trim();
+      const name = document.getElementById('siteName').value.trim();
+      const url = document.getElementById('siteURL').value.trim();
+
+      if (!group || !name || !url) {
+        alert('請輸入完整資料（分組、名稱、網址）');
+        return;
+      }
+
+      const fullUrl = url.startsWith('http://') || url.startsWith('https://') ? url : 'https://' + url;
+
+      const newRef = db.ref('links').push();
+      newRef.set({
+        group: group,
+        name: name,
+        url: fullUrl
+      });
+
+      // 清空欄位
+      document.getElementById('groupName').value = '';
+      document.getElementById('siteName').value = '';
+      document.getElementById('siteURL').value = '';
+    }
+
+    // 監聽資料變化
+    db.ref('links').on('value', snapshot => {
+      groupContainer.innerHTML = '';
+      const dataByGroup = {};
+
+      snapshot.forEach(child => {
+        const data = child.val();
+        const key = child.key;
+
+        if (!dataByGroup[data.group]) {
+          dataByGroup[data.group] = [];
+        }
+
+        dataByGroup[data.group].push({ ...data, key });
+      });
+
+      // 動態產生各組內容
+      for (const group in dataByGroup) {
+        const groupBlock = document.createElement('div');
+        groupBlock.className = 'group-block';
+
+        const title = document.createElement('div');
+        title.className = 'group-title';
+        title.textContent = group;
+        groupBlock.appendChild(title);
+
+        dataByGroup[group].forEach(link => {
+          const item = document.createElement('div');
+          item.className = 'link-item';
+
+          const a = document.createElement('a');
+          a.href = link.url;
+          a.textContent = link.name;
+          a.target = '_blank';
+
+          const delBtn = document.createElement('button');
+          delBtn.textContent = '刪除';
+          delBtn.onclick = () => {
+            if (confirm(`確定要刪除「${link.name}」？`)) {
+              db.ref('links/' + link.key).remove();
+            }
+          };
+
+          item.appendChild(a);
+          item.appendChild(delBtn);
+          groupBlock.appendChild(item);
+        });
+
+        groupContainer.appendChild(groupBlock);
+      }
+    });
+  </script>
+
+</body>
+</html>

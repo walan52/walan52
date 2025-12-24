@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>學生行為表現系統</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+    th, td { border: 1px solid #999; padding: 6px; text-align: center; cursor: pointer; }
+    th { background: #f0f0f0; }
+    button { margin: 2px; }
+    .delete-btn { font-size: 10px; color: red; cursor: pointer; border: none; background: none; }
+    #mainDiv { display:none; }
+    #loginDiv { max-width: 300px; margin: auto; border: 1px solid #ccc; padding: 20px; border-radius: 6px; }
+    .count0 { background-color: #eee; }
+    .count1 { background-color: #fbb; }
+    .count2 { background-color: #ff9; }
+    .count3 { background-color: #9f9; }
+  </style>
+</head>
+<body>
+  <h2>學生行為表現系統</h2>
+
+  <!-- 登入區 -->
+  <div id="loginDiv">
+    <h3>老師登入</h3>
+    <label>帳號：<input type="text" id="username"></label><br><br>
+    <label>密碼：<input type="password" id="password"></label><br><br>
+    <button onclick="login()">登入</button>
+    <p id="loginMsg" style="color:red"></p>
+  </div>
+
+  <!-- 主系統 -->
+  <div id="mainDiv">
+    <input type="file" id="fileInput" accept=".csv">
+    <button onclick="addBehavior()">新增行為項目</button>
+    <input type="text" id="behaviorInput" placeholder="輸入行為名稱">
+    <button onclick="exportCSV()">匯出紀錄</button>
+    <button onclick="clearAllBehaviors()">清除所有行為次數</button>
+    <br>
+    <table id="studentTable">
+      <thead>
+        <tr id="headerRow">
+          <th>座號</th>
+          <th>姓名</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="studentBody"></tbody>
+    </table>
+  </div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyBvjO6-SZG0TXny9RNowA7e7rRdK1Z58oE",
+    authDomain: "water-7b4fe.firebaseapp.com",
+    databaseURL: "https://water-7b4fe-default-rtdb.firebaseio.com",
+    projectId: "water-7b4fe",
+    storageBucket: "water-7b4fe.firebasestorage.app",
+    messagingSenderId: "66478103908",
+    appId: "1:66478103908:web:2e6b82f27e536181666e71"
+  };
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const studentTableBody = document.getElementById("studentBody");
+  const headerRow = document.getElementById("headerRow");
+
+  function login() {
+    const user = document.getElementById("username").value.trim();
+    const pwd = document.getElementById("password").value.trim();
+    if (user === "walan52" && pwd === "source88") {
+      document.getElementById("loginDiv").style.display = "none";
+      document.getElementById("mainDiv").style.display = "block";
+    } else {
+      document.getElementById("loginMsg").innerText = "帳號或密碼錯誤！";
+    }
+  }
+
+  // 匯入 CSV 學生名單
+  document.getElementById("fileInput").addEventListener("change", function(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const rows = e.target.result.split("\n").map(r => r.split(","));
+      rows.forEach(([id, name]) => {
+        if (id && name) {
+          const studentRef = db.ref("students/" + id.trim());
+          studentRef.once("value", snapshot => {
+            if (!snapshot.exists()) {
+              studentRef.set({ id: id.trim(), name: name.trim() });
+            }
+          });
+        }
+      });
+    };
+    reader.readAsText(file);
+  });
+
+  // 新增行為項目
+  function addBehavior() {
+    const behavior = document.getElementById("behaviorInput").value.trim();
+    if (!behavior) return;
+    db.ref("behaviors/" + behavior).set(true);
+    document.getElementById("behaviorInput").value = "";
+  }
+
+  // 次數循環 0 → 1 → 2 → 3 → 0
+  function toggleStatus(studentId, behavior, currentValue) {
+    let newCount = (parseInt(currentValue) || 0) + 1;
+    if (newCount > 3) newCount = 0;
+    db.ref(`students/${studentId}/behaviors/${behavior}`).set(newCount);
+  }
+
+  function deleteStudent(id) {
+    if (confirm("確定要刪除這位學生嗎？")) {
+      db.ref("students/" + id).remove();
+    }
+  }
+
+  function deleteBehavior(name) {
+    if (confirm(`確定要刪除行為「${name}」嗎？`)) {
+      db.ref("behaviors/" + name).remove();
+      db.ref("students").once("value", snapshot => {
+        const students = snapshot.val() || {};
+        Object.keys(students).forEach(id => {
+          db.ref(`students/${id}/behaviors/${name}`).remove();
+        });
+      });
+    }
+  }
+
+  function exportCSV() {
+    db.ref("students").once("value", snapshot => {
+      const students = snapshot.val();
+      if (!students) return;
+
+      const headers = ["座號","姓名"];
+      const behaviors = [];
+      headerRow.querySelectorAll("th").forEach((th, idx) => {
+        if (idx > 2) behaviors.push(th.textContent.replace("刪除","").trim());
+      });
+      headers.push(...behaviors);
+
+      let csvContent = headers.join(",") + "\n";
+      Object.values(students).forEach(student => {
+        const row = [student.id, student.name];
+        behaviors.forEach(b => {
+          row.push(student.behaviors && student.behaviors[b] ? student.behaviors[b] : "0");
+        });
+        csvContent += row.join(",") + "\n";
+      });
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "行為紀錄.csv";
+      a.click();
+    });
+  }
+
+  function clearAllBehaviors() {
+    if (confirm("確定要清除所有學生的行為次數嗎？\n（保留學生名單與行為項目）")) {
+      db.ref("students").once("value", snapshot => {
+        const students = snapshot.val() || {};
+        Object.keys(students).forEach(id => {
+          db.ref(`students/${id}/behaviors`).set({});
+        });
+      });
+      alert("所有行為次數已清除！");
+    }
+  }
+
+  // 更新表格
+  db.ref("behaviors").on("value", snapshot => {
+    const behaviors = snapshot.val() || {};
+    headerRow.innerHTML = "<th>座號</th><th>姓名</th><th>操作</th>";
+    Object.keys(behaviors).forEach(b => {
+      const th = document.createElement("th");
+      th.innerHTML = `${b} <button class="delete-btn" onclick="deleteBehavior('${b}')">刪除</button>`;
+      headerRow.appendChild(th);
+    });
+  });
+
+  db.ref("students").on("value", snapshot => {
+    const students = snapshot.val() || {};
+    studentTableBody.innerHTML = "";
+    db.ref("behaviors").once("value", snap => {
+      const behaviors = snap.val() || {};
+      Object.values(students).forEach(student => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${student.id}</td><td>${student.name}</td>
+          <td><button onclick="deleteStudent('${student.id}')">刪除</button></td>`;
+        Object.keys(behaviors).forEach(b => {
+          const count = student.behaviors && student.behaviors[b] ? student.behaviors[b] : 0;
+          const td = document.createElement("td");
+          td.textContent = count;
+          td.className = `count${count}`;
+          td.onclick = () => toggleStatus(student.id, b, count);
+          tr.appendChild(td);
+        });
+        studentTableBody.appendChild(tr);
+      });
+    });
+  });
+</script>
+</body>
+</html>

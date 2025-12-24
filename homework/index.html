@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>登入</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    #changePasswordSection {
+      display: none;
+      margin-top: 20px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      max-width: 300px;
+    }
+    #changePasswordSection input {
+      display: block;
+      margin-bottom: 10px;
+      width: 100%;
+      padding: 5px;
+    }
+    #changePasswordSection button {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>登入系統</h2>
+  <input id="account" placeholder="帳號" />
+  <input id="password" type="password" placeholder="密碼" />
+  <button onclick="login()">登入</button>
+  <button onclick="showChangePassword()">修改密碼</button>
+
+  <div id="changePasswordSection">
+    <h3>修改密碼</h3>
+    <input id="oldPassword" type="password" placeholder="舊密碼" />
+    <input id="newPassword" type="password" placeholder="新密碼" />
+    <input id="confirmPassword" type="password" placeholder="確認新密碼" />
+    <button onclick="changePassword()">確認修改</button>
+    <button onclick="hideChangePassword()">取消</button>
+  </div>
+
+  <script>
+    // ✅ Firebase 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyBvjO6-SZG0TXny9RNowA7e7rRdK1Z58oE",
+      authDomain: "water-7b4fe.firebaseapp.com",
+      projectId: "water-7b4fe",
+      storageBucket: "water-7b4fe.firebasestorage.app",
+      messagingSenderId: "66478103908",
+      appId: "1:66478103908:web:2e6b82f27e536181666e71",
+      databaseURL: "https://water-7b4fe-default-rtdb.firebaseio.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ✅ 第一次載入時寫入預設帳號密碼（若不存在）
+    db.ref("accounts/test").once("value").then((snapshot) => {
+      if (!snapshot.exists()) {
+        db.ref("accounts/test").set({ password: "test" });
+        console.log("已寫入預設帳號 test");
+      }
+    });
+
+    async function login() {
+      const account = document.getElementById("account").value.trim();
+      const password = document.getElementById("password").value;
+
+      if (!account || !password) {
+        alert("請輸入帳號與密碼！");
+        return;
+      }
+
+      // 教師登入驗證
+      const snapshot = await db.ref("accounts/" + account).get();
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        if (data.password === password) {
+          localStorage.setItem("studentNo", account);
+          alert("老師登入成功！");
+          window.location.href = "teacher.html";
+          return;
+        }
+      }
+
+      // 學生登入驗證（密碼固定）
+      if (password === "3892919") {
+        localStorage.setItem("studentNo", account);
+        alert("學生登入成功！");
+        window.location.href = "student.html";
+      } else {
+        alert("帳密錯誤！");
+      }
+    }
+
+    function showChangePassword() {
+      document.getElementById("changePasswordSection").style.display = "block";
+    }
+
+    function hideChangePassword() {
+      document.getElementById("changePasswordSection").style.display = "none";
+      document.getElementById("oldPassword").value = "";
+      document.getElementById("newPassword").value = "";
+      document.getElementById("confirmPassword").value = "";
+    }
+
+    async function changePassword() {
+      const account = document.getElementById("account").value.trim();
+      const oldPw = document.getElementById("oldPassword").value;
+      const newPw = document.getElementById("newPassword").value;
+      const confirmPw = document.getElementById("confirmPassword").value;
+
+      if (!account) {
+        alert("請先輸入帳號！");
+        return;
+      }
+      if (!oldPw || !newPw || !confirmPw) {
+        alert("請完整填寫所有欄位！");
+        return;
+      }
+
+      const snapshot = await db.ref("accounts/" + account).get();
+      if (!snapshot.exists()) {
+        alert("帳號不存在！");
+        return;
+      }
+      const data = snapshot.val();
+      if (data.password !== oldPw) {
+        alert("舊密碼錯誤！");
+        return;
+      }
+      if (newPw !== confirmPw) {
+        alert("新密碼與確認密碼不一致！");
+        return;
+      }
+      if (newPw.length < 4) {
+        alert("密碼長度至少 4 碼！");
+        return;
+      }
+
+      await db.ref("accounts/" + account).update({ password: newPw });
+      alert("密碼修改成功！");
+      hideChangePassword();
+    }
+  </script>
+</body>
+</html>

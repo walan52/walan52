@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<title>多筆定時播放音檔（含網址與YouTube音檔，音量最大）</title>
+
+<style>
+  body {
+    font-family: Arial;
+    text-align: center;
+    padding: 30px;
+  }
+  input, button, select {
+    font-size: 18px;
+    padding: 8px;
+    margin: 5px;
+  }
+  table {
+    margin: 20px auto;
+    border-collapse: collapse;
+    width: 90%;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    font-size: 18px;
+  }
+</style>
+</head>
+<body>
+
+<h2>⏰ 多筆定時播放音檔（含內建語音，網址與YouTube支援）</h2>
+
+<!-- 🔊 音效啟用（關鍵） -->
+<button id="enableSoundBtn" onclick="enableSound()">🔊 啟用音效（請先點一次）</button>
+<p id="soundStatus" style="color:red;">尚未啟用音效</p>
+
+<hr>
+
+<input type="time" id="timeInput" />
+
+<select id="sourceType">
+  <option value="file">上傳音檔</option>
+  <option value="url">音訊網址</option>
+</select>
+
+<input type="file" id="fileInput" accept="audio/*" />
+<input type="text" id="urlInput" placeholder="請輸入音訊或 YouTube 網址" style="display:none;width:320px;">
+
+<button onclick="addSchedule()">新增</button>
+
+<br><br>
+
+<button onclick="addBuiltInVoice('start')">➕ 上課語音</button>
+<button onclick="addBuiltInVoice('end')">➕ 放學語音</button>
+<button onclick="addBuiltInVoice('nap')">➕ 午休語音</button>
+<button onclick="addBuiltInVoice('flag')">➕ 升旗語音</button>
+
+<h3>目前設定</h3>
+<table>
+<thead>
+<tr>
+<th>時間</th>
+<th>內容</th>
+<th>操作</th>
+</tr>
+</thead>
+<tbody id="scheduleList"></tbody>
+</table>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<script>
+// ================= 音效解鎖（關鍵） =================
+let audioUnlocked = false;
+let audioContext;
+
+function enableSound() {
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  audioContext.resume().then(() => {
+    audioUnlocked = true;
+    document.getElementById("soundStatus").innerText = "✅ 音效已啟用";
+    document.getElementById("soundStatus").style.color = "green";
+  });
+}
+
+// ================= Firebase =================
+firebase.initializeApp({
+  apiKey: "AIzaSyCojnWzneUgiM_OTJYqf9oniIIYpyyuT_0",
+  authDomain: "test-d18a6.firebaseapp.com",
+  databaseURL: "https://test-d18a6-default-rtdb.firebaseio.com",
+  projectId: "test-d18a6",
+  storageBucket: "test-d18a6.firebasestorage.app",
+  messagingSenderId: "441961430247",
+  appId: "1:441961430247:web:643e53ce778132cfa47642"
+});
+
+const db = firebase.database().ref("schedules");
+let schedules = [];
+
+// ================= 內建語音 =================
+const builtInTexts = {
+  start: "上課囉！講話就來領一張搗蛋愛數卷。",
+  end: "放學囉！一分鐘後離開教室，不然領一張搗蛋愛數卷。",
+  nap: "午休時間到囉！趴下睡覺，講話就領一張搗蛋愛數卷。",
+  flag: "升旗囉！一分鐘內離開教室，趕快去排隊。"
+};
+
+function createVoice(text) {
+  return {
+    play: () => {
+      if (!audioUnlocked) return;
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.lang = "zh-TW";
+      msg.volume = 1;
+      speechSynthesis.speak(msg);
+    }
+  };
+}
+
+// ================= 新增 =================
+function addBuiltInVoice(type) {
+  const time = timeInput.value;
+  if (!time) return alert("請先設定時間");
+  db.push({
+    time,
+    type: "built-in",
+    textType: type,
+    name: "內建語音"
+  });
+}
+
+function addSchedule() {
+  const time = timeInput.value;
+  if (!time) return alert("請選時間");
+
+  if (sourceType.value === "file") {
+    const file = fileInput.files[0];
+    if (!file) return alert("請選音檔");
+    const reader = new FileReader();
+    reader.onload = e => {
+      db.push({
+        time,
+        type: "file",
+        name: file.name,
+        base64Audio: e.target.result
+      });
+    };
+    reader.readAsDataURL(file);
+  } else {
+    const url = urlInput.value.trim();
+    if (!url) return alert("請輸入網址");
+    db.push({
+      time,
+      type: url.includes("youtube") ? "youtube" : "url",
+      url,
+      name: url
+    });
+  }
+}
+
+// ================= 顯示 =================
+db.on("value", snap => {
+  schedules = [];
+  snap.forEach(c => {
+    const v = c.val();
+    v.key = c.key;
+    schedules.push(v);
+  });
+  scheduleList.innerHTML = schedules.map(s => `
+    <tr>
+      <td>${s.time}</td>
+      <td>${s.name}</td>
+      <td><button onclick="db.child('${s.key}').remove()">刪除</button></td>
+    </tr>
+  `).join("");
+});
+
+// ================= 定時播放 =================
+setInterval(() => {
+  const now = new Date();
+  const t = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+
+  schedules.forEach(s => {
+    if (s.time === t && !s.played && audioUnlocked) {
+      if (s.type === "built-in") createVoice(builtInTexts[s.textType]).play();
+      if (s.type === "file") new Audio(s.base64Audio).play();
+      if (s.type === "url") new Audio(s.url).play();
+      if (s.type === "youtube") window.open(s.url, "_blank");
+      s.played = true;
+    }
+    if (s.time !== t) s.played = false;
+  });
+}, 1000);
+</script>
+
+</body>
+</html>

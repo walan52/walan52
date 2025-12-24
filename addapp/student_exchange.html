@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>學生點數兌換</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+    .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #2e7d32; }
+    .item { display: flex; justify-content: space-between; align-items: center; background: #e8f5e9; margin-bottom: 10px; padding: 10px; border-radius: 8px; }
+    .item-name { font-weight: bold; }
+    .item-points { color: #2e7d32; }
+    .btn-redeem { background: #43a047; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+    .btn-redeem:hover { background: #2e7d32; }
+    .btn-logout { background: #757575; color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; float: right; }
+    .btn-logout:hover { background: #616161; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>學生點數兌換</h1>
+    <div id="studentScore" style="text-align:center; font-size:1.5em; margin-bottom:15px;"></div>
+    <div id="itemList"></div>
+    <button class="btn-logout" onclick="logout()">登出</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const currentStudentId = localStorage.getItem("currentStudentId");
+    if (!currentStudentId) {
+      alert("請先登入！");
+      location.href = "login.html";
+    }
+
+    let currentScore = 0;
+    let currentStudentName = "";
+
+    function loadItems() {
+      db.ref("students/" + currentStudentId).once("value").then(snapshot => {
+        const student = snapshot.val();
+        if (!student) {
+          alert("學生資料不存在！");
+          location.href = "login.html";
+          return;
+        }
+        currentScore = student.score;
+        currentStudentName = student.name;
+        document.getElementById("studentScore").innerText = `目前點數：${currentScore}`;
+
+        db.ref("items").once("value").then(itemSnap => {
+          const data = itemSnap.val();
+          const itemList = document.getElementById("itemList");
+          itemList.innerHTML = "";
+
+          if (!data) {
+            itemList.innerText = "目前無可兌換品項。";
+            return;
+          }
+
+          let hasItem = false;
+          Object.entries(data).forEach(([id, item]) => {
+            if (currentScore >= item.points) {
+              hasItem = true;
+              const div = document.createElement("div");
+              div.className = "item";
+              div.innerHTML = `
+                <div class="item-name">${item.name}</div>
+                <div class="item-points">${item.points} 分</div>
+                <button class="btn-redeem" onclick="redeemItem('${id}', '${item.name}', ${item.points})">兌換</button>
+              `;
+              itemList.appendChild(div);
+            }
+          });
+
+          if (!hasItem) {
+            itemList.innerText = "目前沒有符合您點數可兌換的品項。";
+          }
+        });
+      });
+    }
+
+    function redeemItem(itemId, itemName, points) {
+      if (currentScore < points) {
+        alert("點數不足！");
+        return;
+      }
+      if (!confirm(`確定要兌換「${itemName}」(${points} 分) 嗎？`)) return;
+
+      // 更新學生分數
+      db.ref("students/" + currentStudentId).update({
+        score: currentScore - points
+      }).then(() => {
+        // 寫入兌換紀錄
+        const recordRef = db.ref("exchange_records").push();
+        recordRef.set({
+          studentId: currentStudentId,
+          studentName: currentStudentName,
+          itemName: itemName,
+          points: points,
+          timestamp: new Date().toISOString()
+        });
+
+        alert("兌換成功！");
+        loadItems();
+      });
+    }
+
+    function logout() {
+      localStorage.removeItem("currentStudentId");
+      location.href = "login.html";
+    }
+
+    loadItems();
+  </script>
+</body>
+</html>

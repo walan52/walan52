@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>新增聯絡簿</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #2e7d32; }
+    textarea { width: 100%; height: 200px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+    button { margin-top: 15px; padding: 10px 14px; background: #43a047; color: #fff; border: none; border-radius: 8px; cursor: pointer; width: 100%; }
+    button:hover { background: #388e3c; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>新增聯絡簿</h1>
+    <textarea id="content" placeholder="請輸入聯絡簿內容，可換行"></textarea>
+    <button onclick="submitHomework()">確認新增</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+   function submitHomework() {
+  const content = document.getElementById("content").value.trim();
+  if (!content) {
+    alert("請輸入內容！");
+    return;
+  }
+  const date = new Date().toLocaleString();
+
+  // 先清空舊資料再新增新資料
+  db.ref("homeworks").remove().then(() => {
+    db.ref("homeworks").push({
+      content: content.replace(/\n/g, "<br>"),
+      date
+    }).then(() => {
+      alert("已新增聯絡簿紀錄！");
+      location.href = "homework.html";
+    });
+  });
+}
+
+  </script>
+</body>
+</html>

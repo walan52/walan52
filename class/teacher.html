@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>學生作業確認繳交（含分類）</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+    th, td { border: 1px solid #999; padding: 6px; text-align: center; }
+    th { background: #f0f0f0; position: sticky; top: 0; z-index: 2; }
+    button { margin: 2px; }
+    .未交 { background-color: #fbb; cursor: pointer; }
+    .未訂正 { background-color: #ff9; cursor: pointer; }
+    .OK { background-color: #9f9; cursor: pointer; }
+    .delete-btn, .edit-btn, .hide-btn { font-size: 10px; border: none; background: none; cursor: pointer; }
+    .delete-btn { color: red; }
+    .edit-btn { color: blue; }
+    .hide-btn { color: orange; }
+    #mainDiv { display: none; }
+    #loginDiv { max-width: 300px; margin: auto; border: 1px solid #ccc; padding: 20px; border-radius: 6px; }
+    #hiddenModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                   background: #fff; border: 1px solid #aaa; border-radius: 8px;
+                   padding: 20px; z-index: 100; box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+    #hiddenList label { display: block; margin: 5px 0; }
+    #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+               background: rgba(0,0,0,0.5); z-index: 50; }
+    #pagination { margin-top: 10px; text-align: center; }
+    .net-btn { cursor: pointer; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; }
+    .有網 { background-color: #4CAF50; }
+    .無網 { background-color: #E53935; }
+    #categorySelect, #newCategory { margin: 5px; }
+  </style>
+</head>
+<body>
+  <h2>學生作業確認繳交系統（含分類）</h2>
+
+  <!-- 登入區 -->
+  <div id="loginDiv">
+    <h3>老師登入</h3>
+    <label>帳號：<input type="text" id="username"></label><br><br>
+    <label>密碼：<input type="password" id="password"></label><br><br>
+    <button onclick="login()">登入</button>
+    <p id="loginMsg" style="color:red"></p>
+  </div>
+
+  <!-- 主系統 -->
+  <div id="mainDiv">
+    <input type="file" id="fileInput" accept=".csv">
+    <input type="text" id="assignmentInput" placeholder="輸入作業名稱">
+    <select id="categorySelect"></select>
+    <input type="text" id="newCategory" placeholder="新增分類">
+    <button onclick="addAssignment()">新增作業項目</button>
+    <button onclick="openHiddenModal()">管理隱藏作業項目</button>
+    <button onclick="exportCSV()">匯出紀錄</button>
+    <input type="file" id="importData" accept=".csv">
+    <button onclick="importCSV()">匯入資料</button>
+
+    <div style="margin-top:10px;">
+      <label>依分類顯示：</label>
+      <select id="filterCategory" onchange="renderTable()"></select>
+    </div>
+
+    <div id="pagination">
+      <button onclick="prevPage()">⬅ 上一頁</button>
+      <span id="pageInfo"></span>
+      <button onclick="nextPage()">下一頁 ➡</button>
+    </div>
+
+    <table id="studentTable">
+      <thead>
+        <tr id="headerRow">
+          <th>座號</th>
+          <th>姓名</th>
+          <th>網區狀態</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="studentBody"></tbody>
+    </table>
+  </div>
+
+  <!-- 隱藏作業管理彈窗 -->
+  <div id="overlay" onclick="closeHiddenModal()"></div>
+  <div id="hiddenModal">
+    <h3>隱藏的作業項目</h3>
+    <div id="hiddenList"></div>
+    <br>
+    <button onclick="restoreSelected()">顯示所選作業項目</button>
+    <button onclick="closeHiddenModal()">關閉</button>
+  </div>
+
+<script>
+  // 🔥 Firebase 初始化 - 已改為你給的資料
+  const firebaseConfig = {
+    apiKey: "AIzaSyBIZByjsGNwP949OSVsyi7-PjU7Cpz-gzI",
+    authDomain: "student-score-app-6cca6.firebaseapp.com",
+    databaseURL: "https://student-score-app-6cca6-default-rtdb.firebaseio.com",
+    projectId: "student-score-app-6cca6",
+    storageBucket: "student-score-app-6cca6.firebasestorage.app",
+    messagingSenderId: "887092013369",
+    appId: "1:887092013369:web:42abc19c8cacca737b20e8",
+    measurementId: "G-8SREJH2ER3"
+  };
+
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const studentTableBody = document.getElementById("studentBody");
+  const headerRow = document.getElementById("headerRow");
+
+  let currentPage = 1;
+  const itemsPerPage = 10;
+  let assignmentList = [];
+  let allAssignments = {};
+
+  // 登入驗證
+  function login() {
+    const user = document.getElementById("username").value.trim();
+    const pwd = document.getElementById("password").value.trim();
+    if (user === "walan52" && pwd === "source88") {
+      document.getElementById("loginDiv").style.display = "none";
+      document.getElementById("mainDiv").style.display = "block";
+      loadCategories();
+    } else {
+      document.getElementById("loginMsg").innerText = "帳號或密碼錯誤！";
+    }
+  }
+
+  // 匯入學生名單
+  document.getElementById("fileInput").addEventListener("change", e => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = e.target.result.split("\n").map(r => r.split(","));
+      rows.forEach(([id, name]) => {
+        if (id && name) {
+          const ref = db.ref("students/" + id.trim());
+          ref.once("value", snap => {
+            if (!snap.exists()) ref.set({ id: id.trim(), name: name.trim(), netStatus: "無網" });
+          });
+        }
+      });
+    };
+    reader.readAsText(file);
+  });
+
+  // 新增作業項目 + 分類
+  function addAssignment() {
+    const name = document.getElementById("assignmentInput").value.trim();
+    let category = document.getElementById("categorySelect").value;
+    const newCat = document.getElementById("newCategory").value.trim();
+    if (!name) return;
+
+    if (newCat) category = newCat;
+    if (!category) category = "未分類";
+
+    db.ref("assignments/" + name).set({ visible: true, category });
+    document.getElementById("assignmentInput").value = "";
+    document.getElementById("newCategory").value = "";
+  }
+
+  // 讀取分類清單
+  function loadCategories() {
+    db.ref("assignments").once("value", snap => {
+      const assigns = snap.val() || {};
+      const cats = new Set(Object.values(assigns).map(a => a.category || "未分類"));
+      const select = document.getElementById("categorySelect");
+      const filter = document.getElementById("filterCategory");
+      select.innerHTML = "";
+      filter.innerHTML = `<option value="全部">全部</option>`;
+      cats.forEach(c => {
+        select.innerHTML += `<option value="${c}">${c}</option>`;
+        filter.innerHTML += `<option value="${c}">${c}</option>`;
+      });
+    });
+  }
+
+  // 渲染表格（含分類篩選）
+  function renderTable() {
+    db.ref("assignments").once("value", snap => {
+      allAssignments = snap.val() || {};
+      const selectedCategory = document.getElementById("filterCategory").value || "全部";
+      const visible = Object.keys(allAssignments).filter(a =>
+        allAssignments[a].visible !== false &&
+        (selectedCategory === "全部" || allAssignments[a].category === selectedCategory)
+      );
+      assignmentList = visible;
+
+      const totalPages = Math.ceil(visible.length / itemsPerPage);
+      updatePageInfo(totalPages);
+
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      const currentAssignments = visible.slice(start, end);
+
+      headerRow.innerHTML = "<th>座號</th><th>姓名</th><th>網區狀態</th><th>操作</th>";
+      currentAssignments.forEach(a => {
+        const th = document.createElement("th");
+        th.innerHTML = `${a}<br><small>${allAssignments[a].category || "未分類"}</small>
+          <button class='edit-btn' onclick="editAssignment('${a}')">修改</button>
+          <button class='hide-btn' onclick="hideAssignment('${a}')">隱藏</button>
+          <button class='delete-btn' onclick="deleteAssignment('${a}')">刪除</button>`;
+        headerRow.appendChild(th);
+      });
+
+      db.ref("students").once("value", s2 => {
+        const students = s2.val() || {};
+        studentTableBody.innerHTML = "";
+        Object.values(students).forEach(stu => {
+          const tr = document.createElement("tr");
+          const net = stu.netStatus || "無網";
+          tr.innerHTML = `
+            <td>${stu.id}</td>
+            <td>${stu.name}</td>
+            <td><button class="net-btn ${net}" onclick="toggleNetStatus('${stu.id}','${net}')">${net}</button></td>
+            <td><button onclick="deleteStudent('${stu.id}')">刪除</button></td>`;
+          currentAssignments.forEach(a => {
+            const status = stu.assignments?.[a] || "未交";
+            const td = document.createElement("td");
+            td.textContent = status;
+            td.className = status;
+            td.onclick = () => toggleStatus(stu.id, a, status);
+            tr.appendChild(td);
+          });
+          studentTableBody.appendChild(tr);
+        });
+      });
+    });
+  }
+
+  // 其他功能
+  function updatePageInfo(totalPages){document.getElementById("pageInfo").textContent=`第 ${currentPage} 頁 / 共 ${totalPages} 頁`;}
+  function nextPage(){const totalPages=Math.ceil(assignmentList.length/itemsPerPage);if(currentPage<totalPages){currentPage++;renderTable();}}
+  function prevPage(){if(currentPage>1){currentPage--;renderTable();}}
+  function toggleStatus(id,name,status){let next=status==="未交"?"未訂正":status==="未訂正"?"OK":"未交";db.ref(`students/${id}/assignments/${name}`).set(next);}
+  function toggleNetStatus(id,current){const next=current==="有網"?"無網":"有網";db.ref(`students/${id}/netStatus`).set(next);}
+  function deleteStudent(id){if(confirm("確定刪除這位學生嗎？"))db.ref("students/"+id).remove();}
+  function editAssignment(oldName){const newName=prompt(`請輸入新的作業名稱（原名稱：${oldName}）`,oldName);if(!newName||newName.trim()===oldName)return;const clean=newName.trim();
+    const cat=allAssignments[oldName]?.category||"未分類";
+    db.ref("assignments/"+clean).set({visible:true,category:cat});
+    db.ref("assignments/"+oldName).remove();
+    db.ref("students").once("value",snap=>{
+      const students=snap.val()||{};
+      Object.keys(students).forEach(id=>{
+        const oldStatus=students[id].assignments&&students[id].assignments[oldName]?students[id].assignments[oldName]:"未交";
+        db.ref(`students/${id}/assignments/${clean}`).set(oldStatus);
+        db.ref(`students/${id}/assignments/${oldName}`).remove();
+      });
+    });
+  }
+  function deleteAssignment(name){if(!confirm(`確定刪除作業「${name}」嗎？`))return;db.ref("assignments/"+name).remove();db.ref("students").once("value",snap=>{
+    const students=snap.val()||{};Object.keys(students).forEach(id=>db.ref(`students/${id}/assignments/${name}`).remove());});}
+  function hideAssignment(name){db.ref(`assignments/${name}/visible`).set(false);}
+  function openHiddenModal(){const modal=document.getElementById("hiddenModal");const overlay=document.getElementById("overlay");const list=document.getElementById("hiddenList");
+    list.innerHTML="";db.ref("assignments").once("value",snap=>{const assignments=snap.val()||{};const hidden=Object.keys(assignments).filter(k=>assignments[k].visible===false);
+      if(hidden.length===0){list.innerHTML="<p>目前沒有隱藏的作業項目。</p>";}else{hidden.forEach(name=>{const label=document.createElement("label");
+        label.innerHTML=`<input type="checkbox" value="${name}"> ${name}`;list.appendChild(label);});}
+      modal.style.display="block";overlay.style.display="block";});}
+  function closeHiddenModal(){document.getElementById("hiddenModal").style.display="none";document.getElementById("overlay").style.display="none";}
+  function restoreSelected(){const checkboxes=document.querySelectorAll("#hiddenList input[type=checkbox]:checked");
+    checkboxes.forEach(cb=>db.ref(`assignments/${cb.value}/visible`).set(true));alert("已顯示所選作業項目！");closeHiddenModal();}
+  function exportCSV(){db.ref("students").once("value",snap=>{
+    const students=snap.val();if(!students)return;
+    const headers=["座號","姓名","網區狀態"];const visibleAssignments=assignmentList;
+    headers.push(...visibleAssignments);let csv=headers.join(",")+"\n";
+    Object.values(students).forEach(stu=>{
+      const row=[stu.id,stu.name,stu.netStatus||"無網"];
+      visibleAssignments.forEach(a=>row.push(stu.assignments&&stu.assignments[a]?stu.assignments[a]:"未交"));
+      csv+=row.join(",")+"\n";
+    });
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="作業紀錄.csv";a.click();});
+  }
+
+  db.ref("assignments").on("value",()=>{loadCategories();renderTable();});
+  db.ref("students").on("value",()=>renderTable());
+</script>
+</body>
+</html>

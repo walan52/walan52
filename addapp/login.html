@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>登入</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    .container { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); width: 300px; }
+    input, button { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: 1px solid #ccc; }
+    button { background: #43a047; color: #fff; border: none; cursor: pointer; }
+    button:hover { background: #2e7d32; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>登入</h1>
+    <input type="text" id="loginAccount" placeholder="帳號">
+    <input type="password" id="loginPassword" placeholder="密碼">
+    <button onclick="login()">登入</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const ADMIN_ACC = "walan52";
+    const ADMIN_PWD = "source88";
+
+    function login() {
+      const acc = document.getElementById("loginAccount").value.trim();
+      const pwd = document.getElementById("loginPassword").value.trim();
+
+      if (acc === ADMIN_ACC && pwd === ADMIN_PWD) {
+        localStorage.setItem("adminLogin", "true");
+        location.href = "admin.html";
+      } else {
+        db.ref("students").orderByChild("seat").equalTo(parseInt(acc)).once("value").then(snapshot => {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const key = Object.keys(data)[0];
+            const stu = data[key];
+            if (stu.password === pwd) {
+              localStorage.setItem("currentStudentId", key);
+              location.href = "student.html";
+            } else {
+              alert("密碼錯誤！");
+            }
+          } else {
+            alert("帳號或密碼錯誤！");
+          }
+        });
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>抽卡後台管理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: "微軟正黑體";
+      margin: 20px;
+      background: #f4f6f8;
+    }
+    h1 {
+      color: #34495e;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: 700;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      width: 300px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    #cardPoolList, #drawRecords {
+      max-width: 700px;
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      overflow-x: auto;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+    #cardPoolList {
+      max-width: 400px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th, td {
+      border-bottom: 1px solid #ddd;
+      padding: 8px;
+      vertical-align: middle;
+    }
+    th {
+      background-color: #3498db;
+      color: white;
+    }
+    #noRecords {
+      padding: 20px;
+      color: #666;
+      font-style: italic;
+    }
+    .del-btn {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 14px;
+      transition: background 0.3s ease;
+    }
+    .del-btn:hover {
+      background: #c0392b;
+    }
+    li button.del-btn {
+      margin-left: 10px;
+    }
+    /* 登入區樣式 */
+    #loginBox {
+      max-width: 320px;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      margin: 50px auto;
+      text-align: center;
+    }
+    #loginBox h2 {
+      margin-bottom: 20px;
+      color: #34495e;
+    }
+    #loginNotice {
+      color: red;
+      height: 1.2em;
+      margin-top: 10px;
+      user-select: none;
+    }
+    #logoutBtn {
+      background: #e67e22;
+      margin-top: 15px;
+      display: none;
+    }
+    #logoutBtn:hover {
+      background: #d35400;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 登入區 -->
+  <div id="loginBox">
+    <h2>請先登入管理後台</h2>
+    <input type="text" id="loginAccount" placeholder="帳號" />
+    <input type="password" id="loginPassword" placeholder="密碼" />
+    <button onclick="tryLogin()">登入</button>
+    <div id="loginNotice"></div>
+  </div>
+
+  <!-- 後台內容 -->
+  <div id="backendContent" style="display:none;">
+    <h1>抽卡後台管理</h1>
+
+    <button id="logoutBtn" onclick="logout()">登出</button>
+
+    <div>
+      <label for="newCardName">新增卡片名稱：</label>
+      <input type="text" id="newCardName" placeholder="輸入卡片名稱" />
+      <button onclick="addCard()">新增卡片</button>
+    </div>
+
+    <div id="cardPoolList">
+      <h3>目前卡池列表</h3>
+      <ul id="cardList"></ul>
+    </div>
+
+    <div id="drawRecords">
+      <h3>抽卡紀錄</h3>
+      <div id="noRecords" style="display:none;">目前無抽卡紀錄</div>
+      <table id="recordsTable" style="display:none;">
+        <thead>
+          <tr>
+            <th>座號</th>
+            <th>暱稱</th>
+            <th>抽中卡片</th>
+            <th>時間</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyC5aW_wP20TbBPMqUeGQaPw9MH0dpRjgaQ",
+    authDomain: "respect-833f3.firebaseapp.com",
+    databaseURL: "https://respect-833f3-default-rtdb.firebaseio.com",
+    projectId: "respect-833f3",
+    storageBucket: "respect-833f3.appspot.com",
+    messagingSenderId: "360277137589",
+    appId: "1:360277137589:web:6a7b8bf0763ef5d43446fc"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // 登入資訊
+  const validAccount = "walan52";
+  const validPassword = "source88";
+
+  function tryLogin() {
+    const acc = document.getElementById("loginAccount").value.trim();
+    const pwd = document.getElementById("loginPassword").value.trim();
+    const notice = document.getElementById("loginNotice");
+
+    if(acc === validAccount && pwd === validPassword) {
+      notice.innerText = "";
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("backendContent").style.display = "block";
+      document.getElementById("logoutBtn").style.display = "inline-block";
+      loadCardPool();
+      loadDrawRecords();
+    } else {
+      notice.innerText = "帳號或密碼錯誤";
+    }
+  }
+
+  function logout() {
+    document.getElementById("loginBox").style.display = "block";
+    document.getElementById("backendContent").style.display = "none";
+    document.getElementById("loginAccount").value = "";
+    document.getElementById("loginPassword").value = "";
+    document.getElementById("logoutBtn").style.display = "none";
+  }
+
+  // 新增卡片到卡池
+  function addCard() {
+    const cardName = document.getElementById("newCardName").value.trim();
+    if (!cardName) {
+      alert("請輸入卡片名稱");
+      return;
+    }
+    const newCardRef = db.ref("cardPool").push();
+    newCardRef.set(cardName)
+      .then(() => {
+        document.getElementById("newCardName").value = "";
+        loadCardPool();
+      });
+  }
+
+  // 讀取並顯示卡池
+  function loadCardPool() {
+    db.ref("cardPool").once("value").then(snapshot => {
+      const data = snapshot.val() || {};
+      const list = document.getElementById("cardList");
+      list.innerHTML = "";
+      Object.entries(data).forEach(([key, name]) => {
+        const li = document.createElement("li");
+        li.textContent = name + " ";
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "刪除";
+        delBtn.className = "del-btn";
+        delBtn.onclick = () => {
+          if (confirm(`確定刪除「${name}」嗎？`)) {
+            db.ref("cardPool/" + key).remove().then(loadCardPool);
+          }
+        };
+        li.appendChild(delBtn);
+        list.appendChild(li);
+      });
+    });
+  }
+
+  // 讀取並顯示抽卡紀錄
+  function loadDrawRecords() {
+    db.ref("drawRecords").orderByChild("timestamp").limitToLast(100).on("value", snapshot => {
+      const data = snapshot.val();
+      const tbody = document.getElementById("recordsBody");
+      const noRecordsDiv = document.getElementById("noRecords");
+      const recordsTable = document.getElementById("recordsTable");
+
+      tbody.innerHTML = "";
+
+      if (!data) {
+        noRecordsDiv.style.display = "block";
+        recordsTable.style.display = "none";
+        return;
+      } else {
+        noRecordsDiv.style.display = "none";
+        recordsTable.style.display = "table";
+      }
+
+      const entries = Object.entries(data).sort((a,b) => b[1].timestamp - a[1].timestamp);
+
+      entries.forEach(([key, record]) => {
+        const tr = document.createElement("tr");
+        const timeStr = new Date(record.timestamp).toLocaleString();
+        tr.innerHTML = `
+          <td>${record.seat || ""}</td>
+          <td>${record.nickname || ""}</td>
+          <td>${record.card || ""}</td>
+          <td>${timeStr}</td>
+          <td><button class="del-btn" onclick="deleteRecord('${key}', '${record.card}')">刪除</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    });
+  }
+
+  // 刪除抽卡紀錄
+  function deleteRecord(key, cardName) {
+    if (confirm(`確定刪除抽中「${cardName}」的紀錄嗎？`)) {
+      db.ref("drawRecords/" + key).remove();
+    }
+  }
+</script>
+
+</body>
+</html>

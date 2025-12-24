@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>教學指引設定與借出</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #fffaf0; }
+    h2 { color: #333; }
+    label { display: inline-block; width: 80px; margin-top: 10px; }
+    input { margin-top: 10px; margin-bottom: 10px; }
+    button { margin-left: 10px; }
+    span { display: block; margin: 5px 0; }
+    #subjectsList button { margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h2>設定教學指引</h2>
+  <label>職稱：</label><input type="text" id="position"><br>
+  <label>教師姓名：</label><input type="text" id="teacherName"><br>
+  <label>科目：</label><input type="text" id="subject">
+  <label>本數：</label><input type="number" id="copies" min="1">
+  <button onclick="addSubject()">設定科目</button>
+
+  <h2>可借教學指引</h2>
+  <div id="subjectsList"></div>
+
+  <p>租借方式：填完職稱、教師姓名再按租借即可</p>
+  <p>職稱填601導師、科任教師等........</p>
+  <p>有問題可以洽註冊組</p>
+
+  <script>
+    // 初始化 Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 更新教學指引清單
+    function updateSubjectsList() {
+      const listDiv = document.getElementById("subjectsList");
+      listDiv.innerHTML = "";
+
+      db.ref("teachersubject").once("value", (snapshot) => {
+        const subjectsData = snapshot.val() || {};
+        for (const [subj, count] of Object.entries(subjectsData)) {
+          const span = document.createElement("span");
+          span.innerHTML = `${subj} 教學指引 ${count} 本`;
+          if (count > 0) {
+            const btn = document.createElement("button");
+            btn.textContent = "租借";
+            btn.onclick = () => borrow(subj);
+            span.appendChild(btn);
+          }
+          listDiv.appendChild(span);
+        }
+      });
+    }
+
+    // 新增或增加指引本數
+    function addSubject() {
+      const subj = document.getElementById("subject").value.trim();
+      const count = parseInt(document.getElementById("copies").value);
+      if (!subj || count <= 0) return;
+
+      const subjectRef = db.ref("teachersubject/" + subj);
+      subjectRef.once("value", (snapshot) => {
+        const current = snapshot.val() || 0;
+        subjectRef.set(current + count, () => {
+          updateSubjectsList();
+          document.getElementById("subject").value = "";
+          document.getElementById("copies").value = "";
+        });
+      });
+    }
+
+    // 借出教學指引
+    function borrow(subject) {
+      const position = document.getElementById("position").value.trim();
+      const teacher = document.getElementById("teacherName").value.trim();
+      if (!position || !teacher) {
+        alert("請先輸入職稱與教師姓名");
+        return;
+      }
+
+      const subjectRef = db.ref("teachersubject/" + subject);
+      subjectRef.once("value", (snapshot) => {
+        const count = snapshot.val();
+        if (count > 0) {
+          subjectRef.set(count - 1); // 減少本數
+
+          // 加入借出紀錄
+          const today = new Date().toISOString().split("T")[0].replace(/-/g, "/");
+          const borrowRef = db.ref("borrowed").push();
+          borrowRef.set({
+            date: today,
+            position: position,
+            name: teacher,
+            subject: subject,
+            returned: false
+          });
+
+          alert("已租借成功！");
+          updateSubjectsList();
+        } else {
+          alert("此科目已無可借本數！");
+        }
+      });
+    }
+
+    updateSubjectsList();
+  </script>
+</body>
+</html>

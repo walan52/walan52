@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>學生請假系統</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
+    label { display: block; margin-top: 10px; }
+    #rangeGroup { display: none; }
+  </style>
+</head>
+<body>
+  <h2>學生請假申請</h2>
+  <form id="leaveForm">
+    <label>姓名：<input type="text" id="studentName" required></label>
+    <label>請假日期：<input type="date" id="leaveDate" required></label>
+    <label><input type="checkbox" id="multiDay"> 請假兩日以上</label>
+
+    <div id="rangeGroup">
+      <label>結束日期：<input type="date" id="endDate"></label>
+    </div>
+
+    <label>事由：<input type="text" id="reason" required></label>
+    <button type="submit">送出</button>
+  </form>
+
+  <script>
+    // Firebase 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 顯示請假範圍欄位
+    const multiDay = document.getElementById('multiDay');
+    const rangeGroup = document.getElementById('rangeGroup');
+    multiDay.addEventListener('change', () => {
+      rangeGroup.style.display = multiDay.checked ? 'block' : 'none';
+    });
+
+    // 表單送出
+    document.getElementById('leaveForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const name = document.getElementById('studentName').value.trim();
+      const date = document.getElementById('leaveDate').value;
+      const reason = document.getElementById('reason').value.trim();
+      const isMulti = multiDay.checked;
+      const end = document.getElementById('endDate').value;
+
+      const leaveData = {
+        name,
+        reason,
+        startDate: date,
+        endDate: isMulti ? end : '',
+        timestamp: Date.now()
+      };
+
+      db.ref('leaves').push(leaveData).then(() => {
+        alert('請假資料已送出');
+        document.getElementById('leaveForm').reset();
+        rangeGroup.style.display = 'none';
+      });
+    });
+  </script>
+</body>
+</html>

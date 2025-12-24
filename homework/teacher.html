@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>老師設定頁</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body { display: none; font-family: sans-serif; }
+    .logout-btn { margin-top: 30px; color: white; background: #d9534f; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>學生名單匯入</h2>
+  <input type="file" id="excelFile" />
+  <button onclick="importExcel()">匯入</button>
+
+  <h3>新增學生</h3>
+  <input id="no" placeholder="座號" />
+  <input id="name" placeholder="姓名" />
+  <button onclick="addStudent()">新增</button>
+
+  <h3>登錄積欠作業</h3>
+  <select id="studentSelect"></select><br /><br />
+
+  <label>科目：</label>
+  <select id="subject"></select><br /><br />
+
+  <input type="text" id="newSubject" placeholder="新增科目" />
+  <button onclick="addNewSubject()">➕ 加入科目</button><br /><br />
+
+  <div id="subjectList"></div><br />
+
+  <label>頁數範圍：</label>
+  <input id="pageStart" type="number" placeholder="開始頁" />
+  ~
+  <input id="pageEnd" type="number" placeholder="結束頁" /><br /><br />
+  <button onclick="addTask()">登錄</button>
+
+  <h3><a href="records.html">📖 查看全部積欠作業</a></h3>
+
+  <h3 style="color:red;">🔴 清除所有學生資料</h3>
+  <button onclick="clearAllStudents()">清除學生資料</button>
+
+  <br /><br />
+  <button class="logout-btn" onclick="logout()">🔓 登出</button>
+
+  <script>
+    // Firebase 設定（已更換）
+    const firebaseConfig = {
+      apiKey: "AIzaSyBvjO6-SZG0TXny9RNowA7e7rRdK1Z58oE",
+      authDomain: "water-7b4fe.firebaseapp.com",
+      projectId: "water-7b4fe",
+      storageBucket: "water-7b4fe.firebasestorage.app",
+      messagingSenderId: "66478103908",
+      appId: "1:66478103908:web:2e6b82f27e536181666e71"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 登入保護機制：確認帳號從 accounts 擷取
+    const currentUser = localStorage.getItem("studentNo");
+
+    db.ref("accounts/" + currentUser).once("value").then(snapshot => {
+      if (!snapshot.exists()) {
+        alert("請先登入！");
+        window.location.href = "index.html";
+      } else {
+        document.body.style.display = "block";
+        loadStudents();
+        loadSubjects();
+      }
+    });
+
+    function importExcel() {
+      const file = document.getElementById("excelFile").files[0];
+      if (!file) return alert("請先選擇檔案！");
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const workbook = XLSX.read(e.target.result, { type: "binary" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(sheet);
+        data.forEach((item) => {
+          const no = item.座號;
+          const name = item.姓名;
+          db.ref("students/" + no).set({ no, name });
+        });
+        alert("匯入完成！");
+        loadStudents();
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    function addStudent() {
+      const no = document.getElementById("no").value.trim();
+      const name = document.getElementById("name").value.trim();
+      if (!no || !name) return alert("請填入座號與姓名");
+      db.ref("students/" + no).set({ no, name });
+      alert("新增成功");
+      document.getElementById("no").value = "";
+      document.getElementById("name").value = "";
+      loadStudents();
+    }
+
+    function loadStudents() {
+      const select = document.getElementById("studentSelect");
+      select.innerHTML = "";
+      db.ref("students").once("value", (snapshot) => {
+        snapshot.forEach((child) => {
+          const s = child.val();
+          const option = document.createElement("option");
+          option.value = s.no;
+          option.textContent = `${s.no} ${s.name}`;
+          select.appendChild(option);
+        });
+      });
+    }
+
+    function loadSubjects() {
+      const subjectSelect = document.getElementById("subject");
+      const subjectList = document.getElementById("subjectList");
+      subjectSelect.innerHTML = "";
+      subjectList.innerHTML = "";
+
+      db.ref("subjects").once("value", (snapshot) => {
+        const subjects = snapshot.val() || {};
+        for (let key in subjects) {
+          const opt = document.createElement("option");
+          opt.value = key;
+          opt.textContent = key;
+          subjectSelect.appendChild(opt);
+
+          const div = document.createElement("div");
+          div.innerHTML = `${key} <button onclick="deleteSubject('${key}')">❌ 刪除</button>`;
+          subjectList.appendChild(div);
+        }
+      });
+    }
+
+    function addNewSubject() {
+      const newSubj = document.getElementById("newSubject").value.trim();
+      if (!newSubj) return alert("請輸入科目名稱");
+      db.ref("subjects/" + newSubj)
+        .set(true)
+        .then(() => {
+          document.getElementById("newSubject").value = "";
+          loadSubjects();
+          alert("科目新增成功！");
+        });
+    }
+
+    function deleteSubject(subject) {
+      if (confirm(`確定刪除科目「${subject}」？`)) {
+        db.ref("subjects/" + subject)
+          .remove()
+          .then(() => {
+            alert("已刪除科目！");
+            loadSubjects();
+          });
+      }
+    }
+
+    function addTask() {
+      const no = document.getElementById("studentSelect").value;
+      const subject = document.getElementById("subject").value;
+      const startPage = document.getElementById("pageStart").value;
+      const endPage = document.getElementById("pageEnd").value;
+      const date = new Date().toLocaleDateString();
+
+      if (!no || !subject || !startPage || !endPage)
+        return alert("請填入所有欄位");
+
+      db.ref("students/" + no).once("value", (snapshot) => {
+        const student = snapshot.val();
+        const name = student.name || "";
+
+        const task = {
+          no,
+          name,
+          subject,
+          page: `${startPage}～${endPage} 頁`,
+          date,
+        };
+
+        db.ref("records")
+          .push(task)
+          .then(() => {
+            alert("積欠作業登錄完成！");
+            document.getElementById("pageStart").value = "";
+            document.getElementById("pageEnd").value = "";
+          });
+      });
+    }
+
+    function clearAllStudents() {
+      if (confirm("⚠️ 確定要清除所有學生資料嗎？")) {
+        db.ref("students")
+          .remove()
+          .then(() => {
+            alert("已清除所有學生資料！");
+            loadStudents();
+          })
+          .catch((err) => alert("清除失敗：" + err));
+      }
+    }
+
+    function logout() {
+      if (confirm("確定要登出嗎？")) {
+        localStorage.removeItem("studentNo");
+        window.location.href = "index.html";
+      }
+    }
+  </script>
+</body>
+</html>

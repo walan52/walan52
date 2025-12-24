@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>學生行為表現 - 只讀版</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; margin-top: 20px; width: 100%; }
+    th, td { border: 1px solid #999; padding: 6px; text-align: center; }
+    th { background: #f0f0f0; }
+    button { margin: 2px; }
+    .count0 { background-color: #eee; }
+    .count1 { background-color: #fbb; }
+    .count2 { background-color: #ff9; }
+    .count3 { background-color: #9f9; }
+  </style>
+</head>
+<body>
+  <h2>學生行為表現 - 只讀版</h2>
+  <button onclick="exportCSV()">匯出紀錄</button>
+  <table id="studentTable">
+    <thead>
+      <tr id="headerRow">
+        <th>座號</th>
+        <th>姓名</th>
+      </tr>
+    </thead>
+    <tbody id="studentBody"></tbody>
+  </table>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyBvjO6-SZG0TXny9RNowA7e7rRdK1Z58oE",
+    authDomain: "water-7b4fe.firebaseapp.com",
+    databaseURL: "https://water-7b4fe-default-rtdb.firebaseio.com",
+    projectId: "water-7b4fe",
+    storageBucket: "water-7b4fe.firebasestorage.app",
+    messagingSenderId: "66478103908",
+    appId: "1:66478103908:web:2e6b82f27e536181666e71"
+  };
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const studentTableBody = document.getElementById("studentBody");
+  const headerRow = document.getElementById("headerRow");
+
+  function exportCSV() {
+    db.ref("students").once("value", snapshot => {
+      const students = snapshot.val();
+      if (!students) return;
+
+      const headers = ["座號","姓名"];
+      const behaviors = [];
+
+      headerRow.querySelectorAll("th").forEach((th, idx) => {
+        if (idx > 1) behaviors.push(th.textContent);
+      });
+      headers.push(...behaviors);
+
+      let csvContent = headers.join(",") + "\n";
+      Object.values(students).forEach(student => {
+        const row = [student.id, student.name];
+        behaviors.forEach(b => {
+          row.push(student.behaviors && student.behaviors[b] != null ? student.behaviors[b] : 0);
+        });
+        csvContent += row.join(",") + "\n";
+      });
+
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "行為紀錄.csv";
+      a.click();
+    });
+  }
+
+  // 更新表格，只讀
+  db.ref("behaviors").on("value", snapshot => {
+    const behaviors = snapshot.val() || {};
+    headerRow.innerHTML = "<th>座號</th><th>姓名</th>";
+    Object.keys(behaviors).forEach(b => {
+      const th = document.createElement("th");
+      th.textContent = b;
+      headerRow.appendChild(th);
+    });
+  });
+
+  db.ref("students").on("value", snapshot => {
+    const students = snapshot.val() || {};
+    studentTableBody.innerHTML = "";
+    db.ref("behaviors").once("value", snap => {
+      const behaviors = snap.val() || {};
+      Object.values(students).forEach(student => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${student.id}</td><td>${student.name}</td>`;
+        Object.keys(behaviors).forEach(b => {
+          const count = student.behaviors && student.behaviors[b] != null ? student.behaviors[b] : 0;
+          const td = document.createElement("td");
+          td.textContent = count;
+          td.className = `count${count}`;
+          tr.appendChild(td);
+        });
+        studentTableBody.appendChild(tr);
+      });
+    });
+  });
+</script>
+</body>
+</html>

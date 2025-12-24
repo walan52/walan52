@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>編輯待辦事項</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #e8f8ff;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    #dateLabel {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+    }
+    #todoInput {
+      font-size: 1em;
+      padding: 8px;
+      width: 300px;
+    }
+    #addBtn {
+      font-size: 1em;
+      padding: 8px 12px;
+      margin-left: 5px;
+    }
+    ul {
+      margin-top: 20px;
+      padding-left: 0;
+      list-style: none;
+    }
+    li {
+      margin-bottom: 10px;
+      padding: 8px;
+      background: #fff;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .todo-text {
+      flex: 1;
+      margin-right: 10px;
+    }
+    button {
+      margin-left: 5px;
+      font-size: 0.9em;
+      cursor: pointer;
+    }
+    .back {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <h1>編輯待辦事項</h1>
+  <div id="dateLabel"></div>
+
+  <input type="text" id="todoInput" placeholder="輸入待辦事項">
+  <button id="addBtn">新增</button>
+
+  <ul id="todoList"></ul>
+
+  <button class="back" onclick="goBack()">← 回首頁</button>
+
+  <script>
+    // Firebase 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 取得日期參數
+    const urlParams = new URLSearchParams(window.location.search);
+    const date = urlParams.get('date') || new Date().toISOString().split('T')[0];
+
+    const dateLabel = document.getElementById('dateLabel');
+    const todoInput = document.getElementById('todoInput');
+    const todoList = document.getElementById('todoList');
+
+    dateLabel.textContent = `日期：${date}`;
+
+    let todos = {}; // 使用物件儲存 key/value 格式
+
+    function renderList() {
+      todoList.innerHTML = '';
+      for (const [key, value] of Object.entries(todos)) {
+        const li = document.createElement('li');
+
+        const span = document.createElement('span');
+        span.className = 'todo-text';
+        span.textContent = value;
+
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '編輯';
+        editBtn.onclick = () => editTodo(key);
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '刪除';
+        delBtn.onclick = () => deleteTodo(key);
+
+        li.appendChild(span);
+        li.appendChild(editBtn);
+        li.appendChild(delBtn);
+        todoList.appendChild(li);
+      }
+    }
+
+    function addTodo() {
+      const text = todoInput.value.trim();
+      if (text === '') return;
+
+      const newRef = db.ref(`todos/${date}`).push();
+      newRef.set(text).then(() => {
+        todoInput.value = '';
+        loadTodos();
+      });
+    }
+
+    function editTodo(key) {
+      const newText = prompt('修改待辦事項：', todos[key]);
+      if (newText !== null && newText.trim() !== '') {
+        db.ref(`todos/${date}/${key}`).set(newText.trim()).then(() => {
+          loadTodos();
+        });
+      }
+    }
+
+    function deleteTodo(key) {
+      if (confirm('確定要刪除這筆待辦嗎？')) {
+        db.ref(`todos/${date}/${key}`).remove().then(() => {
+          loadTodos();
+        });
+      }
+    }
+
+    function loadTodos() {
+      db.ref(`todos/${date}`).once('value').then(snapshot => {
+        todos = snapshot.val() || {};
+        renderList();
+      });
+    }
+
+    function goBack() {
+      window.location.href = 'index.html';
+    }
+
+    document.getElementById('addBtn').addEventListener('click', addTodo);
+
+    loadTodos(); // 初始讀取
+  </script>
+</body>
+</html>

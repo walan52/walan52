@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>點數兌換系統</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; margin: 0; padding: 20px; }
+    .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #2e7d32; }
+    .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+    .input-group input { padding: 10px; border: 1px solid #ccc; border-radius: 8px; flex: 1; }
+    .input-group button { padding: 10px; background: #43a047; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+    .input-group button:hover { background: #2e7d32; }
+    .item-list { display: flex; flex-direction: column; gap: 10px; }
+    .item-card { display: flex; align-items: center; gap: 10px; background: #fafafa; padding: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .item-name { flex: 2; font-weight: bold; }
+    .item-points { flex: 1; color: #2e7d32; }
+    .btn-delete { padding: 5px 10px; background: #e53935; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-delete:hover { background: #c62828; }
+    .btn-records { padding: 8px 12px; background: #1976d2; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 10px; }
+    .btn-records:hover { background: #0d47a1; }
+  </style>
+</head>
+<body>
+  <div class="container" id="mainContainer" style="display:none">
+    <h1>點數兌換系統</h1>
+    <button class="btn-records" onclick="location.href='exchange_records.html'">查看學生兌換紀錄</button>
+    <div class="input-group">
+      <input type="text" id="itemName" placeholder="品項名稱">
+      <input type="number" id="itemPoints" placeholder="兌換點數">
+      <button onclick="addItem()">新增品項</button>
+    </div>
+    <div class="item-list" id="itemList"></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 檢查登入狀態
+    if (localStorage.getItem("adminLogin") !== "true") {
+      alert("請先登入！");
+      location.href = "login.html";
+    } else {
+      document.getElementById("mainContainer").style.display = "block";
+      loadItems();
+    }
+
+    function addItem() {
+      const name = document.getElementById("itemName").value.trim();
+      const points = parseInt(document.getElementById("itemPoints").value.trim());
+      if (!name || isNaN(points)) {
+        alert("請輸入品項名稱和兌換點數！");
+        return;
+      }
+      db.ref("items").push({ name, points });
+      document.getElementById("itemName").value = "";
+      document.getElementById("itemPoints").value = "";
+    }
+
+    function deleteItem(id) {
+      if (confirm("確定要刪除這個品項嗎？")) {
+        db.ref("items/" + id).remove();
+      }
+    }
+
+    function loadItems() {
+      db.ref("items").on("value", snapshot => {
+        const list = document.getElementById("itemList");
+        list.innerHTML = "";
+        const data = snapshot.val();
+        if (!data) return;
+        Object.entries(data).forEach(([id, item]) => {
+          const div = document.createElement("div");
+          div.className = "item-card";
+          div.innerHTML = `
+            <div class="item-name">${item.name}</div>
+            <div class="item-points">${item.points} 點</div>
+            <button class="btn-delete" onclick="deleteItem('${id}')">刪除</button>
+          `;
+          list.appendChild(div);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>教科書資料管理</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #eef; padding: 20px; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: white;
+    }
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #4287f5;
+      color: white;
+    }
+    button {
+      margin-right: 5px;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: white;
+    }
+    button.delete-btn {
+      background-color: #e74c3c;
+    }
+    button.clear-btn {
+      background-color: #555;
+      margin-top: 10px;
+    }
+    button.export-btn {
+      background-color: #2d89ef;
+      margin-top: 10px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>教科書資料管理</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>班級</th>
+        <th>教師姓名</th>
+        <th>教科書資料</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="dataBody"></tbody>
+  </table>
+  <button class="clear-btn" onclick="clearAll()">清除全部資料</button>
+  <button class="export-btn" onclick="exportExcel()">匯出 Excel</button>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const dataBody = document.getElementById('dataBody');
+    let currentData = [];
+
+    function renderData(snapshot) {
+      const dataArray = [];
+      snapshot.forEach(child => {
+        dataArray.push({ key: child.key, val: child.val() });
+      });
+
+      dataArray.sort((a,b) => {
+        const aClass = parseInt(a.val.class) || 0;
+        const bClass = parseInt(b.val.class) || 0;
+        return aClass - bClass;
+      });
+
+      dataBody.innerHTML = '';
+      if (dataArray.length === 0) {
+        dataBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">目前無資料</td></tr>`;
+        currentData = [];
+        return;
+      }
+
+      currentData = dataArray;
+
+      dataArray.forEach(item => {
+        const d = item.val;
+        let bookInfo = "";
+        if (d.allOk) {
+          bookInfo = "教科書全OK";
+        } else if (d.books && d.books.length > 0) {
+          const missArr = d.books
+            .filter(b => b.count && Number(b.count) > 0)
+            .map(b => `${b.name}少${b.count}本`);
+          bookInfo = missArr.length > 0 ? missArr.join('； ') : "無缺少教科書";
+        } else {
+          bookInfo = "無缺少教科書";
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.class}</td>
+          <td>${d.teacher}</td>
+          <td>${bookInfo}</td>
+          <td>
+            <button class="delete-btn" onclick="deleteItem('${item.key}')">刪除</button>
+          </td>
+        `;
+        dataBody.appendChild(tr);
+      });
+    }
+
+    db.ref('textbooks').on('value', snapshot => {
+      renderData(snapshot);
+    });
+
+    function deleteItem(key) {
+      if (confirm('確定刪除此筆資料？')) {
+        db.ref('textbooks/' + key).remove();
+      }
+    }
+
+    function clearAll() {
+      if (confirm('確定清除全部資料？')) {
+        db.ref('textbooks').remove();
+      }
+    }
+
+    function exportExcel() {
+      if (currentData.length === 0) {
+        alert("目前無資料可匯出");
+        return;
+      }
+
+      const exportData = currentData.map(item => {
+        const d = item.val;
+        let bookInfo = "";
+        if (d.allOk) {
+          bookInfo = "教科書全OK";
+        } else if (d.books && d.books.length > 0) {
+          const missArr = d.books
+            .filter(b => b.count && Number(b.count) > 0)
+            .map(b => `${b.name}少${b.count}本`);
+          bookInfo = missArr.length > 0 ? missArr.join('； ') : "無缺少教科書";
+        } else {
+          bookInfo = "無缺少教科書";
+        }
+
+        return {
+          班級: d.class,
+          教師姓名: d.teacher,
+          教科書資料: bookInfo
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "教科書資料");
+
+      XLSX.writeFile(wb, "教科書資料.xlsx");
+    }
+  </script>
+</body>
+</html>

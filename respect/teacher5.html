@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>課堂回饋（教師端）</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: "微軟正黑體";
+      background: #eef;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+      color: #2c3e50;
+      font-size: 28px;
+    }
+    label {
+      font-size: 20px;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+    input {
+      width: 40%;
+      padding: 8px;
+      font-size: 18px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 6px 14px;
+      border: none;
+      background: #27ae60;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 18px;
+      margin-left: 6px;
+    }
+    button:hover {
+      background: #1e8449;
+    }
+    .stop-btn {
+      background: #e67e22;
+    }
+    .stop-btn:hover {
+      background: #ca6f1e;
+    }
+    .minus-btn {
+      background: #e74c3c;
+    }
+    .minus-btn:hover {
+      background: #c0392b;
+    }
+    .container {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .table-container {
+      flex: 1;
+      max-height: 70vh;
+      overflow-y: auto;
+      border: 2px solid #aaa;
+      border-radius: 8px;
+      background: white;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 10px 6px;
+      text-align: center;
+      word-wrap: break-word;
+    }
+    th {
+      background: #dfe6e9;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      font-size: 20px;
+    }
+    td {
+      font-size: 20px;
+    }
+    td:nth-child(3) {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    #buzzStatus {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #e74c3c;
+    }
+    #countdown {
+      font-size: 20px;
+      font-weight: 700;
+      color: #2980b9;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>課堂即時答題狀況</h2>
+
+  <label>題目：</label>
+  <input id="questionInput" placeholder="輸入老師要問的問題" />
+  <button onclick="sendQuestion()">發送題目</button>
+  <button class="stop-btn" onclick="stopQuestion()">🛑 停止作答</button>
+  <button onclick="exportToExcel()">匯出Excel</button>
+  <button onclick="clearAnswers()">清除答案</button>
+  <button onclick="clearAllData()">清除所有學生資料</button>
+
+  <div style="margin-top:15px;">
+    <button onclick="startCountdown()" id="startBuzzBtn">啟動搶答倒數（5秒）</button>
+    <button onclick="resetBuzz()">重置搶答</button>
+    <div id="buzzStatus">目前無人搶答</div>
+    <div id="countdown"></div>
+  </div>
+
+  <div class="container">
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>座號</th>
+            <th>暱稱</th>
+            <th>答案</th>
+            <th>分數</th>
+            <th>加／扣分</th>
+          </tr>
+        </thead>
+        <tbody id="leftTable"></tbody>
+      </table>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>座號</th>
+            <th>暱稱</th>
+            <th>答案</th>
+            <th>分數</th>
+            <th>加／扣分</th>
+          </tr>
+        </thead>
+        <tbody id="rightTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC5aW_wP20TbBPMqUeGQaPw9MH0dpRjgaQ",
+      authDomain: "respect-833f3.firebaseapp.com",
+      databaseURL: "https://respect-833f3-default-rtdb.firebaseio.com",
+      projectId: "respect-833f3",
+      storageBucket: "respect-833f3.appspot.com",
+      messagingSenderId: "360277137589",
+      appId: "1:360277137589:web:6a7b8bf0763ef5d43446fc",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ===== 發送題目 =====
+    function sendQuestion() {
+      const text = document.getElementById("questionInput").value.trim();
+      if (!text) {
+        alert("請輸入問題");
+        return;
+      }
+      db.ref("questions/current").set({ text });
+      document.getElementById("questionInput").value = "";
+    }
+
+    // ===== 停止作答（只清除題目）=====
+    function stopQuestion() {
+      db.ref("questions/current").remove().then(() => {
+        alert("題目已清除，停止作答！");
+      });
+    }
+
+    // ===== 監聽學生資料 =====
+    db.ref("students").on("value", (snapshot) => {
+      const data = snapshot.val() || {};
+      renderTables(data);
+    });
+
+    // ===== 監聽搶答狀態 =====
+    db.ref("buzzing").on("value", (snap) => {
+      const buzzSeat = snap.val();
+      if (!buzzSeat || buzzSeat === "countdown") {
+        document.getElementById("buzzStatus").innerText =
+          buzzSeat === "countdown" ? "搶答倒數中..." : "目前無人搶答";
+      } else {
+        db.ref("students/" + buzzSeat + "/nickname").once("value").then((snap) => {
+          const nick = snap.val() || "";
+          document.getElementById("buzzStatus").innerText = `搶答者：座號 ${buzzSeat}，暱稱 ${nick}`;
+        });
+      }
+    });
+
+    let countdownInterval = null;
+
+    // ===== 搶答倒數 =====
+    function startCountdown() {
+      if (countdownInterval) return;
+      let sec = 5;
+      document.getElementById("countdown").innerText = `搶答倒數：${sec} 秒`;
+      document.getElementById("startBuzzBtn").disabled = true;
+      db.ref("buzzing").set("countdown");
+
+      countdownInterval = setInterval(() => {
+        sec--;
+        if (sec > 0) {
+          document.getElementById("countdown").innerText = `搶答倒數：${sec} 秒`;
+        } else {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+          document.getElementById("countdown").innerText = "搶答開始！";
+          document.getElementById("startBuzzBtn").disabled = false;
+          db.ref("buzzing").remove();
+        }
+      }, 1000);
+    }
+
+    // ===== 顯示學生資料（分左右區）=====
+    function renderTables(data) {
+      const left = document.getElementById("leftTable");
+      const right = document.getElementById("rightTable");
+      left.innerHTML = "";
+      right.innerHTML = "";
+      const sorted = Object.keys(data).sort((a, b) => Number(a) - Number(b));
+      sorted.forEach((seat) => {
+        const s = data[seat];
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${seat}</td>
+          <td>${s.nickname || ""}</td>
+          <td>${s.answer || ""}</td>
+          <td>${s.score || 0}</td>
+          <td>
+            <button onclick="addPoint('${seat}', ${s.score || 0})">+1</button>
+            <button class="minus-btn" onclick="minusPoint('${seat}', ${s.score || 0})">−1</button>
+          </td>
+        `;
+        if (Number(seat) <= 10) {
+          left.appendChild(row);
+        } else if (Number(seat) <= 23) {
+          right.appendChild(row);
+        }
+      });
+    }
+
+    // ===== 加扣分 =====
+    function addPoint(seat, score) {
+      db.ref("students/" + seat + "/score").set(score + 1);
+    }
+    function minusPoint(seat, score) {
+      const newScore = score > 0 ? score - 1 : 0;
+      db.ref("students/" + seat + "/score").set(newScore);
+    }
+
+    // ===== 匯出 Excel =====
+    function exportToExcel() {
+      db.ref("students").once("value").then((snapshot) => {
+        const data = snapshot.val() || {};
+        const sorted = Object.keys(data).sort((a, b) => Number(a) - Number(b));
+        const exportData = [["座號", "暱稱", "答案", "分數"]];
+        sorted.forEach((seat) => {
+          const s = data[seat];
+          exportData.push([seat, s.nickname || "", s.answer || "", s.score || 0]);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "學生答題資料");
+        XLSX.writeFile(wb, "學生答題資料.xlsx");
+      });
+    }
+
+    // ===== 清除答案 =====
+    function clearAnswers() {
+      db.ref("students").once("value").then((snapshot) => {
+        const data = snapshot.val() || {};
+        const updates = {};
+        Object.keys(data).forEach((seat) => (updates[seat + "/answer"] = null));
+        Promise.all([
+          db.ref("students").update(updates),
+          db.ref("questions/current").remove(),
+          db.ref("buzzing").remove(),
+        ]).then(() => {
+          alert("所有學生答案、題目與搶答狀態已清除！");
+          document.getElementById("countdown").innerText = "";
+        });
+      });
+    }
+
+    // ===== 清除所有資料 =====
+    function clearAllData() {
+      if (confirm("確定要清除所有學生資料嗎？這個動作無法還原！")) {
+        Promise.all([
+          db.ref("students").remove(),
+          db.ref("questions/current").remove(),
+          db.ref("buzzing").remove(),
+        ]).then(() => {
+          alert("所有學生資料、題目與搶答狀態已清除！");
+          document.getElementById("countdown").innerText = "";
+        });
+      }
+    }
+
+    // ===== 重置搶答 =====
+    function resetBuzz() {
+      db.ref("buzzing").remove().then(() => {
+        alert("搶答狀態已重置");
+        document.getElementById("countdown").innerText = "";
+      });
+    }
+  </script>
+</body>
+</html>

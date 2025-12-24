@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>課堂回饋（教師端）</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <!-- 載入 SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: "微軟正黑體";
+      background: #eef;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+      color: #2c3e50;
+      font-size: 28px;
+    }
+    label {
+      font-size: 20px;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+    input {
+      width: 40%;
+      padding: 8px;
+      font-size: 18px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 6px 14px;
+      border: none;
+      background: #27ae60;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 18px;
+      margin-left: 6px;
+    }
+    button:hover {
+      background: #1e8449;
+    }
+    /* 表格樣式 */
+    .table-container {
+      max-height: 70vh;
+      overflow-y: auto;
+      border: 2px solid #aaa;
+      border-radius: 8px;
+      background: white;
+      margin-top: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    th,
+    td {
+      border: 1px solid #ccc;
+      padding: 10px 6px;
+      text-align: center;
+      word-wrap: break-word;
+    }
+    th {
+      background: #dfe6e9;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      font-size: 20px;
+    }
+    /* 座號欄固定 */
+    th:first-child,
+    td:first-child {
+      position: sticky;
+      left: 0;
+      background: #ecf0f1;
+      z-index: 3;
+    }
+    /* 欄寬設定：縮小非答案欄 */
+    th:nth-child(1),
+    td:nth-child(1) {
+      width: 70px;
+    } /* 座號 */
+    th:nth-child(2),
+    td:nth-child(2) {
+      width: 120px;
+    } /* 暱稱 */
+    th:nth-child(4),
+    td:nth-child(4) {
+      width: 80px;
+    } /* 分數 */
+    th:nth-child(5),
+    td:nth-child(5) {
+      width: 90px;
+    } /* 加分按鈕 */
+    td {
+      font-size: 20px;
+    }
+    /* 答案欄文字放大強調 */
+    td:nth-child(3) {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    #buzzStatus {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #e74c3c;
+    }
+    #countdown {
+      font-size: 20px;
+      font-weight: 700;
+      color: #2980b9;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>課堂即時答題狀況</h2>
+
+  <label>題目：</label>
+  <input id="questionInput" placeholder="輸入老師要問的問題" />
+  <button onclick="sendQuestion()">發送題目</button>
+  <button onclick="exportToExcel()">匯出Excel</button>
+  <button onclick="clearAnswers()">清除答案</button>
+  <button onclick="clearAllData()">清除所有學生資料</button>
+
+  <div style="margin-top:15px;">
+    <button onclick="startCountdown()" id="startBuzzBtn">啟動搶答倒數（5秒）</button>
+    <button onclick="resetBuzz()">重置搶答</button>
+    <div id="buzzStatus">目前無人搶答</div>
+    <div id="countdown"></div>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>座號</th>
+          <th>暱稱</th>
+          <th>答案</th>
+          <th>分數</th>
+          <th>加分</th>
+        </tr>
+      </thead>
+      <tbody id="studentTable"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC5aW_wP20TbBPMqUeGQaPw9MH0dpRjgaQ",
+      authDomain: "respect-833f3.firebaseapp.com",
+      databaseURL: "https://respect-833f3-default-rtdb.firebaseio.com",
+      projectId: "respect-833f3",
+      storageBucket: "respect-833f3.appspot.com",
+      messagingSenderId: "360277137589",
+      appId: "1:360277137589:web:6a7b8bf0763ef5d43446fc",
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 發送題目
+    function sendQuestion() {
+      const text = document.getElementById("questionInput").value.trim();
+      if (!text) {
+        alert("請輸入問題");
+        return;
+      }
+      db.ref("questions/current").set({ text });
+      document.getElementById("questionInput").value = "";
+    }
+
+    // 監聽學生答題資料
+    db.ref("students").on("value", (snapshot) => {
+      const data = snapshot.val() || {};
+      renderTable(data);
+    });
+
+    // 監聽搶答狀態
+    db.ref("buzzing").on("value", (snap) => {
+      const buzzSeat = snap.val();
+      if (!buzzSeat) {
+        document.getElementById("buzzStatus").innerText = "目前無人搶答";
+      } else {
+        // 找暱稱顯示
+        db.ref("students/" + buzzSeat + "/nickname").once("value").then(snap => {
+          const nick = snap.val() || "";
+          document.getElementById("buzzStatus").innerText = `搶答者：座號 ${buzzSeat}，暱稱 ${nick}`;
+        });
+      }
+    });
+
+    let countdownInterval = null;
+
+    // 啟動倒數5秒，倒數完清除搶答狀態並允許搶答
+    function startCountdown() {
+      if (countdownInterval) return; // 已在倒數中不重複啟動
+
+      let sec = 5;
+      document.getElementById("countdown").innerText = `搶答倒數：${sec} 秒`;
+      document.getElementById("startBuzzBtn").disabled = true;
+
+      // 倒數時禁止搶答，這段期間搶答狀態設為"倒數中"
+      db.ref("buzzing").set("countdown");
+
+      countdownInterval = setInterval(() => {
+        sec--;
+        if (sec > 0) {
+          document.getElementById("countdown").innerText = `搶答倒數：${sec} 秒`;
+        } else {
+          clearInterval(countdownInterval);
+          countdownInterval = null;
+          document.getElementById("countdown").innerText = "搶答開始！";
+          document.getElementById("startBuzzBtn").disabled = false;
+          // 清除搶答狀態，學生可搶答
+          db.ref("buzzing").remove();
+        }
+      }, 1000);
+    }
+
+    function renderTable(data) {
+      const tbody = document.getElementById("studentTable");
+      tbody.innerHTML = "";
+      const sorted = Object.keys(data).sort((a, b) => Number(a) - Number(b));
+      sorted.forEach((seat) => {
+        const s = data[seat];
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${seat}</td>
+          <td>${s.nickname || ""}</td>
+          <td>${s.answer || ""}</td>
+          <td>${s.score || 0}</td>
+          <td><button onclick="addPoint('${seat}', ${s.score || 0})">+1</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // 加分功能
+    function addPoint(seat, score) {
+      db.ref("students/" + seat + "/score").set(score + 1);
+    }
+
+    // 匯出 Excel
+    function exportToExcel() {
+      db.ref("students")
+        .once("value")
+        .then((snapshot) => {
+          const data = snapshot.val() || {};
+          const sorted = Object.keys(data).sort((a, b) => Number(a) - Number(b));
+          const exportData = [];
+
+          // 表頭
+          exportData.push(["座號", "暱稱", "答案", "分數"]);
+
+          sorted.forEach((seat) => {
+            const s = data[seat];
+            exportData.push([
+              seat,
+              s.nickname || "",
+              s.answer || "",
+              s.score || 0,
+            ]);
+          });
+
+          // 使用 SheetJS 轉換成工作簿
+          const ws = XLSX.utils.aoa_to_sheet(exportData);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "學生答題資料");
+
+          // 觸發下載
+          XLSX.writeFile(wb, "學生答題資料.xlsx");
+        });
+    }
+
+    // 清除所有學生答案，但保留暱稱與分數，且清除題目與搶答狀態
+    function clearAnswers() {
+      db.ref("students").once("value").then(snapshot => {
+        const data = snapshot.val() || {};
+        const updates = {};
+        Object.keys(data).forEach(seat => {
+          updates[seat + "/answer"] = null;
+        });
+        Promise.all([
+          db.ref("students").update(updates),
+          db.ref("questions/current").remove(),
+          db.ref("buzzing").remove()
+        ]).then(() => {
+          alert("所有學生答案、題目與搶答狀態已清除！");
+          document.getElementById("countdown").innerText = "";
+        });
+      });
+    }
+
+    // 清除所有學生資料（暱稱、答案、分數全部清除），且清除題目與搶答狀態
+    function clearAllData() {
+      if(confirm("確定要清除所有學生資料嗎？這個動作無法還原！")) {
+        Promise.all([
+          db.ref("students").remove(),
+          db.ref("questions/current").remove(),
+          db.ref("buzzing").remove()
+        ]).then(() => {
+          alert("所有學生資料、題目與搶答狀態已清除！");
+          document.getElementById("countdown").innerText = "";
+        });
+      }
+    }
+
+    // 重置搶答
+    function resetBuzz() {
+      db.ref("buzzing").remove().then(() => {
+        alert("搶答狀態已重置");
+        document.getElementById("countdown").innerText = "";
+      });
+    }
+  </script>
+</body>
+</html>

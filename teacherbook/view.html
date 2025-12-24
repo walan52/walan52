@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>手冊領用紀錄管理</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #f8f8ff; padding: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #aaa; padding: 8px; text-align: left; }
+    th { background-color: #e0e0ff; }
+    button.delete-btn {
+      background-color: #d9534f;
+      border: none;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    button.delete-btn:hover {
+      background-color: #c9302c;
+    }
+    #clearAllBtn {
+      background-color: #337ab7;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    #clearAllBtn:hover {
+      background-color: #286090;
+    }
+  </style>
+</head>
+<body>
+  <h2>教師手冊領用紀錄管理</h2>
+  <button id="clearAllBtn" onclick="clearAllData()">清除全部資料</button>
+  <table>
+    <thead>
+      <tr>
+        <th>班級</th>
+        <th>教師姓名</th>
+        <th>手冊</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="recordList"></tbody>
+  </table>
+
+  <script>
+    // Firebase 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const recordList = document.getElementById('recordList');
+
+    function loadRecords() {
+      db.ref("manualClaims").on("value", snapshot => {
+        const records = [];
+        snapshot.forEach(child => {
+          records.push({ key: child.key, data: child.val() });
+        });
+
+        // 排序依班級字串 (從小到大)
+        records.sort((a, b) => {
+          const classA = a.data.class || "";
+          const classB = b.data.class || "";
+          // 嘗試轉數字排序
+          const numA = parseInt(classA);
+          const numB = parseInt(classB);
+          if (!isNaN(numA) && !isNaN(numB)) {
+            return numA - numB;
+          }
+          // 若非數字，直接字串排序
+          return classA.localeCompare(classB);
+        });
+
+        recordList.innerHTML = "";
+        records.forEach(({ key, data }) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${data.class || ""}</td>
+            <td>${data.teacher || ""}</td>
+            <td>${(data.manuals || []).join("、")}</td>
+            <td><button class="delete-btn" onclick="deleteRecord('${key}')">刪除</button></td>
+          `;
+          recordList.appendChild(tr);
+        });
+      });
+    }
+
+    function deleteRecord(key) {
+      if (confirm("確定要刪除此筆資料嗎？")) {
+        db.ref('manualClaims/' + key).remove();
+      }
+    }
+
+    function clearAllData() {
+      if (confirm("確定要清除所有資料嗎？此動作無法復原！")) {
+        db.ref('manualClaims').remove();
+      }
+    }
+
+    loadRecords();
+  </script>
+</body>
+</html>

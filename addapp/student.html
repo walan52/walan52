@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>學生系統</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f4f8; padding: 20px; }
+    .container { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 600px; margin: auto; }
+    h1 { color: #2e7d32; text-align: center; }
+    .info { text-align: center; font-size: 1.5em; color: #2e7d32; margin: 20px 0; }
+    .input-group { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .input-group input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+    .input-group button { padding: 10px 16px; background: #43a047; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    .input-group button:hover { background: #2e7d32; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="studentTitle"></h1>
+    <div class="info" id="studentScore"></div>
+    <div class="input-group">
+      <input type="password" id="newPassword" placeholder="輸入新密碼">
+      <button onclick="changeStudentPassword()">修改密碼</button>
+      <button onclick="logout()">登出</button>
+      <button onclick="goExchange()">點數兌換</button>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let currentStudentId = localStorage.getItem("currentStudentId");
+
+    if (!currentStudentId) {
+      alert("請先登入");
+      location.href = "login.html";
+    } else {
+      db.ref("students/" + currentStudentId).once("value").then(snapshot => {
+        const s = snapshot.val();
+        if (s) {
+          document.getElementById("studentTitle").innerText = `${s.name} (${s.seat}號)`;
+          document.getElementById("studentScore").innerText = `目前分數：${s.score}`;
+        } else {
+          alert("查無學生資料");
+          location.href = "login.html";
+        }
+      });
+    }
+
+    function changeStudentPassword() {
+      const newPwd = document.getElementById("newPassword").value.trim();
+      if (!newPwd) {
+        alert("請輸入新密碼");
+        return;
+      }
+      db.ref("students/" + currentStudentId).update({ password: newPwd }).then(() => {
+        alert("密碼已修改！");
+        document.getElementById("newPassword").value = "";
+      });
+    }
+
+    function logout() {
+      localStorage.removeItem("currentStudentId");
+      location.href = "login.html";
+    }
+
+    function goExchange() {
+      location.href = `student_exchange.html?studentId=${currentStudentId}`;
+    }
+  </script>
+</body>
+</html>

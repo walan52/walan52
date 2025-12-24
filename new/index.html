@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>新增重要提醒</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 10px;
+      font-size: 1.1em;
+      margin-top: 10px;
+    }
+
+    .addBtn {
+      padding: 8px 20px;
+      font-size: 1em;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    .item {
+      background: #fff;
+      border-left: 5px solid #5bc0de;
+      padding: 10px;
+      margin-top: 10px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .info {
+      flex-grow: 1;
+    }
+
+    .date {
+      font-size: 0.9em;
+      color: #888;
+    }
+
+    .text {
+      font-size: 1.1em;
+      margin-top: 5px;
+    }
+
+    .deleteBtn {
+      background: #d9534f;
+      color: white;
+      border: none;
+      padding: 2px 6px;
+      font-size: 0.8em;
+      border-radius: 3px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+
+    #loginBox {
+      max-width: 300px;
+      margin: 100px auto;
+      padding: 20px;
+      background: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+
+    #loginBox input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 10px;
+      font-size: 1em;
+    }
+
+    #loginBox button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      font-size: 1em;
+      background-color: #5bc0de;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    #reminderApp {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 登入畫面 -->
+  <div id="loginBox">
+    <h3>請先登入</h3>
+    <input type="text" id="username" placeholder="帳號">
+    <input type="password" id="password" placeholder="密碼">
+    <button onclick="login()">登入</button>
+    <p id="loginMsg" style="color: red;"></p>
+  </div>
+
+  <!-- 主功能區塊 -->
+  <div id="reminderApp">
+    <h2>新增重要提醒</h2>
+    <textarea id="reminderText" placeholder="請輸入提醒事項..."></textarea>
+    <button class="addBtn" onclick="addReminder()">新增</button>
+
+    <h3>目前提醒：</h3>
+    <div id="reminderList"></div>
+  </div>
+
+  <script>
+    // Firebase 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.appspot.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 初次寫入帳密（僅會執行一次）
+    const defaultAccount = db.ref("accounts/walan52");
+    defaultAccount.once("value", snapshot => {
+      if (!snapshot.exists()) {
+        defaultAccount.set({ password: "source88" });
+      }
+    });
+
+    // 登入邏輯（從資料庫驗證帳密）
+    function login() {
+      const user = document.getElementById('username').value.trim();
+      const pass = document.getElementById('password').value.trim();
+
+      if (!user || !pass) {
+        document.getElementById('loginMsg').textContent = '請輸入帳號與密碼';
+        return;
+      }
+
+      db.ref(`accounts/${user}`).once("value", snapshot => {
+        if (snapshot.exists() && snapshot.val().password === pass) {
+          document.getElementById('loginBox').style.display = 'none';
+          document.getElementById('reminderApp').style.display = 'block';
+        } else {
+          document.getElementById('loginMsg').textContent = '帳號或密碼錯誤';
+        }
+      });
+    }
+
+    // 新增提醒
+    function addReminder() {
+      const text = document.getElementById('reminderText').value.trim();
+      if (!text) return alert("請輸入提醒內容");
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('zh-Hant');
+
+      const newRef = db.ref("reminders").push();
+      newRef.set({ date: dateStr, text: text }, () => {
+        document.getElementById('reminderText').value = "";
+      });
+    }
+
+    // 刪除提醒
+    function deleteReminder(key) {
+      if (confirm("確定要刪除這項提醒嗎？")) {
+        db.ref("reminders/" + key).remove();
+      }
+    }
+
+    // 顯示提醒
+    const listDiv = document.getElementById('reminderList');
+    db.ref("reminders").on("value", snapshot => {
+      const data = snapshot.val();
+      listDiv.innerHTML = "";
+
+      if (data) {
+        const entries = Object.entries(data).reverse();
+        entries.forEach(([key, item]) => {
+          const div = document.createElement("div");
+          div.className = "item";
+          div.innerHTML = `
+            <div class="info">
+              <div class="date">📅 ${item.date}</div>
+              <div class="text">🔔 ${item.text}</div>
+            </div>
+            <button class="deleteBtn" onclick="deleteReminder('${key}')">刪</button>
+          `;
+          listDiv.appendChild(div);
+        });
+      } else {
+        listDiv.innerHTML = "<p>目前沒有提醒。</p>";
+      }
+    });
+  </script>
+</body>
+</html>

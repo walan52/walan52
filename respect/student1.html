@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>課堂即時回應系統（學生端）</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: "微軟正黑體"; background:#f9f9f9; padding:20px; text-align:center; }
+    .box { background:white; padding:20px; border-radius:10px; box-shadow:0 0 8px rgba(0,0,0,0.1); max-width:400px; margin:auto; margin-top:20px; }
+    input, button, textarea { margin:10px 0; padding:10px; width:80%; border-radius:5px; border:1px solid #ccc; font-size:1rem; }
+    button { background:#3498db; color:white; border:none; cursor:pointer; }
+    button:hover { background:#2980b9; }
+    #messageBox {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #2c3e50;
+      margin-top: 20px;
+      user-select: none;
+    }
+    #scoreDisplay {
+      margin-top: 15px;
+      font-size: 1.3rem;
+      color: #34495e;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="box" id="setupBox">
+    <h2>請輸入座號與暱稱</h2>
+    <input id="seatInput" type="number" placeholder="座號" />
+    <input id="nameInput" type="text" placeholder="暱稱" />
+    <button onclick="enterSystem()">進入答題</button>
+  </div>
+
+  <div class="box" id="messageBox" style="display:none;">
+    專心上課，不要打瞌睡 ~~~
+    <div id="scoreDisplay">目前分數：0 分</div>
+  </div>
+
+  <div class="box" id="quizBox" style="display:none;">
+    <h3 id="questionText">等待老師出題中...</h3>
+    <textarea id="answerInput" placeholder="請輸入答案"></textarea>
+    <button onclick="submitAnswer()">送出答案</button>
+    <p id="scoreText"></p>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC5aW_wP20TbBPMqUeGQaPw9MH0dpRjgaQ",
+      authDomain: "respect-833f3.firebaseapp.com",
+      databaseURL: "https://respect-833f3-default-rtdb.firebaseio.com",
+      projectId: "respect-833f3",
+      storageBucket: "respect-833f3.firebasestorage.app",
+      messagingSenderId: "360277137589",
+      appId: "1:360277137589:web:6a7b8bf0763ef5d43446fc"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let seat = "";
+    let name = "";
+
+    function enterSystem() {
+      seat = document.getElementById("seatInput").value.trim();
+      name = document.getElementById("nameInput").value.trim();
+      if (!seat || !name) {
+        alert("請輸入座號與暱稱");
+        return;
+      }
+
+      document.getElementById("setupBox").style.display = "none";
+      document.getElementById("messageBox").style.display = "block";
+      document.getElementById("quizBox").style.display = "none";
+
+      // 初始化學生資料（如果是新學生，分數設0）
+      db.ref("students/" + seat).update({
+        nickname: name,
+        score: 0
+      });
+
+      // 監聽老師出題
+      db.ref("questions/current").on("value", snapshot => {
+        const data = snapshot.val();
+
+        if (data && data.text && data.text.trim() !== "") {
+          // 顯示題目與答題區
+          document.getElementById("questionText").innerText = data.text;
+          document.getElementById("quizBox").style.display = "block";
+          document.getElementById("messageBox").style.display = "none";
+        } else {
+          // 顯示訊息，隱藏答題區
+          document.getElementById("quizBox").style.display = "none";
+          document.getElementById("messageBox").style.display = "block";
+        }
+      });
+
+      // 監聽自己的分數變化，更新訊息與答題區的分數顯示
+      db.ref("students/" + seat + "/score").on("value", s => {
+        const score = s.val() || 0;
+        document.getElementById("scoreText").innerText = "目前分數：" + score + " 分";
+        document.getElementById("scoreDisplay").innerText = "目前分數：" + score + " 分";
+      });
+    }
+
+    function submitAnswer() {
+      const answer = document.getElementById("answerInput").value.trim();
+      if (!answer) {
+        alert("請輸入答案");
+        return;
+      }
+      db.ref("students/" + seat + "/answer").set(answer).then(() => {
+        alert("已送出！");
+        // 答完題後清空文字框，並回到「專心上課」訊息
+        document.getElementById("answerInput").value = "";
+        document.getElementById("quizBox").style.display = "none";
+        document.getElementById("messageBox").style.display = "block";
+      });
+    }
+  </script>
+</body>
+</html>

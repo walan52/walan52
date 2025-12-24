@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>工作清單（Firebase）</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    #taskList div {
+      padding: 10px;
+      margin: 5px 0;
+      background-color: #f0f0f0;
+      border-radius: 6px;
+    }
+    button {
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>新增工作</h2>
+  <input type="text" id="taskInput" placeholder="輸入工作內容">
+  <button onclick="addTask()">新增</button>
+
+  <h3>工作清單</h3>
+  <div id="taskList"></div>
+
+  <script>
+    // ✅ 初始化 Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 🔄 載入資料
+    const taskList = document.getElementById("taskList");
+    firebase.database().ref("tasks").on("value", snapshot => {
+      taskList.innerHTML = "";
+      snapshot.forEach(child => {
+        const data = child.val();
+        const key = child.key;
+        createTaskElement(data.date, data.task, data.status, key);
+      });
+    });
+
+    // ➕ 新增任務
+    function addTask() {
+      const taskInput = document.getElementById("taskInput");
+      const taskText = taskInput.value.trim();
+      if (taskText === "") return alert("請輸入工作內容");
+
+      const date = new Date().toLocaleDateString();
+      const newTaskRef = db.ref("tasks").push();
+      newTaskRef.set({
+        date: date,
+        task: taskText,
+        status: "待處理"
+      });
+
+      taskInput.value = "";
+    }
+
+    // 🧱 建立任務元件
+    function createTaskElement(date, taskText, status, key) {
+      const taskItem = document.createElement("div");
+
+      const textSpan = document.createElement("span");
+      textSpan.textContent = `${date} - ${taskText}`;
+      taskItem.appendChild(textSpan);
+
+      if (status === "待處理") {
+        const pendingBtn = document.createElement("button");
+        pendingBtn.textContent = "待處理";
+        pendingBtn.onclick = function () {
+          db.ref("tasks/" + key).update({
+            status: "已完成"
+          });
+        };
+        taskItem.appendChild(pendingBtn);
+      } else if (status === "已完成") {
+        const doneSpan = document.createElement("span");
+        doneSpan.textContent = " ✅ 處理完畢";
+        taskItem.appendChild(doneSpan);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "刪除";
+        deleteBtn.onclick = function () {
+          db.ref("tasks/" + key).remove();
+        };
+        taskItem.appendChild(deleteBtn);
+      }
+
+      taskList.appendChild(taskItem);
+    }
+  </script>
+</body>
+</html>

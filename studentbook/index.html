@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>教科書填寫系統（排成指定列）</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #eef; padding: 20px; }
+    .book-row {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+      gap: 20px;
+      align-items: center;
+    }
+    label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    input[type="number"] {
+      width: 60px;
+    }
+    button.remove-btn {
+      margin-left: 10px;
+      color: red;
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h2>教科書填寫系統</h2>
+  <form id="bookForm">
+    <label>班級：<input type="text" id="class" required></label>
+    <label>教師姓名：<input type="text" id="teacher" required></label>
+
+    <label><input type="checkbox" id="allOk"> 教科書全OK</label>
+
+    <div id="bookList">
+
+      <div class="book-row">
+        <label><input type="checkbox" class="bookCheck" data-name="國語課本"> 國語課本 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+        <label><input type="checkbox" class="bookCheck" data-name="國語習作"> 國語習作 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+      </div>
+
+      <div class="book-row">
+        <label><input type="checkbox" class="bookCheck" data-name="數學課本"> 數學課本 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+        <label><input type="checkbox" class="bookCheck" data-name="數學習作"> 數學習作 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+        <label><input type="checkbox" class="bookCheck" data-name="附件"> 附件 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+      </div>
+
+      <div class="book-row">
+        <label><input type="checkbox" class="bookCheck" data-name="生活課本"> 生活課本 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+        <label><input type="checkbox" class="bookCheck" data-name="生活習作"> 生活習作 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+      </div>
+
+      <div class="book-row">
+        <label><input type="checkbox" class="bookCheck" data-name="英語課本"> 英語課本 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+        <label><input type="checkbox" class="bookCheck" data-name="英語習作"> 英語習作 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+      </div>
+
+      <div class="book-row">
+        <label><input type="checkbox" class="bookCheck" data-name="閩南語課本"> 閩南語課本 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+        <label><input type="checkbox" class="bookCheck" data-name="電腦課本"> 電腦課本 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+      </div>
+
+      <div class="book-row">
+        <label><input type="checkbox" class="bookCheck" data-name="自然課本"> 自然課本 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+        <label><input type="checkbox" class="bookCheck" data-name="自然習作"> 自然習作 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+      </div>
+
+      <div class="book-row">
+        <label><input type="checkbox" class="bookCheck" data-name="社會課本"> 社會課本 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+        <label><input type="checkbox" class="bookCheck" data-name="社會習作"> 社會習作 <input type="number" min="0" value="0" class="bookCount"> 本</label>
+      </div>
+
+    </div>
+
+    <button type="button" onclick="addCustomBook()">➕ 新增自訂教科書</button><br><br>
+    <button type="submit">送出資料</button>
+  </form>
+
+  <script>
+    // Firebase 初始化
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEAwHvpNiiao5m3qTddWwiKs8N26jhKh8",
+      authDomain: "score-app-78575.firebaseapp.com",
+      databaseURL: "https://score-app-78575-default-rtdb.firebaseio.com",
+      projectId: "score-app-78575",
+      storageBucket: "score-app-78575.firebasestorage.app",
+      messagingSenderId: "795421843509",
+      appId: "1:795421843509:web:bff4bd34dfb0c1e0c7517c",
+      measurementId: "G-VDF130B9TW"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 新增自訂教科書功能
+    function addCustomBook() {
+      const name = prompt("請輸入自訂教科書名稱");
+      if (!name) return;
+
+      const bookList = document.getElementById('bookList');
+      const div = document.createElement('div');
+      div.className = 'book-row';
+
+      div.innerHTML = `
+        <label>
+          <input type="checkbox" class="bookCheck" data-name="${name}">
+          ${name}
+          <input type="number" min="0" value="0" class="bookCount"> 本
+          <button type="button" onclick="this.parentElement.parentElement.remove()" class="remove-btn">❌</button>
+        </label>
+      `;
+      bookList.appendChild(div);
+    }
+
+    // 送出資料
+    document.getElementById('bookForm').addEventListener('submit', e => {
+      e.preventDefault();
+
+      const classVal = document.getElementById('class').value.trim();
+      const teacher = document.getElementById('teacher').value.trim();
+      const allOk = document.getElementById('allOk').checked;
+
+      if (!classVal || !teacher) {
+        alert("請輸入班級和教師姓名");
+        return;
+      }
+
+      const bookChecks = document.querySelectorAll('.bookCheck');
+      const bookCounts = document.querySelectorAll('.bookCount');
+      const books = [];
+
+      bookChecks.forEach((chk, idx) => {
+        if (chk.checked) {
+          books.push({
+            name: chk.dataset.name,
+            count: parseInt(bookCounts[idx].value) || 0
+          });
+        }
+      });
+
+      const data = {
+        class: classVal,
+        teacher: teacher,
+        allOk: allOk,
+        books: books
+      };
+
+      db.ref('textbooks').push(data)
+        .then(() => {
+          alert("資料已送出！");
+          e.target.reset();
+        })
+        .catch(err => {
+          alert("送出失敗：" + err.message);
+        });
+    });
+  </script>
+</body>
+</html>

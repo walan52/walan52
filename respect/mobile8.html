@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>課堂即時回應系統（學生端）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      -webkit-overflow-scrolling: touch;
+      margin: 0;
+      padding: 0;
+      background: #f9f9f9;
+      font-family: "微軟正黑體";
+    }
+    .box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      max-width: 400px;
+      margin: 20px auto;
+      box-sizing: border-box;
+    }
+    input, button, textarea {
+      margin: 10px 0;
+      padding: 14px;
+      width: 80%;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 18px;
+      box-sizing: border-box;
+      font-family: "微軟正黑體";
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    button:hover:not(:disabled) { background: #2980b9; }
+    #messageBox { font-size: 2rem; font-weight: 700; color: #2c3e50; margin-top: 20px; user-select: none; }
+    #scoreDisplay { margin-top: 15px; font-size: 1.3rem; color: #34495e; font-weight: 600; }
+    #buzzBtn {
+      margin-top: 15px;
+      background: #e74c3c;
+      font-weight: 700;
+      font-size: 1.3rem;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      user-select: none;
+      display: none;
+    }
+    #buzzBtn:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+    #buzzStatus {
+      margin-top: 15px;
+      font-weight: 700;
+      color: #c0392b;
+      font-size: 1.2rem;
+      user-select: none;
+      min-height: 1.4em;
+    }
+    #notice {
+      margin-top: 20px;
+      font-size: 1.1rem;
+      color: #16a085;
+      font-weight: 700;
+      min-height: 1.2em;
+    }
+    #drawCardBtn {
+      margin-top: 15px;
+      background: #9b59b6;
+      font-weight: 700;
+      font-size: 1.3rem;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      display: none;
+    }
+    #drawTenBtn {
+      margin-top: 10px;
+      background: #f1c40f;
+      font-weight: 700;
+      font-size: 1.3rem;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      display: none;
+      color: black;
+    }
+    #logoutBtn {
+      margin-top: 15px;
+      background: #e67e22;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      user-select: none;
+      display: none;
+      width: 80%;
+    }
+    @media screen and (max-width: 600px) {
+      .box { max-width: 95%; padding: 15px; }
+      input, button, textarea, #buzzBtn { width: 95%; font-size: 1.2rem; padding: 14px; }
+      #messageBox { font-size: 2.2rem; }
+      #scoreDisplay { font-size: 1.5rem; }
+      #buzzBtn { font-size: 1.5rem; }
+      #drawCardBtn { width: 95%; font-size: 1.5rem; }
+      #drawTenBtn { width: 95%; font-size: 1.5rem; }
+      #logoutBtn { width: 95%; font-size: 1.2rem; }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="box" id="setupBox" style="display:none;">
+  <h2>請輸入座號與暱稱</h2>
+  <input id="seatInput" type="number" placeholder="座號" />
+  <input id="nameInput" type="text" placeholder="暱稱" />
+  <button onclick="enterSystem()">進入答題</button>
+  <div id="notice"></div>
+</div>
+
+<div class="box" id="messageBox" style="display:none;">
+  專心上課，不要打瞌睡 ~~~
+  <div id="scoreDisplay">目前分數：0 分</div>
+
+  <button id="buzzBtn" onclick="tryBuzz()">搶答</button>
+  <button id="drawCardBtn" onclick="drawCard()">抽卡（扣 10 分）</button>
+  <button id="drawTenBtn" onclick="drawTen()">十連抽（扣 100 分）</button>
+  <button id="logoutBtn" onclick="logout()">登出</button>
+
+
+  <div id="buzzStatus"></div>
+  <div id="notice"></div>
+</div>
+
+<div class="box" id="quizBox" style="display:none;">
+  <h3 id="questionText">等待老師出題中...</h3>
+  <textarea id="answerInput" placeholder="請輸入答案" rows="5"></textarea>
+  <button onclick="submitAnswer()">送出答案</button>
+  <p id="scoreText"></p>
+  <div id="notice"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyC5aW_wP20TbBPMqUeGQaPw9MH0dpRjgaQ",
+  authDomain: "respect-833f3.firebaseapp.com",
+  databaseURL: "https://respect-833f3-default-rtdb.firebaseio.com",
+  projectId: "respect-833f3",
+  storageBucket: "respect-833f3.firebasestorage.app",
+  messagingSenderId: "360277137589",
+  appId: "1:360277137589:web:6a7b8bf0763ef5d43446fc"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let seat = "";
+let name = "";
+
+function showNotice(msg, color="#16a085") {
+  document.querySelectorAll("#notice").forEach(n => {
+    n.innerText = msg;
+    n.style.color = color;
+  });
+  setTimeout(() => {
+    document.querySelectorAll("#notice").forEach(n => n.innerText = "");
+  }, 4000);
+}
+
+async function enterSystem() {
+  seat = document.getElementById("seatInput").value.trim();
+  name = document.getElementById("nameInput").value.trim();
+
+  if (!seat || !name) {
+    showNotice("⚠️ 請輸入座號與暱稱", "#e67e22");
+    return;
+  }
+
+  localStorage.setItem("seat", seat);
+  localStorage.setItem("name", name);
+
+  await setupUser();
+}
+
+async function setupUser() {
+  const studentRef = db.ref("students/" + seat);
+  const snapshot = await studentRef.once("value");
+  const data = snapshot.val();
+
+  if (data) {
+    await studentRef.update({ nickname: name });
+  } else {
+    await studentRef.set({
+      nickname: name,
+      score: 0
+    });
+  }
+
+  showMainUI();
+}
+
+function showMainUI() {
+  document.getElementById("setupBox").style.display = "none";
+  document.getElementById("messageBox").style.display = "block";
+  document.getElementById("quizBox").style.display = "none";
+  document.getElementById("logoutBtn").style.display = "inline-block";
+
+  // 顯示題目或休息畫面
+  db.ref("questions/current").on("value", snapshot => {
+    const data = snapshot.val();
+    if (data && data.text && data.text.trim() !== "") {
+      document.getElementById("questionText").innerText = data.text;
+      document.getElementById("quizBox").style.display = "block";
+      document.getElementById("messageBox").style.display = "none";
+    } else {
+      document.getElementById("quizBox").style.display = "none";
+      document.getElementById("messageBox").style.display = "block";
+      hideBuzzButton();
+      clearBuzzStatus();
+    }
+  });
+
+  // 分數監聽（決定是否顯示抽卡按鈕／十連抽按鈕）
+  db.ref("students/" + seat + "/score").on("value", s => {
+    const score = s.val() || 0;
+    document.getElementById("scoreText").innerText = "目前分數：" + score + " 分";
+    document.getElementById("scoreDisplay").innerText = "目前分數：" + score + " 分";
+
+    const drawBtn = document.getElementById("drawCardBtn");
+    const tenBtn = document.getElementById("drawTenBtn");
+
+    drawBtn.style.display = score >= 10 ? "inline-block" : "none";
+    tenBtn.style.display = score >= 100 ? "inline-block" : "none";
+  });
+
+  // 搶答狀態
+  db.ref("buzzing").on("value", snap => {
+    const buzzSeat = snap.val();
+
+    if (buzzSeat === "countdown") {
+      hideBuzzButton();
+      document.getElementById("buzzStatus").innerText = "搶答倒數中，請稍後...";
+    } else if (!buzzSeat) {
+      showBuzzButton(true);
+      document.getElementById("buzzStatus").innerText = "現在可以搶答！";
+    } else if (buzzSeat === seat) {
+      showBuzzButton(false);
+      document.getElementById("buzzStatus").innerText = "你已成功搶答！請準備回答。";
+    } else {
+      showBuzzButton(false);
+      document.getElementById("buzzStatus").innerText = `座號 ${buzzSeat} 已搶答，請等待老師重置搶答。`;
+    }
+  });
+}
+
+function showBuzzButton(enabled) {
+  const btn = document.getElementById("buzzBtn");
+  btn.style.display = "inline-block";
+  btn.disabled = !enabled;
+}
+
+function hideBuzzButton() {
+  const btn = document.getElementById("buzzBtn");
+  btn.style.display = "none";
+  btn.disabled = true;
+}
+
+function clearBuzzStatus() {
+  document.getElementById("buzzStatus").innerText = "";
+}
+
+function tryBuzz() {
+  db.ref("buzzing").transaction(currentValue => {
+    if (!currentValue) return seat;
+    return;
+  }, (error, committed) => {
+    if (error) {
+      showNotice("搶答失敗，請稍後再試", "#e74c3c");
+    } else if (!committed) {
+      showNotice("已有人搶答，請等待老師重置", "#e67e22");
+    } else {
+      showNotice("🎉 恭喜你，搶答成功！");
+    }
+  });
+}
+
+function submitAnswer() {
+  const answer = document.getElementById("answerInput").value.trim();
+
+  if (!answer) {
+    showNotice("請輸入答案", "#e67e22");
+    return;
+  }
+
+  db.ref("students/" + seat + "/answer").set(answer).then(() => {
+    showNotice("✅ 已送出！");
+    document.getElementById("answerInput").value = "";
+    document.getElementById("quizBox").style.display = "none";
+    document.getElementById("messageBox").style.display = "block";
+  });
+}
+
+/* 單抽：扣 10 分 */
+function drawCard() {
+  const scoreRef = db.ref("students/" + seat + "/score");
+
+  scoreRef.transaction(score => {
+    if (!score || score < 10) return score;
+    return score - 10;
+  }, async (err, committed) => {
+    if (!committed) {
+      showNotice("⚠️ 分數不足，無法抽卡", "#e74c3c");
+      return;
+    }
+
+    const cardPoolSnapshot = await db.ref("cardPool").once("value");
+    const cardPoolData = cardPoolSnapshot.val();
+    if (!cardPoolData) {
+      showNotice("⚠️ 卡池尚未設定，請聯絡老師", "#e74c3c");
+      return;
+    }
+
+    const cards = Object.values(cardPoolData);
+    const result = cards[Math.floor(Math.random() * cards.length)];
+
+    const recordRef = db.ref("drawRecords").push();
+    await recordRef.set({
+      seat,
+      nickname: name,
+      card: result,
+      timestamp: Date.now()
+    });
+
+    showNotice(`🎴 抽到：${result}（已扣 10 分）`, "#9b59b6");
+  });
+}
+
+/* 十連抽：扣 100 分 + 保底至少 1 金 & 1 特殊 */
+async function drawTen() {
+  const scoreRef = db.ref("students/" + seat + "/score");
+
+  scoreRef.transaction(score => {
+    if (!score || score < 100) return score;
+    return score - 100;
+  }, async (err, committed) => {
+    if (!committed) {
+      showNotice("⚠️ 分數不足，無法十連抽", "#e74c3c");
+      return;
+    }
+
+    const cardPoolSnapshot = await db.ref("cardPool").once("value");
+    const cardPool = cardPoolSnapshot.val();
+    if (!cardPool) {
+      showNotice("⚠️ 卡池尚未設定，請聯絡老師", "#e74c3c");
+      return;
+    }
+
+    const cards = Object.values(cardPool);
+    let results = [];
+
+    // 先抽 10 張
+    for (let i = 0; i < 10; i++) {
+      results.push(cards[Math.floor(Math.random() * cards.length)]);
+    }
+
+    // 保底：金卡至少 1 張
+    if (!results.some(c => c.includes("金"))) {
+      const goldCards = cards.filter(c => c.includes("金"));
+      if (goldCards.length > 0)
+        results[0] = goldCards[Math.floor(Math.random() * goldCards.length)];
+    }
+
+    // 保底：特殊卡至少 1 張
+    if (!results.some(c => c.includes("特"))) {
+      const specialCards = cards.filter(c => c.includes("特"));
+      if (specialCards.length > 0)
+        results[1] = specialCards[Math.floor(Math.random() * specialCards.length)];
+    }
+
+    // 寫入 10 張抽卡紀錄
+    for (const r of results) {
+      const recordRef = db.ref("drawRecords").push();
+      await recordRef.set({
+        seat,
+        nickname: name,
+        card: r,
+        timestamp: Date.now()
+      });
+    }
+
+    showNotice(`🌟 十連抽結果：${results.join("、")}（已扣 100 分）`, "#f1c40f");
+  });
+}
+
+function logout() {
+  localStorage.removeItem("seat");
+  localStorage.removeItem("name");
+  seat = "";
+  name = "";
+  document.getElementById("setupBox").style.display = "block";
+  document.getElementById("messageBox").style.display = "none";
+  document.getElementById("quizBox").style.display = "none";
+}
+
+window.onload = () => {
+  const savedSeat = localStorage.getItem("seat");
+  const savedName = localStorage.getItem("name");
+
+  if (savedSeat && savedName) {
+    seat = savedSeat;
+    name = savedName;
+    setupUser();
+  } else {
+    document.getElementById("setupBox").style.display = "block";
+  }
+};
+</script>
+
+</body>
+</html>
