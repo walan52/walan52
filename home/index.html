@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧線上聯絡簿</title>
+    <!-- 引入 Tailwind CSS 用於快速美化介面 -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- 引入中文手寫楷體字型 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        /* 定義專屬的手寫風格字體（優先使用教育部標準楷書、全字庫楷體與系統內建標楷體） */
+        .handwriting-font {
+            font-family: "全字庫正楷體", "TW-Kai", "BiauKai", "DFKai-SB", "標楷體", "KaiTi", serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
+
+    <!-- 頂部導覽列 (支援手機自動換行) -->
+    <nav class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <h1 class="text-xl sm:text-2xl font-bold tracking-wide flex items-center gap-2">
+                <span>📝</span> 智慧線上聯絡簿
+            </h1>
+            <div class="flex flex-wrap justify-center gap-2 sm:gap-3 items-center w-full sm:w-auto">
+                <button id="btn-frontend" onclick="switchView('frontend')" class="flex-1 sm:flex-none px-4 py-2 rounded-xl font-medium bg-indigo-700 text-white shadow transition-all duration-200 cursor-pointer text-sm sm:text-base">
+                    🏠 前台
+                </button>
+                <button id="btn-backend" onclick="tryAccessBackend()" class="flex-1 sm:flex-none px-4 py-2 rounded-xl font-medium hover:bg-indigo-500 transition-all duration-200 cursor-pointer text-sm sm:text-base">
+                    ⚙️ 後台
+                </button>
+                <!-- 登出按鈕（預設隱藏，登入後顯示） -->
+                <button id="btn-logout" onclick="handleLogout()" class="hidden bg-rose-500 hover:bg-rose-600 text-white px-3 py-2 rounded-xl font-medium transition cursor-pointer text-sm sm:text-base">
+                    🚪 登出
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要內容區 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+
+        <!-- ================= 前台介面 ================= -->
+        <section id="view-frontend" class="grid grid-cols-1 md:grid-cols-4 gap-6 sm:gap-8 items-start">
+            
+            <!-- 查詢功能（手機版排列於上方，電腦版佔 1 欄） -->
+            <div class="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-1 md:sticky md:top-6">
+                <h2 class="text-lg sm:text-xl font-bold mb-4 flex items-center gap-2 text-indigo-900">🔍 查詢歷史</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-slate-500 mb-1">選擇日期：</label>
+                        <input type="date" id="search-date" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-base">
+                    </div>
+                    <button onclick="searchContactBook()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold text-base transition shadow-sm cursor-pointer">
+                        搜尋特定日期
+                    </button>
+                    <button onclick="renderFrontendOnlyLatest()" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 py-2.5 rounded-xl font-bold text-base transition cursor-pointer">
+                        返回今日/最新
+                    </button>
+                </div>
+            </div>
+
+            <!-- 聯絡簿內容顯示區（佔 3 欄） -->
+            <div id="frontend-content" class="md:col-span-3 w-full min-w-0">
+                <div class="text-center py-16 text-lg sm:text-xl text-slate-400 bg-white rounded-2xl border border-dashed">資料載入中...</div>
+            </div>
+        </section>
+
+
+        <!-- ================= 後台介面 ================= -->
+        <section id="view-backend" class="hidden space-y-8">
+            <!-- 發布/修改新聯絡簿表單 -->
+            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                    <h2 id="form-title" class="text-xl sm:text-2xl font-bold text-indigo-900">➕ 發布今日聯絡簿</h2>
+                    <button id="btn-cancel-edit" onclick="cancelEdit()" class="hidden bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer">
+                        ❌ 取消修改
+                    </button>
+                </div>
+                
+                <form id="contact-form" onsubmit="handlePublish(event)" class="space-y-6">
+                    <div>
+                        <label class="block text-base sm:text-lg font-medium text-slate-600 mb-2">日期</label>
+                        <input type="date" id="form-date" required class="w-full p-3 sm:p-3.5 text-base sm:text-lg border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400">
+                    </div>
+                    <div>
+                        <label class="block text-base sm:text-lg font-medium text-slate-600 mb-2">今日作業 (每行一項)</label>
+                        <textarea id="form-homework" rows="4" required placeholder="1. 數學課本 P.10-P.12&#10;2. 英文單字 L3 背誦" class="w-full p-3 sm:p-3.5 text-base sm:text-lg border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-base sm:text-lg font-medium text-slate-600 mb-2">老師的話 / 宣導事項</label>
+                        <textarea id="form-note" rows="4" placeholder="下週有期中考，請各位同學提早複習。" class="w-full p-3 sm:p-3.5 text-base sm:text-lg border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                    </div>
+                    <button type="submit" id="btn-submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 sm:py-4 rounded-xl font-bold text-lg sm:text-xl transition shadow-sm cursor-pointer">
+                        發布聯絡簿
+                    </button>
+                </form>
+            </div>
+
+            <!-- 後台歷史列表與管理 -->
+            <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
+                <h2 class="text-xl sm:text-2xl font-bold mb-6 text-indigo-900">🗂️ 歷史聯絡簿管理（全部列表）</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[500px]">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-slate-400 text-sm sm:text-base">
+                                <th class="pb-4 font-medium">日期</th>
+                                <th class="pb-4 font-medium">摘要內容</th>
+                                <th class="pb-4 font-medium text-right">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="backend-table-body" class="text-base sm:text-lg">
+                            <!-- 由 JS 動態生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ================= 老師登入燈箱 (Login Modal) ================= -->
+    <div id="login-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-100 overflow-hidden transform transition-all">
+            <div class="bg-indigo-600 p-6 text-white text-center">
+                <h3 class="text-xl font-bold">🔐 老師權限驗證</h3>
+                <p class="text-indigo-200 text-sm mt-1">請輸入專屬管理密鑰以進入後台</p>
+            </div>
+            <form onsubmit="handleLoginSubmit(event)" class="p-6 space-y-4">
+                <div id="login-error" class="hidden text-sm bg-rose-50 text-rose-600 p-3 rounded-xl border border-rose-100 font-medium text-center">
+                    ⚠️ 帳號或密碼輸入錯誤！
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">管理帳號</label>
+                    <input type="text" id="login-username" required autocomplete="username" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-base">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">管理密碼</label>
+                    <input type="password" id="login-password" required autocomplete="current-password" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-base">
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeLoginModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-xl font-bold text-base transition cursor-pointer">
+                        取消
+                    </button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold text-base transition shadow-sm cursor-pointer">
+                        登入驗證
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK 引入 (v10) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Firebase 配置資料
+        const firebaseConfig = {
+            apiKey: "AIzaSyCS8ZfMpT6mwysRMyCRKuHeL_NXpKBMeLw",
+            authDomain: "homework-f9997.firebaseapp.com",
+            projectId: "homework-f9997",
+            storageBucket: "homework-f9997.firebasestorage.app",
+            messagingSenderId: "603924060339",
+            appId: "1:603924060339:web:7b840a53428f6ee029f8c6",
+            measurementId: "G-6KCNQ6E40P"
+        };
+
+        // 初始化 Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let isEditing = false;
+        let isLoggedIn = false;
+
+        window.isEditing = isEditing;
+        window.isLoggedIn = isLoggedIn;
+        window.tryAccessBackend = tryAccessBackend;
+        window.openLoginModal = openLoginModal;
+        window.closeLoginModal = closeLoginModal;
+        window.handleLoginSubmit = handleLoginSubmit;
+        window.handleLogout = handleLogout;
+        window.switchView = switchView;
+        window.renderFrontendOnlyLatest = renderFrontendOnlyLatest;
+        window.searchContactBook = searchContactBook;
+        window.startEdit = startEdit;
+        window.cancelEdit = cancelEdit;
+        window.handlePublish = handlePublish;
+        window.deleteItem = deleteItem;
+
+        document.getElementById('form-date').valueAsDate = new Date();
+
+        function convertToTaiwanDate(dateStr) {
+            if (!dateStr) return '無';
+            const dateObj = new Date(dateStr);
+            if (isNaN(dateObj.getTime())) return dateStr;
+
+            const taiwanYear = dateObj.getFullYear() - 1911;
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const date = String(dateObj.getDate()).padStart(2, '0');
+            
+            const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            const weekDayStr = weekDays[dateObj.getDay()];
+
+            return `${taiwanYear}-${month}-${date} ${weekDayStr}`;
+        }
+
+        function formatText(text) {
+            return text ? text.replace(/\n/g, '<br>') : '無';
+        }
+
+        function tryAccessBackend() {
+            if (window.isLoggedIn) {
+                switchView('backend');
+            } else {
+                openLoginModal();
+            }
+        }
+
+
+        function openLoginModal() {
+            document.getElementById('login-modal').classList.remove('hidden');
+            document.getElementById('login-error').classList.add('hidden');
+            document.getElementById('login-username').value = '';
+            document.getElementById('login-password').value = '';
+        }
+
+        function closeLoginModal() {
+            document.getElementById('login-modal').classList.add('hidden');
+        }
+
+        function handleLoginSubmit(e) {
+            e.preventDefault();
+            const user = document.getElementById('login-username').value.trim();
+            const pass = document.getElementById('login-password').value.trim();
+
+            if (user === 'walan52' && pass === 'source88') {
+                window.isLoggedIn = true;
+                closeLoginModal();
+                document.getElementById('btn-logout').classList.remove('hidden');
+                switchView('backend');
+            } else {
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            window.isLoggedIn = false;
+            document.getElementById('btn-logout').classList.add('hidden');
+            alert('您已成功登出後台管理系統。');
+            switchView('frontend');
+        }
+
+        function switchView(view) {
+            const frontSec = document.getElementById('view-frontend');
+            const backSec = document.getElementById('view-backend');
+            const btnFront = document.getElementById('btn-frontend');
+            const btnBack = document.getElementById('btn-backend');
+
+            if (view === 'frontend') {
+                frontSec.classList.remove('hidden');
+                frontSec.classList.add('grid');
+                backSec.classList.add('hidden');
+                btnFront.className = "flex-1 sm:flex-none px-4 py-2 rounded-xl font-medium bg-indigo-700 text-white shadow cursor-pointer text-sm sm:text-base";
+                btnBack.className = "flex-1 sm:flex-none px-4 py-2 rounded-xl font-medium hover:bg-indigo-500 transition text-white cursor-pointer text-sm sm:text-base";
+                cancelEdit();
+                renderFrontendOnlyLatest();
+            } else {
+                frontSec.classList.add('hidden');
+                frontSec.classList.remove('grid');
+                backSec.classList.remove('hidden');
+                btnFront.className = "flex-1 sm:flex-none px-4 py-2 rounded-xl font-medium hover:bg-indigo-500 transition text-white cursor-pointer text-sm sm:text-base";
+                btnBack.className = "flex-1 sm:flex-none px-4 py-2 rounded-xl font-medium bg-indigo-700 text-white shadow cursor-pointer text-sm sm:text-base";
+                renderBackend();
+            }
+        }
+
+        async function renderFrontendOnlyLatest() {
+            const container = document.getElementById('frontend-content');
+            container.innerHTML = `<div class="text-center py-16 text-lg sm:text-xl text-slate-400 bg-white rounded-2xl border border-dashed">資料載入中...</div>`;
+            document.getElementById('search-date').value = '';
+
+            try {
+                const q = query(collection(db, "contactBook"), orderBy("date", "desc"), limit(1));
+                const querySnapshot = await getDocs(q);
+                const latestData = [];
+                querySnapshot.forEach((doc) => {
+                    latestData.push(doc.data());
+                });
+                renderFrontendHTML(latestData, true);
+            } catch (error) {
+                console.error("讀取資料失敗: ", error);
+                container.innerHTML = `<div class="text-center py-16 text-lg sm:text-xl text-rose-500 bg-white rounded-2xl border border-dashed">資料載入失敗，請確認 Firebase 安全規則設定。</div>`;
+            }
+        }
+
+        async function searchContactBook() {
+            const searchDate = document.getElementById('search-date').value;
+            if (!searchDate) {
+                alert('請選擇要查詢的日期！');
+                return;
+            }
+            const container = document.getElementById('frontend-content');
+            container.innerHTML = `<div class="text-center py-16 text-lg sm:text-xl text-slate-400 bg-white rounded-2xl border border-dashed">搜尋中...</div>`;
+
+            try {
+                const docRef = doc(db, "contactBook", searchDate);
+                const docSnap = await getDoc(docRef);
+                const result = [];
+                if (docSnap.exists()) {
+                    result.push(docSnap.data());
+                }
+                renderFrontendHTML(result, false);
+            } catch (error) {
+                console.error("搜尋失敗: ", error);
+                container.innerHTML = `<div class="text-center py-16 text-lg sm:text-xl text-rose-500 bg-white rounded-2xl border border-dashed">搜尋發生錯誤。</div>`;
+            }
+        }
+
+        // 修改此處的 text-3xl md:text-5xl，讓手機版字體適度縮小配合欄位
+        function renderFrontendHTML(data, isLatestMode) {
+            const container = document.getElementById('frontend-content');
+
+            if (data.length === 0) {
+                container.innerHTML = `<div class="text-center py-16 text-lg sm:text-xl text-slate-400 bg-white rounded-2xl border border-dashed">查無聯絡簿資料</div>`;
+                return;
+            }
+
+            container.innerHTML = data.map(item => `
+                <div class="bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden mb-8 w-full">
+                    <div class="bg-indigo-50 px-5 sm:px-8 py-4 sm:py-5 border-b border-indigo-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <span class="text-indigo-900 font-bold text-lg sm:text-2xl">📅 日期：${convertToTaiwanDate(item.date)}</span>
+                        <span class="text-xs sm:text-sm ${isLatestMode ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'} px-3 sm:px-4 py-1.5 rounded-full font-bold">
+                            ${isLatestMode ? '最新聯絡簿' : '歷史查詢結果'}
+                        </span>
+                    </div>
+                    <div class="p-5 sm:p-8 space-y-8 sm:space-y-10">
+                        <div class="w-full min-w-0 break-words">
+                            <h4 class="font-bold text-emerald-700 flex items-center gap-1.5 mb-3 sm:mb-4 text-lg sm:text-xl">📝 今日作業</h4>
+                            <p class="handwriting-font text-slate-800 pl-4 sm:pl-6 border-l-4 sm:border-l-6 border-emerald-500 text-2xl sm:text-3xl md:text-5xl font-bold leading-relaxed tracking-wide">${formatText(item.homework)}</p>
+                        </div>
+                        <hr class="border-slate-100">
+                        <div class="w-full min-w-0 break-words">
+                            <h4 class="font-bold text-slate-700 flex items-center gap-1.5 mb-3 sm:mb-4 text-lg sm:text-xl">💬 老師的話</h4>
+                            <p class="handwriting-font text-slate-700 bg-slate-50 p-5 sm:p-8 rounded-2xl text-2xl sm:text-3xl md:text-5xl font-bold leading-relaxed tracking-wide">${formatText(item.note)}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function renderBackend() {
+            const tbody = document.getElementById('backend-table-body');
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-slate-400">資料加載中...</td></tr>`;
+
+            try {
+                const q = query(collection(db, "contactBook"), orderBy("date", "desc"));
+                const querySnapshot = await getDocs(q);
+                const data = [];
+                querySnapshot.forEach((doc) => {
+                    data.push(doc.data());
+                });
+
+                if (data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-slate-400">目前沒有任何發布紀錄</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = data.map((item) => `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                        <td class="py-4 sm:py-5 font-medium text-slate-950 text-sm sm:text-lg">${convertToTaiwanDate(item.date)}</td>
+                        <td class="py-4 sm:py-5 text-slate-500 text-sm sm:text-base max-w-[120px] sm:max-w-md truncate">${item.homework.split('\n')[0] || ''}...</td>
+                        <td class="py-4 sm:py-5 text-right space-x-1 sm:space-x-2">
+                            <button onclick="startEdit('${item.date}')" class="text-indigo-600 hover:text-indigo-800 font-bold transition px-2 sm:px-3 py-1.5 rounded hover:bg-indigo-50 cursor-pointer text-sm sm:text-base">
+                                修改
+                            </button>
+                            <button onclick="deleteItem('${item.date}')" class="text-rose-600 hover:text-rose-800 font-bold transition px-2 sm:px-3 py-1.5 rounded hover:bg-rose-50 cursor-pointer text-sm sm:text-base">
+                                刪除
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error("讀取後台列表失敗: ", error);
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-rose-500">載入失敗。</td></tr>`;
+            }
+        }
+
+        async function startEdit(dateStr) {
+            try {
+                const docRef = doc(db, "contactBook", dateStr);
+                const docSnap = await getDoc(docRef);
+                if (!docSnap.exists()) return;
+                
+                const record = docSnap.data();
+                window.isEditing = true;
+
+                document.getElementById('form-date').value = record.date;
+                document.getElementById('form-date').disabled = true;
+                document.getElementById('form-homework').value = record.homework;
+                document.getElementById('form-note').value = record.note;
+
+                document.getElementById('form-title').innerText = `✏️ 修改聯絡簿內容 (${convertToTaiwanDate(dateStr)})`;
+                document.getElementById('btn-cancel-edit').classList.remove('hidden');
+                
+                const btnSubmit = document.getElementById('btn-submit');
+                btnSubmit.innerText = "更新聯絡簿資料";
+                btnSubmit.className = "w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 sm:py-4 rounded-xl font-bold text-lg sm:text-xl transition shadow-sm cursor-pointer";
+                
+                document.getElementById('form-title').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                console.error("獲取修改資料失敗: ", error);
+            }
+        }
+
+        function cancelEdit() {
+            window.isEditing = false;
+            
+            document.getElementById('form-date').disabled = false;
+            document.getElementById('form-date').valueAsDate = new Date();
+            document.getElementById('form-homework').value = '';
+            document.getElementById('form-note').value = '';
+
+            document.getElementById('form-title').innerText = "➕ 發布今日聯絡簿";
+            document.getElementById('btn-cancel-edit').classList.add('hidden');
+            
+            const btnSubmit = document.getElementById('btn-submit');
+            btnSubmit.innerText = "發布聯絡簿";
+            btnSubmit.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 sm:py-4 rounded-xl font-bold text-lg sm:text-xl transition shadow-sm cursor-pointer";
+        }
+
+        async function handlePublish(e) {
+            e.preventDefault();
+            const date = document.getElementById('form-date').value;
+            const homework = document.getElementById('form-homework').value;
+            const note = document.getElementById('form-note').value;
+
+            try {
+                const docRef = doc(db, "contactBook", date);
+                
+                if (window.isEditing) {
+                    await setDoc(docRef, { date, homework, note });
+                    alert('資料更新成功！');
+                    cancelEdit();
+                } else {
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        if (!confirm(`${convertToTaiwanDate(date)} 已經有聯絡簿紀錄，確定要覆蓋更新嗎？`)) {
+                            return;
+                        }
+                    }
+                    await setDoc(docRef, { date, homework, note });
+                    alert('發布成功！');
+                    document.getElementById('form-homework').value = '';
+                    document.getElementById('form-note').value = '';
+                }
+
+                renderBackend();
+            } catch (error) {
+                console.error("發布失敗: ", error);
+                alert("儲存至資料庫時發生錯誤！");
+            }
+        }
+
+        async function deleteItem(date) {
+            if (window.isEditing && document.getElementById('form-date').value === date) {
+                alert('此聯絡簿正在修改中，請先取消修改或完成更新後再行刪除。');
+                return;
+            }
+
+            if (confirm(`確定要刪除 ${convertToTaiwanDate(date)} 的聯絡簿嗎？\n刪除後前台將無法搜尋到此篇紀錄。`)) {
+                try {
+                    await deleteDoc(doc(db, "contactBook", date));
+                    alert("刪除成功！");
+                    renderBackend();
+                } catch (error) {
+                    console.error("刪除失敗: ", error);
+                    alert("刪除失敗，請檢查權限。");
+                }
+            }
+        }
+
+        renderFrontendOnlyLatest();
+    </script>
+</body>
+</html>
