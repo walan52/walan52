@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班級掃地區域分配系統 (Firebase 雲端版)</title>
+    <!-- SheetJS 解析 Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; }
+        body { background-color: #f0f4f8; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 980px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        
+        /* 頁籤 Tab */
+        .tab-menu { display: flex; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 12px; text-align: center; background: none; border: none; font-size: 1.1rem; font-weight: bold; color: #7f8c8d; cursor: pointer; transition: all 0.3s; }
+        .tab-btn.active { color: #3498db; border-bottom: 4px solid #3498db; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* 月份與雲端狀態列 */
+        .month-bar { display: flex; justify-content: space-between; align-items: center; background: #eef9ff; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #bce2f5; flex-wrap: wrap; gap: 10px; }
+        .month-bar select { padding: 8px 12px; font-size: 1rem; border-radius: 6px; border: 1px solid #3498db; background: white; font-weight: bold; color: #2c3e50; }
+
+        h1 { text-align: center; color: #2c3e50; margin-top: 0; margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .card { background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; }
+        h2 { font-size: 1.1rem; color: #34495e; margin-top: 0; }
+        
+        .file-upload-box { border: 2px dashed #3498db; background: #ebf5fb; padding: 12px; text-align: center; border-radius: 6px; margin-bottom: 12px; cursor: pointer; }
+        .file-upload-box input[type="file"] { display: none; }
+        .upload-label { color: #2980b9; font-weight: bold; cursor: pointer; display: block; }
+        
+        textarea { width: 100%; height: 160px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; resize: vertical; }
+        
+        /* 區域輸入 & 刪除按鈕 */
+        .zone-input { display: flex; gap: 6px; margin-bottom: 10px; align-items: center; }
+        .zone-input input[type="text"] { flex: 2; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .zone-input input[type="number"] { width: 60px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .zone-input select { width: 85px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: white; }
+        .btn-del { background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 8px 10px; cursor: pointer; font-size: 0.9rem; transition: background 0.2s; }
+        .btn-del:hover { background: #c0392b; }
+
+        .btn { display: block; width: 100%; padding: 12px; background: #3498db; color: white; border: none; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; margin-top: 15px; transition: background 0.2s; }
+        .btn:hover { background: #2980b9; }
+        .btn-add { background: #2ecc71; margin-top: 10px; }
+        .btn-add:hover { background: #27ae60; }
+        .btn-action { background: #7f8c8d; margin-top: 0; padding: 8px 12px; font-size: 0.9rem; width: auto; display: inline-block; }
+        .btn-clear { background: #e67e22; margin-top: 0; padding: 8px 12px; font-size: 0.9rem; width: auto; display: inline-block; }
+        .btn-clear:hover { background: #d35400; }
+
+        .search-box { width: 100%; padding: 12px; font-size: 1rem; border: 2px solid #3498db; border-radius: 6px; margin-bottom: 15px; }
+        .result-card { background: #ffffff; border-left: 6px solid #3498db; padding: 18px; margin-bottom: 15px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .result-card.male-only { border-left-color: #2980b9; background: #f4f9fc; }
+        .result-card.female-only { border-left-color: #e84393; background: #fdf2f7; }
+        .result-title { font-weight: bold; color: #2c3e50; font-size: 1.15rem; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .result-members { color: #444; font-size: 1.05rem; line-height: 1.6; word-break: break-all; }
+        .badge { display: inline-block; padding: 3px 8px; font-size: 0.8rem; border-radius: 4px; font-weight: normal; }
+        .badge-any { background: #e0e0e0; color: #333; }
+        .badge-male { background: #d4e6f1; color: #1b4f72; }
+        .badge-female { background: #fadbd8; color: #78281f; }
+        
+        .empty-state { text-align: center; color: #95a5a6; padding: 40px 0; font-size: 1.1rem; }
+        
+        @media print {
+            .tab-menu, .month-bar, .search-box, .btn-group, .file-upload-box, button { display: none !important; }
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🧹 班級掃地區域分配系統 <span style="font-size: 0.9rem; color: #3498db;">☁️ Firebase 雲端版</span></h1>
+
+    <!-- 頁籤選單 -->
+    <div class="tab-menu">
+        <button class="tab-btn active" onclick="switchTab('frontend')">👀 前台觀看 (學生區)</button>
+        <button class="tab-btn" onclick="switchTab('backend')">⚙️ 後台管理 (幹部/老師區)</button>
+    </div>
+
+    <!-- 月份與資料庫狀態列 -->
+    <div class="month-bar">
+        <div>
+            📅 當前檢視月份：
+            <select id="selectedMonth" onchange="onMonthChange()">
+                <option value="9月">9月份</option>
+                <option value="10月">10月份</option>
+                <option value="11月">11月份</option>
+                <option value="12月">12月份</option>
+                <option value="1月">1月份</option>
+                <option value="2月">2月份</option>
+                <option value="3月">3月份</option>
+                <option value="4月">4月份</option>
+                <option value="5月">5月份</option>
+                <option value="6月">6月份</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <span id="saveStatus" style="font-size: 0.85rem; color: #e67e22; font-weight: bold;">☁️ 雲端連線中...</span>
+            <button class="btn btn-action" onclick="saveSettingsToCloud()">💾 儲存設定</button>
+            <button class="btn btn-clear" onclick="clearDatabasePrompt()">🗑️ 清除雲端資料</button>
+        </div>
+    </div>
+
+    <!-- 1. 前台觀看區 -->
+    <div id="frontend" class="tab-content active">
+        <input type="text" class="search-box" id="searchInput" placeholder="🔍 輸入姓名或座號快速搜尋你本月的掃地區域..." onkeyup="filterResults()">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <span id="frontendStats" style="color: #666; font-size: 0.95rem;"></span>
+            <div class="btn-group">
+                <button class="btn btn-action" onclick="copyResults()">📋 複製結果</button>
+                <button class="btn btn-action" onclick="window.print()">🖨️ 列印結果</button>
+            </div>
+        </div>
+
+        <div id="frontendResults">
+            <div class="empty-state">此月份尚未產生分配結果。<br>請切換至「後台管理」進行隨機分配。</div>
+        </div>
+    </div>
+
+    <!-- 2. 後台管理區 -->
+    <div id="backend" class="tab-content">
+        <div class="grid">
+            <!-- 學生名單 -->
+            <div class="card">
+                <h2>1. 班級學生名單 (雲端同步)</h2>
+                <div class="file-upload-box" onclick="document.getElementById('excelFile').click()">
+                    <label class="upload-label">📁 點擊匯入 Excel 檔案</label>
+                    <span id="fileNameDisplay" style="font-size: 0.8rem; color: #666;">支援「座號、姓名、性別」欄位</span>
+                    <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" onchange="handleFileUpload(event)">
+                </div>
+                <textarea id="studentList" placeholder="格式範例 (一行一位)：&#10;01號 張小明 (男)&#10;02號 李小華 (女)"></textarea>
+            </div>
+
+            <!-- 區域與限制 -->
+            <div class="card">
+                <h2>2. 區域人數與性別限制 (可修改/刪除)</h2>
+                <div id="zoneContainer">
+                    <!-- 動態產生 -->
+                </div>
+                <button class="btn btn-add" onclick="addZoneInput()">+ 新增區域</button>
+            </div>
+        </div>
+
+        <button class="btn" onclick="generateAssignment()">🎲 開始自動分配 (智慧避開上月區域並同步至雲端)</button>
+    </div>
+</div>
+
+<!-- Firebase 模組化 SDK -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // 使用你提供的專屬 Firebase 配置
+    const firebaseConfig = {
+        apiKey: "AIzaSyBJwhGS8FK25LZ7Ef-QiF_kqGxA_ZQgws8",
+        authDomain: "daywork-d21c4.firebaseapp.com",
+        projectId: "daywork-d21c4",
+        storageBucket: "daywork-d21c4.firebasestorage.app",
+        messagingSenderId: "620707331906",
+        appId: "1:620707331906:web:aca5315bbe1ef30db412db",
+        measurementId: "G-DG4JQTJ3TL"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const defaultZones = [
+        { name: "男廁與外掃區", count: 3, gender: "male" },
+        { name: "女廁與保健室", count: 3, gender: "female" },
+        { name: "黑板與講台", count: 2, gender: "any" },
+        { name: "教室地板 (掃&拖)", count: 4, gender: "any" },
+        { name: "走廊與回收區", count: 2, gender: "any" }
+    ];
+
+    let cachedMonthResults = {};
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        await loadSettingsFromCloud();
+        onMonthChange();
+    });
+
+    async function loadSettingsFromCloud() {
+        setStatus('☁️ 正在連線雲端資料庫...', '#e67e22');
+        try {
+            const docRef = doc(db, "cleaning_system", "config");
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.students) document.getElementById('studentList').value = data.students;
+                if (data.zones) renderZones(data.zones);
+            } else {
+                const defaultData = [
+                    "01號 張小明 (男)", "02號 李小華 (女)", "03號 陳小美 (女)", "04號 林阿強 (男)",
+                    "05號 黃阿傑 (男)", "06號 吳婷婷 (女)", "07號 蔡志明 (男)", "08號 楊春嬌 (女)",
+                    "09號 許家豪 (男)", "10號 鄭雅婷 (女)", "11號 謝冠宇 (男)", "12號 郭怡君 (女)",
+                    "13號 曾宗翰 (男)", "14號 廖品涵 (女)"
+                ];
+                document.getElementById('studentList').value = defaultData.join('\n');
+                renderZones(defaultZones);
+            }
+            setStatus('✅ 雲端同步成功', '#27ae60');
+        } catch (error) {
+            console.error("Firebase 讀取失敗:", error);
+            setStatus('❌ 雲端連線失敗 (請確認 Firestore 權限)', '#e74c3c');
+        }
+    }
+
+    window.saveSettingsToCloud = async function() {
+        setStatus('⏳ 正在同步設定至雲端...', '#e67e22');
+        try {
+            const students = document.getElementById('studentList').value;
+            const zones = getZonesFromDOM();
+            await setDoc(doc(db, "cleaning_system", "config"), {
+                students: students,
+                zones: zones,
+                updatedAt: new Date()
+            }, { merge: true });
+
+            setStatus('✅ 設定已存入雲端', '#27ae60');
+            alert("✅ 學生名單與區域設定已成功寫入雲端！");
+        } catch (error) {
+            console.error(error);
+            alert("❌ 儲存至雲端失敗：" + error.message);
+            setStatus('❌ 儲存失敗', '#e74c3c');
+        }
+    };
+
+    window.onMonthChange = async function() {
+        const month = document.getElementById('selectedMonth').value;
+        setStatus(`☁️ 載入 ${month} 雲端資料...`, '#e67e22');
+
+        try {
+            const docRef = doc(db, "cleaning_system", `result_${month}`);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const results = docSnap.data().results;
+                cachedMonthResults[month] = results;
+                document.getElementById('frontendStats').innerText = `【${month}】分配結果 (雲端即時同步)`;
+                renderFrontendResults(results);
+            } else {
+                cachedMonthResults[month] = null;
+                clearFrontendEmpty();
+            }
+            setStatus('✅ 雲端資料已最新', '#27ae60');
+        } catch (error) {
+            console.error(error);
+            clearFrontendEmpty();
+            setStatus('❌ 讀取月份資料失敗', '#e74c3c');
+        }
+    };
+
+    function setStatus(text, color) {
+        const statusEl = document.getElementById('saveStatus');
+        statusEl.innerText = text;
+        statusEl.style.color = color;
+    }
+
+    function getZonesFromDOM() {
+        const rows = document.querySelectorAll('.zone-input');
+        let zones = [];
+        rows.forEach(row => {
+            const name = row.querySelector('.zone-name').value;
+            const count = parseInt(row.querySelector('.zone-count').value) || 1;
+            const gender = row.querySelector('.zone-gender').value;
+            zones.push({ name, count, gender });
+        });
+        return zones;
+    }
+
+    function renderZones(zones) {
+        const container = document.getElementById('zoneContainer');
+        container.innerHTML = '';
+        zones.forEach(z => appendZoneRow(container, z.name, z.count, z.gender));
+    }
+
+    function appendZoneRow(container, name, count, gender) {
+        const div = document.createElement('div');
+        div.className = 'zone-input';
+        div.innerHTML = `
+            <input type="text" value="${name}" class="zone-name" placeholder="區域">
+            <input type="number" value="${count}" min="1" class="zone-count" placeholder="人數">
+            <select class="zone-gender">
+                <option value="any" ${gender==='any'?'selected':''}>不限</option>
+                <option value="male" ${gender==='male'?'selected':''}>限男生</option>
+                <option value="female" ${gender==='female'?'selected':''}>限女生</option>
+            </select>
+            <button class="btn-del" onclick="deleteZoneRow(this)" title="刪除此區域">🗑️</button>
+        `;
+        container.appendChild(div);
+    }
+
+    window.addZoneInput = function() {
+        const container = document.getElementById('zoneContainer');
+        appendZoneRow(container, '', 1, 'any');
+    };
+
+    window.deleteZoneRow = function(btn) {
+        btn.parentElement.remove();
+    };
+
+    window.clearDatabasePrompt = async function() {
+        const choice = prompt("請選擇清除選項：\n1. 清除「目前選擇月份」的雲端分配結果\n2. 清除雲端「全部資料」（含學生名單與設定）\n\n（請輸入 1 或 2，按「取消」返回）");
+        const currentMonth = document.getElementById('selectedMonth').value;
+
+        if (choice === "1") {
+            try {
+                await deleteDoc(doc(db, "cleaning_system", `result_${currentMonth}`));
+                alert(`✅ 【${currentMonth}】雲端分配結果已成功刪除！`);
+                onMonthChange();
+            } catch(e) { alert("❌ 清除失敗：" + e.message); }
+        } else if (choice === "2") {
+            if (confirm("⚠️ 確定要刪除整個雲端資料庫嗎？全班名單與設定將重置！")) {
+                try {
+                    await deleteDoc(doc(db, "cleaning_system", "config"));
+                    const months = ["9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月"];
+                    for(let m of months) {
+                        await deleteDoc(doc(db, "cleaning_system", `result_${m}`));
+                    }
+                    alert("✅ 雲端資料庫已全數重置！");
+                    location.reload();
+                } catch(e) { alert("❌ 清除失敗：" + e.message); }
+            }
+        }
+    };
+
+    function getPreviousMonth(currentMonthStr) {
+        const months = ["9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月"];
+        const idx = months.indexOf(currentMonthStr);
+        return idx > 0 ? months[idx - 1] : null;
+    }
+
+    async function getPreviousMonthHistory(currentMonthStr) {
+        const prevMonth = getPreviousMonth(currentMonthStr);
+        if (!prevMonth) return {};
+
+        try {
+            const docRef = doc(db, "cleaning_system", `result_${prevMonth}`);
+            const docSnap = await getDoc(docRef);
+            if (!docSnap.exists()) return {};
+
+            const zones = docSnap.data().results;
+            let historyMap = {};
+            zones.forEach(z => {
+                z.assigned.forEach(student => { historyMap[student] = z.name; });
+            });
+            return historyMap;
+        } catch(e) {
+            return {};
+        }
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    window.generateAssignment = async function() {
+        const rawText = document.getElementById('studentList').value;
+        const lines = rawText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+        const currentMonth = document.getElementById('selectedMonth').value;
+
+        if (lines.length === 0) {
+            alert('請輸入學生名單！');
+            return;
+        }
+
+        setStatus('🎲 智慧分配計算中...', '#e67e22');
+
+        let males = [], females = [], unspecified = [];
+        lines.forEach(item => {
+            if (item.includes('(女)') || item.includes('女')) females.push(item);
+            else if (item.includes('(男)') || item.includes('男')) males.push(item);
+            else unspecified.push(item);
+        });
+
+        const zonesConfig = getZonesFromDOM();
+        let maleZones = [], femaleZones = [], anyZones = [];
+
+        zonesConfig.forEach(z => {
+            if (z.name && z.count > 0) {
+                const zoneObj = { name: z.name, count: z.count, assigned: [] };
+                if (z.gender === 'male') maleZones.push(zoneObj);
+                else if (z.gender === 'female') femaleZones.push(zoneObj);
+                else anyZones.push(zoneObj);
+            }
+        });
+
+        const historyMap = await getPreviousMonthHistory(currentMonth);
+
+        function smartSort(studentArray, targetZoneName) {
+            let prioritized = [], deprioritized = [];
+            shuffle(studentArray).forEach(student => {
+                if (historyMap[student] === targetZoneName) deprioritized.push(student);
+                else prioritized.push(student);
+            });
+            return prioritized.concat(deprioritized);
+        }
+
+        males = shuffle(males.concat(unspecified));
+        females = shuffle(females);
+
+        let reqMaleCount = maleZones.reduce((sum, z) => sum + z.count, 0);
+        if (males.length < reqMaleCount) {
+            alert(`⚠️ 男生人數 (${males.length}人) 不足以分配限男生區域 (${reqMaleCount}人)！`);
+            return;
+        }
+        maleZones.forEach(z => {
+            males = smartSort(males, z.name);
+            z.assigned = males.splice(0, z.count);
+        });
+
+        let reqFemaleCount = femaleZones.reduce((sum, z) => sum + z.count, 0);
+        if (females.length < reqFemaleCount) {
+            alert(`⚠️ 女生人數 (${females.length}人) 不足以分配限女生區域 (${reqFemaleCount}人)！`);
+            return;
+        }
+        femaleZones.forEach(z => {
+            females = smartSort(females, z.name);
+            z.assigned = females.splice(0, z.count);
+        });
+
+        let remainingStudents = shuffle(males.concat(females));
+        let reqAnyCount = anyZones.reduce((sum, z) => sum + z.count, 0);
+
+        if (remainingStudents.length < reqAnyCount) {
+            alert(`⚠️ 剩餘人數 (${remainingStudents.length}人) 少於不限性別區域需求 (${reqAnyCount}人)！`);
+            return;
+        }
+
+        anyZones.forEach(z => {
+            remainingStudents = smartSort(remainingStudents, z.name);
+            z.assigned = remainingStudents.splice(0, z.count);
+        });
+
+        let backupZone = null;
+        if (remainingStudents.length > 0) {
+            backupZone = { name: '機動支援組 / 備用組', count: remainingStudents.length, assigned: remainingStudents, type: 'any' };
+        }
+
+        const finalResults = [
+            ...maleZones.map(z => ({...z, type: 'male', label: '👦 限男生'})),
+            ...femaleZones.map(z => ({...z, type: 'female', label: '👧 限女生'})),
+            ...anyZones.map(z => ({...z, type: 'any', label: '👫 不限'}))
+        ];
+        if (backupZone) finalResults.push({...backupZone, label: '👫 不限'});
+
+        try {
+            await setDoc(doc(db, "cleaning_system", `result_${currentMonth}`), {
+                month: currentMonth,
+                results: finalResults,
+                createdAt: new Date()
+            });
+
+            await setDoc(doc(db, "cleaning_system", "config"), {
+                students: rawText,
+                zones: zonesConfig
+            }, { merge: true });
+
+            document.getElementById('frontendStats').innerText = `【${currentMonth}】總人數：${lines.length} 人 | 已智慧避開上月區域`;
+            renderFrontendResults(finalResults);
+            switchTab('frontend');
+            setStatus('✅ 分配結果已更新至雲端', '#27ae60');
+            alert(`🎉 ${currentMonth} 掃地區域分配成功，並已寫入 Firebase 雲端！`);
+        } catch(e) {
+            console.error(e);
+            alert("❌ 雲端寫入失敗：請確認你的 Firebase Rules 權限設定。");
+        }
+    };
+
+    window.switchTab = function(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        if(tabId === 'frontend') {
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        } else {
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        }
+        document.getElementById(tabId).classList.add('active');
+    };
+
+    function renderFrontendResults(data) {
+        const container = document.getElementById('frontendResults');
+        container.innerHTML = '';
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="empty-state">目前無分配結果</div>';
+            return;
+        }
+
+        data.forEach(zone => {
+            let cardClass = 'result-card';
+            let badgeClass = 'badge-any';
+            if (zone.type === 'male') { cardClass += ' male-only'; badgeClass = 'badge-male'; }
+            if (zone.type === 'female') { cardClass += ' female-only'; badgeClass = 'badge-female'; }
+
+            const card = document.createElement('div');
+            card.className = cardClass;
+            card.innerHTML = `
+                <div class="result-title">
+                    <span>📌 【${zone.name}】(${zone.assigned.length} 人)</span>
+                    <span class="badge ${badgeClass}">${zone.label}</span>
+                </div>
+                <div class="result-members">👉 ${zone.assigned.join('、')}</div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function clearFrontendEmpty() {
+        const month = document.getElementById('selectedMonth').value;
+        document.getElementById('frontendStats').innerText = `【${month}】尚無分配資料`;
+        document.getElementById('frontendResults').innerHTML = `<div class="empty-state">${month} 尚未產生分配結果。<br>請至「後台管理」點擊開始分配。</div>`;
+    }
+
+    window.handleFileUpload = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        document.getElementById('fileNameDisplay').innerText = `已載入：${file.name}`;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            let studentList = [];
+
+            if (jsonData.length > 0) {
+                const headerRow = jsonData[0].map(item => String(item).trim());
+                let seatCol = headerRow.findIndex(h => h.includes("座號") || h.includes("號碼"));
+                let nameCol = headerRow.findIndex(h => h.includes("姓名") || h.includes("學生") || h.toLowerCase().includes("name"));
+                let genderCol = headerRow.findIndex(h => h.includes("性別") || h.toLowerCase().includes("gender"));
+
+                if (nameCol === -1) nameCol = headerRow.length > 1 ? 1 : 0;
+
+                for (let i = 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if (!row || row.length === 0) continue;
+
+                    let name = row[nameCol] ? String(row[nameCol]).trim() : '';
+                    let seat = (seatCol !== -1 && row[seatCol]) ? String(row[seatCol]).trim() : '';
+                    let gender = (genderCol !== -1 && row[genderCol]) ? String(row[genderCol]).trim() : '';
+
+                    if (name) {
+                        let label = seat ? `${String(seat).padStart(2, '0')}號 ${name}` : name;
+                        if (gender) label += ` (${gender.includes('女') ? '女' : '男'})`;
+                        studentList.push(label);
+                    }
+                }
+            }
+
+            if (studentList.length > 0) {
+                document.getElementById('studentList').value = studentList.join('\n');
+                alert(`✅ 成功解析 ${studentList.length} 位學生，請記得點擊「💾 儲存設定」上傳至雲端！`);
+            } else {
+                alert('⚠️ 未能解析資料，請確認 Excel 欄位格式。');
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    window.filterResults = function() {
+        const query = document.getElementById('searchInput').value.trim().toLowerCase();
+        const month = document.getElementById('selectedMonth').value;
+        const data = cachedMonthResults[month];
+        if (!data) return;
+
+        if (!query) {
+            renderFrontendResults(data);
+            return;
+        }
+
+        const filtered = data.map(zone => {
+            const matchedMembers = zone.assigned.filter(m => m.toLowerCase().includes(query));
+            if (matchedMembers.length > 0) return { ...zone, assigned: matchedMembers };
+            return null;
+        }).filter(z => z !== null);
+
+        renderFrontendResults(filtered);
+    };
+
+    window.copyResults = function() {
+        const month = document.getElementById('selectedMonth').value;
+        const data = cachedMonthResults[month];
+        if (!data) {
+            alert('此月份尚無結果可複製！');
+            return;
+        }
+        let text = `📋 【${month} 掃地區域分配結果】\n\n`;
+        data.forEach(z => {
+            text += `📌 ${z.name} (${z.assigned.length}人):\n👉 ${z.assigned.join('、')}\n\n`;
+        });
+        navigator.clipboard.writeText(text).then(() => {
+            alert(`✅ 已複製 ${month} 分配結果至剪貼簿！`);
+        });
+    };
+</script>
+
+</body>
+</html>
