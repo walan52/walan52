@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全畫面上課自動提醒器</title>
+  <style>
+    body {
+      font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+      max-width: 650px;
+      margin: 40px auto;
+      padding: 20px;
+      background-color: #f0f2f5;
+      color: #333;
+    }
+    h1 { text-align: center; color: #1a73e8; }
+    .card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+    .clock {
+      text-align: center;
+      font-size: 26px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #0f9d58;
+    }
+    .input-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+    input[type="text"], input[type="time"] {
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    input[type="text"] { flex: 2; }
+    input[type="time"] { flex: 1; }
+    button {
+      padding: 12px 20px;
+      border: none;
+      background-color: #1a73e8;
+      color: white;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background-color: #1557b0; }
+    ul { list-style-type: none; padding: 0; }
+    li {
+      background: #f8f9fa;
+      padding: 12px 15px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-left: 5px solid #1a73e8;
+    }
+    .delete-btn {
+      background-color: #d93025;
+      padding: 6px 12px;
+      font-size: 14px;
+    }
+    .delete-btn:hover { background-color: #b31412; }
+
+    /* 全畫面提醒覆蓋層 */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(217, 48, 37, 0.95);
+      color: white;
+      z-index: 9999;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+      animation: pulse 1s infinite alternate;
+    }
+    .overlay h2 { font-size: 4vw; margin-bottom: 10px; }
+    .overlay p { font-size: 2.5vw; margin-bottom: 40px; }
+    .overlay button {
+      background-color: white;
+      color: #d93025;
+      font-size: 2vw;
+      padding: 15px 40px;
+      border-radius: 50px;
+    }
+    .overlay button:hover { background-color: #f1f1f1; }
+
+    @keyframes pulse {
+      from { background-color: rgba(217, 48, 37, 0.95); }
+      to { background-color: rgba(179, 20, 18, 0.98); }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>全畫面上課提醒器</h1>
+
+  <div class="card">
+    <div class="clock" id="current-time">現在時間：載入中...</div>
+
+    <div class="input-form">
+      <div class="input-row">
+        <input type="text" id="course-name" placeholder="課程名稱 (例: 線上英文課)">
+        <input type="time" id="course-time">
+      </div>
+      <input type="text" id="speech-text" placeholder="自訂播報語音 (例: 英文課要開始了，快打開 Zoom！)">
+      <button onclick="addCourse()">新增提醒</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>已設定提醒</h2>
+    <ul id="course-list"></ul>
+  </div>
+
+  <!-- 全畫面提醒彈窗 -->
+  <div id="alarm-overlay" class="overlay">
+    <h2 id="overlay-title">上課時間到了！</h2>
+    <p id="overlay-msg">播報文字內容</p>
+    <button onclick="dismissAlarm()">我知道了 (關閉提醒)</button>
+  </div>
+
+  <script>
+    // 1. 初始化：從 localStorage 讀取已存資料，若沒有則設為空陣列
+    let courses = JSON.parse(localStorage.getItem('courses')) || [];
+
+    // 儲存資料至 localStorage 的輔助函式
+    function saveCourses() {
+      localStorage.setItem('courses', JSON.stringify(courses));
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const currentTimeString = `${hours}:${minutes}`;
+
+      document.getElementById('current-time').innerText = `現在時間：${hours}:${minutes}:${seconds}`;
+
+      if (seconds === '00') {
+        checkReminders(currentTimeString);
+      }
+    }
+
+    function addCourse() {
+      const nameInput = document.getElementById('course-name');
+      const timeInput = document.getElementById('course-time');
+      const speechInput = document.getElementById('speech-text');
+
+      if (!nameInput.value || !timeInput.value) {
+        alert("請輸入課程名稱與上課時間！");
+        return;
+      }
+
+      const speechText = speechInput.value.trim() !== "" 
+        ? speechInput.value 
+        : `上課時間到了，請準備上 ${nameInput.value}`;
+
+      const newCourse = {
+        id: Date.now(),
+        name: nameInput.value,
+        time: timeInput.value,
+        speech: speechText
+      };
+
+      courses.push(newCourse);
+      
+      // 2. 新增時寫入 localStorage
+      saveCourses();
+
+      nameInput.value = '';
+      timeInput.value = '';
+      speechInput.value = '';
+      renderCourses();
+    }
+
+    function deleteCourse(id) {
+      courses = courses.filter(course => course.id !== id);
+      
+      // 3. 刪除時同步更新 localStorage
+      saveCourses();
+
+      renderCourses();
+    }
+
+    function renderCourses() {
+      const list = document.getElementById('course-list');
+      list.innerHTML = '';
+
+      courses.forEach(course => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <div>
+            <strong>${course.time}</strong> - ${course.name}<br>
+            <small style="color: #666;">🗣️ 語音：${course.speech}</small>
+          </div>
+          <button class="delete-btn" onclick="deleteCourse(${course.id})">刪除</button>
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    function checkReminders(currentTime) {
+      courses.forEach(course => {
+        if (course.time === currentTime) {
+          triggerAlarm(course.name, course.speech);
+        }
+      });
+    }
+
+    function triggerAlarm(title, speechText) {
+      document.getElementById('overlay-title').innerText = `⏰ ${title} 時間到了！`;
+      document.getElementById('overlay-msg').innerText = speechText;
+      document.getElementById('alarm-overlay').style.display = 'flex';
+
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(speechText);
+        msg.lang = 'zh-TW';
+        msg.rate = 1;
+        window.speechSynthesis.speak(msg);
+      }
+    }
+
+    function dismissAlarm() {
+      document.getElementById('alarm-overlay').style.display = 'none';
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    // 啟動時渲染已存資料
+    renderCourses();
+    setInterval(updateClock, 1000);
+    updateClock();
+  </script>
+</body>
+</html>
