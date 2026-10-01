@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>獎學金申請系統</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .fade-in { animation: fadeIn 0.25s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Custom print styling */
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 antialiased flex flex-col">
+
+    <nav class="bg-indigo-700 text-white shadow-md sticky top-0 z-40 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- System Branding -->
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-indigo-600 rounded-xl shadow-inner">
+                        <svg class="w-6 h-6 text-indigo-100" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0v7"></path></svg>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight">校園獎學金申請系統</h1>
+                        <p class="text-xs text-indigo-200">Scholarship Portal & Admin Dashboard</p>
+                    </div>
+                </div>
+                
+                <!-- Navigation Tabs & Admin Status -->
+                <div class="flex items-center gap-3">
+                    <div class="flex space-x-1 bg-indigo-800/60 p-1 rounded-xl">
+                        <button id="tab-frontend" onclick="switchTab('frontend')" class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 bg-white text-indigo-900 shadow-sm">
+                            前台申請
+                        </button>
+                        <button id="tab-backend" onclick="switchTab('backend')" class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-indigo-200 hover:text-white hover:bg-indigo-700/50">
+                            後台管理
+                        </button>
+                    </div>
+
+                    <!-- Admin Logout Button -->
+                    <button id="adminLogoutBtn" onclick="logoutAdmin()" class="hidden px-3 py-1.5 bg-red-600/80 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                        登出
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+        
+        <!-- ================= FRONTEND VIEW ================= -->
+        <div id="view-frontend" class="fade-in max-w-4xl mx-auto space-y-6">
+            
+            <!-- Quota Information Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center gap-4">
+                    <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">總名額限制</p>
+                        <h3 class="text-2xl font-bold text-slate-800 mt-0.5" id="statTotalQuota">--</h3>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center gap-4">
+                    <div class="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">已申請人數</p>
+                        <h3 class="text-2xl font-bold text-slate-800 mt-0.5" id="statAppliedCount">--</h3>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center gap-4">
+                    <div id="remainingQuotaIcon" class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">剩餘名額</p>
+                        <h3 class="text-2xl font-bold text-emerald-600 mt-0.5" id="statRemainingQuota">--</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quota Full Banner -->
+            <div id="quotaFullBanner" class="hidden bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+                <svg class="w-6 h-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <div>
+                    <h4 class="font-bold text-amber-900">名額已滿，暫停接受申請</h4>
+                    <p class="text-xs text-amber-700 mt-0.5">目前申請人數已達上限，系統暫時關閉提交，如有疑問請洽詢管理單位。</p>
+                </div>
+            </div>
+
+            <!-- Application Form Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="bg-slate-50/80 p-6 border-b border-slate-200/80">
+                    <h2 class="text-xl font-bold text-slate-800">學生獎學金申請表單</h2>
+                    <p class="text-slate-500 text-xs mt-1">請正確填寫個人及家庭資訊，提交後將即時儲存至後台進行資料審核。</p>
+                </div>
+
+                <form id="scholarshipForm" class="p-6 sm:p-8 space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <!-- Class Input (e.g., 302) -->
+                        <div>
+                            <label for="classId" class="block text-sm font-semibold text-slate-700 mb-1.5">班級 <span class="text-red-500">*</span></label>
+                            <input type="text" id="classId" required placeholder="例如：302" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400">
+                        </div>
+
+                        <!-- Seat Number Input -->
+                        <div>
+                            <label for="seatNumber" class="block text-sm font-semibold text-slate-700 mb-1.5">座號 <span class="text-red-500">*</span></label>
+                            <input type="number" id="seatNumber" required min="1" max="99" placeholder="例如：12" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400">
+                        </div>
+                    </div>
+
+                    <!-- Student Name -->
+                    <div>
+                        <label for="studentName" class="block text-sm font-semibold text-slate-700 mb-1.5">學生姓名 <span class="text-red-500">*</span></label>
+                        <input type="text" id="studentName" required placeholder="請輸入學生真實姓名" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400">
+                    </div>
+
+                    <!-- Family Status Select & Dynamic Textarea -->
+                    <div>
+                        <label for="familyStatusSelect" class="block text-sm font-semibold text-slate-700 mb-1.5">家庭狀況 <span class="text-red-500">*</span></label>
+                        <select id="familyStatusSelect" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none transition-all duration-200 text-slate-800 bg-white">
+                            <option value="" disabled selected>連線 Firebase 載入選項中...</option>
+                        </select>
+
+                        <!-- Dynamic 'Other' Reason Container -->
+                        <div id="otherReasonContainer" class="hidden mt-3 fade-in">
+                            <label for="familyStatusOther" class="block text-xs font-semibold text-indigo-700 mb-1">請詳細說明其他家庭狀況 <span class="text-red-500">*</span></label>
+                            <textarea id="familyStatusOther" rows="3" placeholder="請在此詳細填寫家庭經濟或生活狀況補充說明..." class="w-full px-4 py-2.5 rounded-xl border border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none transition-all duration-200 text-slate-800 placeholder-slate-400 bg-indigo-50/30 resize-none"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="pt-2">
+                        <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-xl shadow-md hover:shadow-lg disabled:shadow-none transition-all duration-200 flex justify-center items-center gap-2 text-base">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                            <span id="submitBtnText">提交獎學金申請</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================= BACKEND VIEW ================= -->
+        <div id="view-backend" class="hidden fade-in space-y-6">
+            
+            <!-- 1. BACKEND LOGIN CARD -->
+            <div id="backendLoginCard" class="max-w-md mx-auto bg-white rounded-2xl shadow-md border border-slate-200/80 p-8 space-y-6 my-12">
+                <div class="text-center space-y-2">
+                    <div class="inline-flex p-3 bg-indigo-100 text-indigo-700 rounded-2xl mb-2">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-800">管理員登入</h2>
+                    <p class="text-xs text-slate-500">請輸入管理員帳號與密碼以進入後台控制面板</p>
+                </div>
+
+                <!-- Error Alert Box -->
+                <div id="loginErrorAlert" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs font-semibold flex items-center gap-2">
+                    <svg class="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>帳號或密碼錯誤，請重新輸入！</span>
+                </div>
+
+                <form id="adminLoginForm" onsubmit="handleAdminLogin(event)" class="space-y-4">
+                    <div>
+                        <label for="adminUsername" class="block text-xs font-semibold text-slate-700 mb-1">管理員帳號</label>
+                        <input type="text" id="adminUsername" required placeholder="請輸入帳號" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none text-slate-800">
+                    </div>
+
+                    <div>
+                        <label for="adminPassword" class="block text-xs font-semibold text-slate-700 mb-1">管理員密碼</label>
+                        <input type="password" id="adminPassword" required placeholder="請輸入密碼" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none text-slate-800">
+                    </div>
+
+                    <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-xl shadow-md transition-colors text-sm">
+                        安全登入控制台
+                    </button>
+                </form>
+            </div>
+
+            <!-- 2. BACKEND DASHBOARD -->
+            <div id="backendDashboard" class="hidden space-y-6">
+                
+                <!-- System Config Cards -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Quota Setting Card -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-800">限制申請人數設定</h3>
+                            </div>
+                            <p class="text-xs text-slate-500 mb-4">設定開放申請之總名額限制，儲存至 Firebase 後即時同步前台名額計算。</p>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label for="maxQuotaInput" class="block text-xs font-semibold text-slate-600 mb-1">開放總名額上限 (人)</label>
+                                <input type="number" id="maxQuotaInput" min="1" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none text-slate-800 font-semibold">
+                            </div>
+                            <button onclick="saveMaxQuota()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2 rounded-xl text-sm transition-colors shadow-sm">
+                                儲存限制人數
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Family Status Options Manager Card -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 lg:col-span-2 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                                </div>
+                                <h3 class="text-base font-bold text-slate-800">家庭狀況下拉選單設定</h3>
+                            </div>
+                            <p class="text-xs text-slate-500 mb-4">動態管理 Firebase 資料庫中的選項（註：「其他」為系統保留選項）。</p>
+                        </div>
+
+                        <div>
+                            <!-- Add Option Input -->
+                            <div class="flex gap-2 mb-3">
+                                <input type="text" id="newOptionInput" placeholder="輸入欲新增選項 (例如：隔代教養)" class="flex-1 px-3.5 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none text-slate-800 text-sm">
+                                <button onclick="addFamilyOption()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-xl text-sm transition-colors shadow-sm whitespace-nowrap">
+                                    新增選項
+                                </button>
+                            </div>
+
+                            <!-- Current Options List Container -->
+                            <div class="max-h-36 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/50">
+                                <ul id="backendOptionsList" class="text-sm">
+                                    <li class="p-3 text-center text-slate-400">載入選項中...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Applications Records Table Card -->
+                <div id="print-area" class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                    <!-- Toolbar Header -->
+                    <div class="p-6 border-b border-slate-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                申請資料管理
+                                <span id="recordBadgeCount" class="text-xs bg-indigo-100 text-indigo-700 font-semibold px-2.5 py-0.5 rounded-full">共 0 筆</span>
+                            </h2>
+                            <p class="text-slate-500 text-xs mt-1">即時同步 Firebase 檢視與管理所有學生送出之申請單</p>
+                        </div>
+
+                        <!-- Search and Export Toolbar -->
+                        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                            <!-- Search Bar -->
+                            <div class="relative flex-1 sm:w-64">
+                                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                <input type="text" id="searchInput" oninput="handleSearch()" placeholder="搜尋姓名、班級或家庭狀況..." class="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none">
+                            </div>
+
+                            <!-- Print Button -->
+                            <button onclick="window.print()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition-colors flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                                列印
+                            </button>
+
+                            <!-- Export CSV Button -->
+                            <button onclick="exportToCSV()" class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium rounded-xl text-sm transition-colors flex items-center gap-1.5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                匯出 CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Printable Header Title -->
+                    <div class="hidden print:block p-4 border-b border-slate-300">
+                        <h1 class="text-2xl font-bold text-center text-slate-900">獎學金申請學生資料彙整表</h1>
+                    </div>
+
+                    <!-- Table Container -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                                    <th class="p-4 text-center w-20">班級</th>
+                                    <th class="p-4 text-center w-20">座號</th>
+                                    <th class="p-4 w-32">學生姓名</th>
+                                    <th class="p-4">家庭狀況描述</th>
+                                    <th class="p-4 w-44 text-right">申請時間</th>
+                                    <th class="p-4 w-20 text-center no-print">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="applicationsTableBody" class="divide-y divide-slate-100 text-sm">
+                                <tr>
+                                    <td colspan="6" class="p-8 text-center text-slate-400">連線 Firebase 載入中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Custom Modal Dialog -->
+    <div id="customModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden fade-in">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <h3 id="modalTitle" class="text-lg font-bold text-slate-800">確認操作</h3>
+            <p id="modalMessage" class="text-sm text-slate-600">您確定要執行此動作嗎？</p>
+            <div class="flex justify-end gap-2 pt-2">
+                <button id="modalCancelBtn" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition-colors">取消</button>
+                <button id="modalConfirmBtn" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium text-sm transition-colors">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- JavaScript Firebase Implementation -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            doc, 
+            setDoc, 
+            getDoc, 
+            addDoc, 
+            deleteDoc, 
+            onSnapshot 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration (scholarship-a8091)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBBRArQ1Sja-yYlQWZa6x6SgLur3qbBlHs",
+            authDomain: "scholarship-a8091.firebaseapp.com",
+            databaseURL: "https://scholarship-a8091-default-rtdb.firebaseio.com",
+            projectId: "scholarship-a8091",
+            storageBucket: "scholarship-a8091.firebasestorage.app",
+            messagingSenderId: "945661608587",
+            appId: "1:945661608587:web:9b1a45974b4ae8cf014a8e",
+            measurementId: "G-KQR79FB2XL"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Firestore References
+        const configDocRef = doc(db, 'settings', 'config');
+        const appsCollectionRef = collection(db, 'applications');
+
+        // Application State
+        let currentUser = null;
+        let isAdminLoggedIn = false;
+        let allApplications = [];
+        let familyOptionsList = [];
+        let maxQuota = 30; // Default limit
+        let currentSearchQuery = "";
+
+        // Default Presets for Family Options if database is empty
+        const DEFAULT_FAMILY_OPTIONS = [
+            "一般家庭",
+            "單親家庭",
+            "低收入戶",
+            "中低收入戶",
+            "隔代教養",
+            "特殊遭遇家庭"
+        ];
+
+        async function initFirebaseAndListeners() {
+            try {
+                // Attempt anonymous auth, but do not block app initialization if not configured in console
+                try {
+                    const cred = await signInAnonymously(auth);
+                    currentUser = cred.user;
+                } catch (authErr) {
+                    console.warn("Firebase Anonymous Auth is disabled in Firebase Console. Continuing directly with Firestore connection.", authErr);
+                }
+
+                // Listen to Global Config Document (Max Quota & Family Options)
+                onSnapshot(configDocRef, async (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (typeof data.maxQuota === 'number') {
+                            maxQuota = data.maxQuota;
+                            document.getElementById('maxQuotaInput').value = maxQuota;
+                        }
+                        if (Array.isArray(data.familyOptions)) {
+                            familyOptionsList = data.familyOptions;
+                        }
+                    } else {
+                        // Seed initial config to Firebase if first time run
+                        await setDoc(configDocRef, {
+                            maxQuota: 30,
+                            familyOptions: DEFAULT_FAMILY_OPTIONS
+                        });
+                        maxQuota = 30;
+                        familyOptionsList = DEFAULT_FAMILY_OPTIONS;
+                        document.getElementById('maxQuotaInput').value = 30;
+                    }
+
+                    renderFamilyOptions();
+                    updateQuotaDisplay();
+                }, (err) => {
+                    console.error("Config listener error:", err);
+                    showToast("讀取 Firebase 設定失敗，請確認資料庫權限", "error");
+                });
+
+                // Listen to Applications Collection
+                onSnapshot(appsCollectionRef, (querySnap) => {
+                    const records = [];
+                    querySnap.forEach(doc => {
+                        records.push({ id: doc.id, ...doc.data() });
+                    });
+
+                    // Sort newest first
+                    records.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                    allApplications = records;
+
+                    updateQuotaDisplay();
+                    renderApplicationsTable();
+                }, (err) => {
+                    console.error("Applications listener error:", err);
+                    showToast("讀取 Firebase 申請紀錄失敗", "error");
+                });
+
+            } catch (err) {
+                console.error("Firebase Init Exception:", err);
+                showToast("Firebase 連線建立失敗", "error");
+            }
+        }
+
+        window.handleAdminLogin = function(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('adminUsername').value.trim();
+            const passwordInput = document.getElementById('adminPassword').value.trim();
+            const alertBox = document.getElementById('loginErrorAlert');
+
+            if (usernameInput === 'walan52' && passwordInput === 'source88') {
+                isAdminLoggedIn = true;
+                alertBox.classList.add('hidden');
+                
+                document.getElementById('adminLoginForm').reset();
+
+                document.getElementById('backendLoginCard').classList.add('hidden');
+                document.getElementById('backendDashboard').classList.remove('hidden');
+                document.getElementById('adminLogoutBtn').classList.remove('hidden');
+
+                showToast("登入成功，歡迎進入後台控制面板！");
+            } else {
+                alertBox.classList.remove('hidden');
+            }
+        };
+
+        window.logoutAdmin = function() {
+            isAdminLoggedIn = false;
+            document.getElementById('backendLoginCard').classList.remove('hidden');
+            document.getElementById('backendDashboard').classList.add('hidden');
+            document.getElementById('adminLogoutBtn').classList.add('hidden');
+            document.getElementById('loginErrorAlert').classList.add('hidden');
+            showToast("已成功登出後台");
+        };
+
+        function updateQuotaDisplay() {
+            const appliedCount = allApplications.length;
+            const remainingQuota = Math.max(0, maxQuota - appliedCount);
+
+            document.getElementById('statTotalQuota').innerText = maxQuota;
+            document.getElementById('statAppliedCount').innerText = appliedCount;
+            document.getElementById('statRemainingQuota').innerText = remainingQuota;
+
+            const submitBtn = document.getElementById('submitBtn');
+            const submitBtnText = document.getElementById('submitBtnText');
+            const quotaBanner = document.getElementById('quotaFullBanner');
+            const remainingIcon = document.getElementById('remainingQuotaIcon');
+
+            if (remainingQuota <= 0) {
+                quotaBanner.classList.remove('hidden');
+                submitBtn.disabled = true;
+                submitBtnText.innerText = "名額已滿，暫停接受申請";
+                
+                remainingIcon.className = "p-3 bg-red-50 text-red-600 rounded-xl";
+                document.getElementById('statRemainingQuota').className = "text-2xl font-bold text-red-600 mt-0.5";
+            } else {
+                quotaBanner.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtnText.innerText = "提交獎學金申請";
+
+                remainingIcon.className = "p-3 bg-emerald-50 text-emerald-600 rounded-xl";
+                document.getElementById('statRemainingQuota').className = "text-2xl font-bold text-emerald-600 mt-0.5";
+            }
+        }
+
+        function renderFamilyOptions() {
+            const selectEl = document.getElementById('familyStatusSelect');
+            const backendListEl = document.getElementById('backendOptionsList');
+
+            const currentSelected = selectEl.value;
+
+            let selectHTML = `<option value="" disabled ${!currentSelected ? 'selected' : ''}>請選擇家庭狀況...</option>`;
+            familyOptionsList.forEach(optText => {
+                selectHTML += `<option value="${escapeHtml(optText)}">${escapeHtml(optText)}</option>`;
+            });
+            selectHTML += `<option value="其他">其他</option>`;
+            selectEl.innerHTML = selectHTML;
+
+            if (currentSelected) {
+                selectEl.value = currentSelected;
+            }
+
+            if (familyOptionsList.length === 0) {
+                backendListEl.innerHTML = `<li class="p-3 text-center text-slate-400">尚無選項</li>`;
+            } else {
+                backendListEl.innerHTML = familyOptionsList.map(optText => `
+                    <li class="flex items-center justify-between p-3 hover:bg-slate-100/60 transition-colors">
+                        <span class="font-medium text-slate-700">${escapeHtml(optText)}</span>
+                        <button onclick="confirmDeleteOption('${escapeHtml(optText)}')" class="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 px-2.5 py-1 rounded-lg transition-colors">
+                            刪除
+                        </button>
+                    </li>
+                `).join('');
+            }
+        }
+
+        // Toggle 'Other' reason input
+        document.getElementById('familyStatusSelect').addEventListener('change', (e) => {
+            const otherContainer = document.getElementById('otherReasonContainer');
+            const otherInput = document.getElementById('familyStatusOther');
+            if (e.target.value === '其他') {
+                otherContainer.classList.remove('hidden');
+                otherInput.required = true;
+                otherInput.focus();
+            } else {
+                otherContainer.classList.add('hidden');
+                otherInput.required = false;
+                otherInput.value = '';
+            }
+        });
+
+        window.addFamilyOption = async function() {
+            if (!isAdminLoggedIn) return;
+            const input = document.getElementById('newOptionInput');
+            const text = input.value.trim();
+
+            if (!text) {
+                showToast("請輸入選項內容", "error");
+                return;
+            }
+            if (text === '其他') {
+                showToast("「其他」為系統保留選項，不需手動新增", "error");
+                return;
+            }
+            if (familyOptionsList.includes(text)) {
+                showToast("該選項已存在", "error");
+                return;
+            }
+
+            try {
+                const updatedList = [...familyOptionsList, text];
+                await setDoc(configDocRef, { familyOptions: updatedList }, { merge: true });
+                input.value = '';
+                showToast("已成功新增家庭狀況選項至 Firebase");
+            } catch (err) {
+                console.error(err);
+                showToast("新增選項失敗", "error");
+            }
+        };
+
+        window.confirmDeleteOption = function(targetText) {
+            if (!isAdminLoggedIn) return;
+            showModal({
+                title: "刪除選項",
+                message: `確定要從 Firebase 刪除「${targetText}」選項嗎？`,
+                onConfirm: async () => {
+                    try {
+                        const updatedList = familyOptionsList.filter(item => item !== targetText);
+                        await setDoc(configDocRef, { familyOptions: updatedList }, { merge: true });
+                        showToast("選項已順利刪除");
+                    } catch (err) {
+                        console.error(err);
+                        showToast("刪除失敗", "error");
+                    }
+                }
+            });
+        };
+
+        window.saveMaxQuota = async function() {
+            if (!isAdminLoggedIn) return;
+            const input = document.getElementById('maxQuotaInput');
+            const val = parseInt(input.value, 10);
+
+            if (isNaN(val) || val <= 0) {
+                showToast("請輸入有效的限制人數", "error");
+                return;
+            }
+
+            try {
+                await setDoc(configDocRef, { maxQuota: val }, { merge: true });
+                showToast("限制人數已更新至 Firebase");
+            } catch (err) {
+                console.error(err);
+                showToast("儲存失敗", "error");
+            }
+        };
+
+        // Form Submission -> Firestore `applications` collection
+        document.getElementById('scholarshipForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (allApplications.length >= maxQuota) {
+                showToast("名額已滿，暫停接受申請", "error");
+                return;
+            }
+
+            const btn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('submitBtnText');
+            btn.disabled = true;
+            btnText.innerText = "寫入 Firebase 中...";
+
+            const selectVal = document.getElementById('familyStatusSelect').value;
+            const otherVal = document.getElementById('familyStatusOther').value.trim();
+
+            let finalFamilyStatus = selectVal;
+            if (selectVal === '其他') {
+                finalFamilyStatus = `其他（${otherVal}）`;
+            }
+
+            const appData = {
+                classId: document.getElementById('classId').value.trim(),
+                seatNumber: document.getElementById('seatNumber').value.trim(),
+                studentName: document.getElementById('studentName').value.trim(),
+                familyStatus: finalFamilyStatus,
+                timestamp: Date.now()
+            };
+
+            try {
+                await addDoc(appsCollectionRef, appData);
+                showToast("申請單已成功提交至 Firebase 資料庫！");
+                
+                document.getElementById('scholarshipForm').reset();
+                document.getElementById('otherReasonContainer').classList.add('hidden');
+                document.getElementById('familyStatusOther').required = false;
+
+            } catch (err) {
+                console.error("Submission error:", err);
+                showToast("提交失敗，請檢查 Firebase 連線與權限", "error");
+            } finally {
+                updateQuotaDisplay();
+            }
+        });
+
+        window.handleSearch = function() {
+            currentSearchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+            renderApplicationsTable();
+        };
+
+        function renderApplicationsTable() {
+            const tbody = document.getElementById('applicationsTableBody');
+            const badge = document.getElementById('recordBadgeCount');
+
+            const filtered = allApplications.filter(app => {
+                if (!currentSearchQuery) return true;
+                const name = (app.studentName || '').toLowerCase();
+                const cls = (app.classId || '').toLowerCase();
+                const seat = (app.seatNumber || '').toString();
+                const status = (app.familyStatus || '').toLowerCase();
+                return name.includes(currentSearchQuery) || cls.includes(currentSearchQuery) || seat.includes(currentSearchQuery) || status.includes(currentSearchQuery);
+            });
+
+            badge.innerText = `共 ${filtered.length} 筆`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-400">
+                            ${currentSearchQuery ? '查無符合搜尋條件的紀錄' : '目前尚無任何學生提交申請'}
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(app => `
+                <tr class="hover:bg-slate-50/80 transition-colors">
+                    <td class="p-4 text-center font-semibold text-slate-800">${escapeHtml(app.classId)}</td>
+                    <td class="p-4 text-center text-slate-600">${escapeHtml(app.seatNumber)}</td>
+                    <td class="p-4 font-semibold text-indigo-900">${escapeHtml(app.studentName)}</td>
+                    <td class="p-4 text-slate-700">
+                        <span class="inline-block bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg text-xs font-medium">
+                            ${escapeHtml(app.familyStatus)}
+                        </span>
+                    </td>
+                    <td class="p-4 text-right text-xs text-slate-400 font-mono">${formatDate(app.timestamp)}</td>
+                    <td class="p-4 text-center no-print">
+                        <button onclick="confirmDeleteApplication('${app.id}', '${escapeHtml(app.studentName)}')" class="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="刪除紀錄">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        window.confirmDeleteApplication = function(docId, name) {
+            if (!isAdminLoggedIn) return;
+            showModal({
+                title: "刪除申請紀錄",
+                message: `確定要從 Firebase 刪除「${name}」的申請單嗎？刪除後名額將自動釋出。`,
+                onConfirm: async () => {
+                    try {
+                        await deleteDoc(doc(db, 'applications', docId));
+                        showToast("紀錄已刪除，申請名額已自動釋出");
+                    } catch (err) {
+                        console.error(err);
+                        showToast("刪除失敗", "error");
+                    }
+                }
+            });
+        };
+
+        window.exportToCSV = function() {
+            if (allApplications.length === 0) {
+                showToast("尚無資料可匯出", "error");
+                return;
+            }
+
+            const headers = ["班級", "座號", "學生姓名", "家庭狀況描述", "申請時間"];
+            const rows = allApplications.map(a => [
+                `"${a.classId || ''}"`,
+                `"${a.seatNumber || ''}"`,
+                `"${a.studentName || ''}"`,
+                `"${(a.familyStatus || '').replace(/"/g, '""')}"`,
+                `"${formatDate(a.timestamp)}"`
+            ]);
+
+            // UTF-8 BOM (\uFEFF)
+            const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `獎學金申請清單_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("已產出 UTF-8 CSV 檔案");
+        };
+
+        // Tab Switcher
+        window.switchTab = function(tab) {
+            const frontView = document.getElementById('view-frontend');
+            const backView = document.getElementById('view-backend');
+            const frontTab = document.getElementById('tab-frontend');
+            const backTab = document.getElementById('tab-backend');
+
+            if (tab === 'frontend') {
+                frontView.classList.remove('hidden');
+                backView.classList.add('hidden');
+                frontTab.className = "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 bg-white text-indigo-900 shadow-sm";
+                backTab.className = "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-indigo-200 hover:text-white hover:bg-indigo-700/50";
+            } else {
+                frontView.classList.add('hidden');
+                backView.classList.remove('hidden');
+                backTab.className = "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 bg-white text-indigo-900 shadow-sm";
+                frontTab.className = "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-indigo-200 hover:text-white hover:bg-indigo-700/50";
+            }
+        };
+
+        function formatDate(ms) {
+            if (!ms) return '-';
+            const d = new Date(ms);
+            return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function showToast(message, type = "success") {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const isSuccess = type === "success";
+            const bgClass = isSuccess ? "bg-slate-900 text-white" : "bg-red-600 text-white";
+            const icon = isSuccess 
+                ? `<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`
+                : `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+
+            toast.className = `${bgClass} px-4 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2.5 transition-all duration-300 transform translate-y-4 opacity-0 pointer-events-auto`;
+            toast.innerHTML = `${icon}<span>${escapeHtml(message)}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function showModal({ title, message, onConfirm }) {
+            const modal = document.getElementById('customModal');
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+
+            const cancelBtn = document.getElementById('modalCancelBtn');
+            const confirmBtn = document.getElementById('modalConfirmBtn');
+
+            const closeModal = () => {
+                modal.classList.add('hidden');
+                cancelBtn.onclick = null;
+                confirmBtn.onclick = null;
+            };
+
+            cancelBtn.onclick = closeModal;
+            confirmBtn.onclick = async () => {
+                closeModal();
+                if (onConfirm) await onConfirm();
+            };
+
+            modal.classList.remove('hidden');
+        }
+
+        // Start Firebase initialization
+        initFirebaseAndListeners();
+    </script>
+</body>
+</html>
