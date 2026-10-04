@@ -334,9 +334,9 @@
       measurementId: "G-HE53RBDNVY"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const firestoreDB = firebase.firestore();
-    const docRef = firestoreDB.collection("classBankData").doc("bankState");
+    let firestoreDB = null;
+    let docRef = null;
+    let isFirebaseOnline = false;
 
     const defaultBoard40 = [
         { id: 0, name: "🛫 美食出發", type: "start", price: 0, rent: [0], group: "special" },
@@ -374,7 +374,7 @@
         { id: 32, name: "🍖 煙燻美式烤肋排", type: "property", price: 260, houseCost: 130, rent: [55, 275, 825, 1950, 2700, 3600], group: "green" },
         { id: 33, name: "🎁 幸運籤餅", type: "chance", price: 0, group: "special" },
         { id: 34, name: "🍰 紐約重起司蛋糕", type: "property", price: 270, houseCost: 130, rent: [60, 300, 900, 2100, 2900, 3900], group: "green" },
-        { id: 35, name: "✈️ 環球美食機場", type: "station", price: 150, group: "station" },
+        { id: 35, name: "✈️️ 環球美食機場", type: "station", price: 150, group: "station" },
         { id: 36, name: "❓ 美食巡估", type: "community", price: 0, group: "special" },
         { id: 37, name: "🥩 日本A5黑毛和牛", type: "property", price: 290, houseCost: 150, rent: [70, 350, 1050, 2400, 3300, 4400], group: "dark-blue" },
         { id: 38, name: "💎 頂級黑松露稅", type: "tax", cost: 50, group: "special" },
@@ -393,47 +393,79 @@
         pointLogs: []
     };
 
-    // 初始記憶體資料庫
-    let db = JSON.parse(JSON.stringify(defaultInitialDB));
+    // 讀取本地快照資料作為基礎
+    let localBackup = localStorage.getItem("classBankData_local");
+    let db = localBackup ? JSON.parse(localBackup) : JSON.parse(JSON.stringify(defaultInitialDB));
 
     let currentStudentId = null;
     let isTeacherLoggedIn = false;
 
     // 更新資料庫連線 UI 指示符號
-    function updateDbStatus(isConnected) {
+    function updateDbStatus(status, message) {
         const dot = document.getElementById('db-status-dot');
         const text = document.getElementById('db-status-text');
         if (!dot || !text) return;
-        if (isConnected) {
+
+        if (status === 'online') {
             dot.style.backgroundColor = '#4CAF50';
-            text.innerText = '資料庫已連線';
+            text.innerText = message || '資料庫已即時同步';
             text.style.color = '#2e7d32';
+        } else if (status === 'local') {
+            dot.style.backgroundColor = '#ff9800';
+            text.innerText = message || '本地模式 (Firebase權限不足/未啟用)';
+            text.style.color = '#e65100';
         } else {
             dot.style.backgroundColor = '#f44336';
-            text.innerText = '資料庫未連線';
+            text.innerText = message || '資料庫未連線';
             text.style.color = '#c62828';
         }
     }
 
-    // 即時監聽 Firebase 資料變更與連線狀態
-    docRef.onSnapshot({ includeMetadataChanges: true }, (doc) => {
-        const isFromCache = doc.metadata.fromCache;
-        updateDbStatus(!isFromCache);
+    // 初始化 Firebase 並嘗試同步
+    try {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        firestoreDB = firebase.firestore();
+        docRef = firestoreDB.collection("classBankData").doc("bankState");
 
-        if (doc.exists) {
-            db = doc.data();
-            if (!db.boardState || db.boardState.length !== 40) {
-                db.boardState = defaultBoard40.map(t => ({ ownerId: null, houses: 0 }));
+        // 監聽 Firebase 資料變更
+        docRef.onSnapshot({ includeMetadataChanges: true }, (doc) => {
+            if (doc.exists) {
+                isFirebaseOnline = true;
+                db = doc.data();
+                if (!db.boardState || db.boardState.length !== 40) {
+                    db.boardState = defaultBoard40.map(t => ({ ownerId: null, houses: 0 }));
+                }
+                localStorage.setItem("classBankData_local", JSON.stringify(db));
+                updateDbStatus('online', '雲端資料庫已連線');
+                renderAll();
+            } else {
+                // 雲端無資料時自動初始化
+                docRef.set(db).then(() => {
+                    isFirebaseOnline = true;
+                    updateDbStatus('online', '雲端資料庫已建立並連線');
+                }).catch(err => handleDbError(err));
             }
+        }, (error) => {
+            handleDbError(error);
+        });
+    } catch (e) {
+        console.warn("Firebase 初始化異常，自動切換為本地儲存模式：", e);
+        updateDbStatus('local', '使用本地儲存 (Firebase未初始化)');
+        renderAll();
+    }
+
+    function handleDbError(error) {
+        console.warn("Firebase 存取受阻，自動啟用本地 LocalStorage 備援：", error);
+        isFirebaseOnline = false;
+        if (error && error.code === 'permission-denied') {
+            updateDbStatus('local', '使用本地儲存 (請至Firebase開啟Rules權限)');
         } else {
-            // 若雲端無資料，初始化雲端資料庫
-            docRef.set(db);
+            updateDbStatus('local', '使用本地儲存 (未連線至雲端)');
         }
         renderAll();
-    }, (error) => {
-        console.error("Firebase 即時同步失敗：", error);
-        updateDbStatus(false);
-    });
+    }
 
     function getTodayString() {
         const d = new Date();
@@ -498,17 +530,23 @@
         reader.readAsArrayBuffer(file);
     }
 
+    // 儲存資料（本地備援 + 嘗試同步雲端）
     function saveData() {
         db.students.sort((a, b) => Number(a.seat) - Number(b.seat));
         
-        // 純儲存至 Firebase 雲端資料庫
-        docRef.set(db).then(() => {
-            renderAll();
-        }).catch(err => {
-            console.error("更新至 Firebase 失敗：", err);
-            renderAll();
-        });
+        // 永遠先存入本地，保證資料不丟失
+        localStorage.setItem("classBankData_local", JSON.stringify(db));
+
+        // 若 Firebase 正常則寫入雲端
+        if (docRef) {
+            docRef.set(db).catch(err => {
+                console.warn("寫入 Firebase 失敗，已安全儲存至本地：", err);
+                updateDbStatus('local', '本地儲存已更新 (Firebase寫入失敗)');
+            });
+        }
+        renderAll();
     }
+
 
     function logPointChange(studentId, amount, reason) {
         if (!db.pointLogs) db.pointLogs = [];
@@ -813,7 +851,7 @@
         const prize = db.prizes.find(p => p.id === prizeId);
 
         if (!student || !prize) return;
-        if (student.points < prize.cost) return alert("⚠️ 點數不足，無法兌換此獎品！");
+        if (student.points < prize.cost) return alert("⚠️️ 點數不足，無法兌換此獎品！");
 
         student.points -= prize.cost;
         logPointChange(student.id, -prize.cost, `兌換商品：${prize.name}`);
