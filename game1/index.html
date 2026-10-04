@@ -150,6 +150,11 @@
     <header>
         <h1>🍱 班級好點數網路銀行 x 世界美食大富翁 🌏</h1>
         <p>收集世界名菜、再次踩中升級星級餐廳與旗艦米其林大飯店！</p>
+        <!-- 資料庫連線狀態指示符號 -->
+        <div id="db-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 15px; font-size: 13px; font-weight: bold; background: #f5f5f5; border: 1px solid #ddd; margin-top: 6px;">
+            <span id="db-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #ff9800; display: inline-block;"></span>
+            <span id="db-status-text" style="color: #666;">資料庫連線中...</span>
+        </div>
     </header>
 
     <div class="role-selector">
@@ -317,15 +322,16 @@
 </div>
 
 <script>
-    // Firebase 初始化
+    // Firebase 初始化設定
     const firebaseConfig = {
-        apiKey: "AIzaSyAbQUblapvMlbSlPdNWBXKX2EZ0uJuknkU",
-        authDomain: "game1-27a0d.firebaseapp.com",
-        projectId: "game1-27a0d",
-        storageBucket: "game1-27a0d.firebasestorage.app",
-        messagingSenderId: "761305749566",
-        appId: "1:761305749566:web:f5a9825b9c5b0267ab996f",
-        measurementId: "G-HE53RBDNVY"
+      apiKey: "AIzaSyAbQUblapvMlbSlPdNWBXKX2EZ0uJuknkU",
+      authDomain: "game1-27a0d.firebaseapp.com",
+      databaseURL: "https://game1-27a0d-default-rtdb.firebaseio.com",
+      projectId: "game1-27a0d",
+      storageBucket: "game1-27a0d.firebasestorage.app",
+      messagingSenderId: "761305749566",
+      appId: "1:761305749566:web:f5a9825b9c5b0267ab996f",
+      measurementId: "G-HE53RBDNVY"
     };
 
     firebase.initializeApp(firebaseConfig);
@@ -387,23 +393,38 @@
         pointLogs: []
     };
 
-    let db = JSON.parse(localStorage.getItem('classBankDB_vFood')) || defaultInitialDB;
-
-    if (!db.boardState || db.boardState.length !== 40) {
-        db.boardState = defaultBoard40.map(t => ({ ownerId: null, houses: 0 }));
-    }
+    // 初始記憶體資料庫
+    let db = JSON.parse(JSON.stringify(defaultInitialDB));
 
     let currentStudentId = null;
     let isTeacherLoggedIn = false;
 
-    // 即時監聽 Firebase 資料變更
-    docRef.onSnapshot((doc) => {
+    // 更新資料庫連線 UI 指示符號
+    function updateDbStatus(isConnected) {
+        const dot = document.getElementById('db-status-dot');
+        const text = document.getElementById('db-status-text');
+        if (!dot || !text) return;
+        if (isConnected) {
+            dot.style.backgroundColor = '#4CAF50';
+            text.innerText = '資料庫已連線';
+            text.style.color = '#2e7d32';
+        } else {
+            dot.style.backgroundColor = '#f44336';
+            text.innerText = '資料庫未連線';
+            text.style.color = '#c62828';
+        }
+    }
+
+    // 即時監聽 Firebase 資料變更與連線狀態
+    docRef.onSnapshot({ includeMetadataChanges: true }, (doc) => {
+        const isFromCache = doc.metadata.fromCache;
+        updateDbStatus(!isFromCache);
+
         if (doc.exists) {
             db = doc.data();
             if (!db.boardState || db.boardState.length !== 40) {
                 db.boardState = defaultBoard40.map(t => ({ ownerId: null, houses: 0 }));
             }
-            localStorage.setItem('classBankDB_vFood', JSON.stringify(db));
         } else {
             // 若雲端無資料，初始化雲端資料庫
             docRef.set(db);
@@ -411,6 +432,7 @@
         renderAll();
     }, (error) => {
         console.error("Firebase 即時同步失敗：", error);
+        updateDbStatus(false);
     });
 
     function getTodayString() {
@@ -478,9 +500,8 @@
 
     function saveData() {
         db.students.sort((a, b) => Number(a.seat) - Number(b.seat));
-        localStorage.setItem('classBankDB_vFood', JSON.stringify(db));
         
-        // 儲存至 Firebase
+        // 純儲存至 Firebase 雲端資料庫
         docRef.set(db).then(() => {
             renderAll();
         }).catch(err => {
