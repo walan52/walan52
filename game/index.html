@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>互動答題王 - 智慧競賽系統</title>
+  <title>互動答題王 - 智慧競賽與賽跑系統</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -98,9 +98,9 @@
         <div>
           <h1 class="font-extrabold text-lg sm:text-xl tracking-tight text-white flex items-center gap-2">
             互動答題王
-            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">v2.0</span>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">v2.5 賽跑版</span>
           </h1>
-          <p class="text-xs text-slate-400 hidden sm:block">即時線上智慧競賽與錯題分析系統</p>
+          <p class="text-xs text-slate-400 hidden sm:block">即時線上智慧競賽與賽跑大比拼</p>
         </div>
       </div>
 
@@ -133,7 +133,7 @@
             <i class="fa-solid fa-graduation-cap"></i>
           </div>
           <h2 class="text-2xl font-bold text-white">學生測驗登入</h2>
-          <p class="text-sm text-slate-400 mt-1">請輸入您的座號與暱稱以開始作答</p>
+          <p class="text-sm text-slate-400 mt-1">請輸入您的座號與暱稱以開始作答與賽跑</p>
         </div>
 
         <form onsubmit="handleStudentLogin(event)" class="space-y-4">
@@ -158,7 +158,7 @@
           </div>
 
           <button type="submit" class="w-full py-3 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-600/30 active:scale-95 transition flex items-center justify-center gap-2 mt-6">
-            <span>開始答題挑戰</span>
+            <span>開始答題與賽跑</span>
             <i class="fa-solid fa-arrow-right text-sm"></i>
           </button>
         </form>
@@ -177,15 +177,19 @@
             <div>
               <div id="quiz-nickname-display" class="font-bold text-white">學生暱稱</div>
               <div class="text-xs text-slate-400 flex items-center gap-2">
-                <span id="quiz-attempt-badge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">第 1 次嘗試</span>
+                <span id="quiz-attempt-badge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">首次嘗試</span>
               </div>
             </div>
           </div>
 
           <div class="flex items-center gap-4">
             <div class="text-right">
-              <div class="text-xs text-slate-400">目前總分</div>
-              <div id="quiz-score-display" class="text-2xl font-black text-amber-400">0 <span class="text-xs text-slate-400 font-normal">/ 100</span></div>
+              <div class="text-xs text-slate-400">目前步數 / 得分</div>
+              <div class="text-lg sm:text-xl font-black text-emerald-400 flex items-center gap-2 justify-end">
+                <span><i class="fa-solid fa-shoe-prints text-xs"></i> <span id="quiz-steps-display">0</span> 步</span>
+                <span class="text-slate-600">|</span>
+                <span class="text-amber-400"><span id="quiz-score-display">0</span> <span class="text-xs text-slate-400 font-normal">/ 100分</span></span>
+              </div>
             </div>
           </div>
         </div>
@@ -234,16 +238,21 @@
         </div>
 
         <h2 class="text-3xl font-black text-white mb-1">測驗挑戰完成！</h2>
-        <p class="text-slate-400 text-sm mb-6">太棒了！您已成功完成所有答題任務</p>
+        <p class="text-slate-400 text-sm mb-6">太棒了！您已成功完成所有答題任務與賽跑！</p>
 
         <div class="bg-slate-950/60 rounded-2xl p-6 border border-slate-800 mb-6 flex justify-around items-center">
           <div>
-            <div class="text-xs text-slate-400 mb-1">最終得分</div>
-            <div id="result-final-score" class="text-4xl font-black text-amber-400">0</div>
+            <div class="text-xs text-slate-400 mb-1">最終總步數</div>
+            <div id="result-final-steps" class="text-3xl font-black text-emerald-400">0 步</div>
           </div>
           <div class="w-px h-10 bg-slate-800"></div>
           <div>
-            <div class="text-xs text-slate-400 mb-1">錯題檢討數量</div>
+            <div class="text-xs text-slate-400 mb-1">最終得分</div>
+            <div id="result-final-score" class="text-3xl font-black text-amber-400">0 分</div>
+          </div>
+          <div class="w-px h-10 bg-slate-800"></div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">錯題數量</div>
             <div id="result-wrong-count" class="text-2xl font-bold text-rose-400">0 題</div>
           </div>
         </div>
@@ -272,21 +281,25 @@
           </div>
           <div>
             <h2 class="text-xl font-bold text-white">教師管理控制台</h2>
-            <p class="text-xs text-slate-400">管理題目庫、查看即時戰況與錯題統計分析</p>
+            <p class="text-xs text-slate-400">管理題目庫、賽跑比賽與錯題統計分析</p>
           </div>
         </div>
 
         <!-- Navigation Tabs -->
         <div class="flex items-center p-1 bg-slate-950/80 rounded-xl border border-slate-800 w-full md:w-auto overflow-x-auto">
-          <button onclick="switchTeacherTab('tab-students')" id="tab-btn-students" class="flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 bg-blue-600 text-white shadow">
+          <button onclick="switchTeacherTab('tab-students')" id="tab-btn-students" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-blue-600 text-white shadow">
             <i class="fa-solid fa-users"></i>
             <span>學生即時戰況</span>
           </button>
-          <button onclick="switchTeacherTab('tab-questions')" id="tab-btn-questions" class="flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-2">
+          <button onclick="switchTeacherTab('tab-race')" id="tab-btn-race" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-flag-checkered text-emerald-400"></i>
+            <span>賽跑比賽</span>
+          </button>
+          <button onclick="switchTeacherTab('tab-questions')" id="tab-btn-questions" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
             <i class="fa-solid fa-list-check"></i>
             <span>題目庫管理</span>
           </button>
-          <button onclick="switchTeacherTab('tab-analytics')" id="tab-btn-analytics" class="flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-2">
+          <button onclick="switchTeacherTab('tab-analytics')" id="tab-btn-analytics" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
             <i class="fa-solid fa-chart-pie"></i>
             <span>錯題統計與分析</span>
           </button>
@@ -324,7 +337,8 @@
                 <tr>
                   <th class="py-3.5 px-4 font-bold">座號</th>
                   <th class="py-3.5 px-4 font-bold">暱稱</th>
-                  <th class="py-3.5 px-4 font-bold">目前得分</th>
+                  <th class="py-3.5 px-4 font-bold text-emerald-400">目前總步數</th>
+                  <th class="py-3.5 px-4 font-bold text-amber-400">目前得分</th>
                   <th class="py-3.5 px-4 font-bold">答題進度</th>
                   <th class="py-3.5 px-4 font-bold">總錯題次數</th>
                   <th class="py-3.5 px-4 font-bold">狀態</th>
@@ -339,7 +353,36 @@
         </div>
       </div>
 
-      <!-- TAB 2: QUESTION BANK MANAGEMENT -->
+      <!-- TAB 2: RACE COMPETITION (賽跑比賽) -->
+      <div id="tab-content-race" class="hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-person-running text-emerald-400"></i>
+              學生賽跑比賽實況
+            </h3>
+            <p class="text-xs text-slate-400">依據學生答題獲得的總步數進行即時競速排行榜</p>
+          </div>
+        </div>
+
+        <!-- Top 3 Podium Cards -->
+        <div id="race-podium-container" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <!-- Dynamic Podium Cards -->
+        </div>
+
+        <!-- Full Race Tracks -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-700/50 shadow-xl space-y-4">
+          <h4 class="text-sm font-bold text-slate-300 border-b border-slate-800 pb-2 flex items-center gap-2">
+            <i class="fa-solid fa-bars-staggered text-blue-400"></i>
+            全班跑道位置總覽
+          </h4>
+          <div id="race-tracks-container" class="space-y-3">
+            <!-- Dynamic Race Tracks -->
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: QUESTION BANK MANAGEMENT -->
       <div id="tab-content-questions" class="hidden space-y-4">
         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
@@ -395,7 +438,7 @@
         </div>
       </div>
 
-      <!-- TAB 3: CLASS WRONG-QUESTION ANALYTICS -->
+      <!-- TAB 4: CLASS WRONG-QUESTION ANALYTICS -->
       <div id="tab-content-analytics" class="hidden space-y-4">
         <div class="flex items-center justify-between">
           <div>
@@ -417,7 +460,7 @@
   <!-- Footer -->
   <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500 bg-slate-950/60">
     <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
-      <div>© 2026 互動答題王 - 智慧教學與測驗輔助平台</div>
+      <div>© 2026 互動答題王 - 智慧教學與競賽系統</div>
       <div class="flex items-center gap-3 text-slate-400">
         <span><i class="fa-solid fa-code text-blue-400"></i> KaTeX 數學解析</span>
         <span><i class="fa-solid fa-bolt text-amber-400"></i> 即時數據同步</span>
@@ -568,6 +611,74 @@
     </div>
   </div>
 
+  <!-- MODAL 6: DICE ROLL & RANDOM EVENT MODAL -->
+  <div id="modal-dice-roll" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 sm:p-8 shadow-2xl border border-slate-700 text-center relative overflow-hidden">
+      <div class="absolute -top-16 -left-16 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl pointer-events-none"></div>
+      
+      <h3 class="text-xl font-black text-white mb-1 flex items-center justify-center gap-2">
+        <i class="fa-solid fa-dice text-amber-400 text-2xl"></i>
+        首次答對獎勵：擲骰子！
+      </h3>
+      <p class="text-xs text-slate-400 mb-6">答對囉！請點擊按鈕擲骰子決定前進步數</p>
+
+      <!-- Dice Roll Area -->
+      <div id="dice-container" class="my-6 flex flex-col items-center justify-center min-h-[110px]">
+        <div id="dice-box" class="w-24 h-24 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 text-5xl font-black shadow-xl shadow-amber-500/20 border-2 border-amber-200 transition-transform duration-300">
+          <i class="fa-solid fa-dice-d6 animate-pulse"></i>
+        </div>
+      </div>
+
+      <!-- Event Outcome Details -->
+      <div id="dice-result-details" class="hidden space-y-3 mb-6">
+        <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-200 text-sm">
+          <div class="text-xs text-slate-400">骰子點數</div>
+          <div id="dice-step-text" class="text-2xl font-black text-amber-400">+0 步</div>
+        </div>
+
+        <!-- Random Event Banner -->
+        <div id="random-event-box" class="hidden p-3 rounded-xl bg-indigo-950/80 border border-indigo-500/50 text-indigo-200 text-xs text-left">
+          <div class="font-bold text-amber-300 flex items-center gap-1.5 mb-1">
+            <i class="fa-solid fa-bolt"></i> 觸發突發狀況！
+          </div>
+          <div id="random-event-msg" class="text-slate-200">無</div>
+        </div>
+
+        <div class="text-xs font-semibold text-emerald-400">
+          目前累積總步數：<span id="dice-total-steps" class="text-base font-extrabold text-white">0</span> 步
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button id="btn-roll-dice" onclick="rollDiceAction()" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-dice"></i>
+          <span>開始擲骰子！</span>
+        </button>
+        <button id="btn-dice-continue" onclick="closeDiceModalAndNext()" class="hidden w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-lg transition flex items-center justify-center gap-2">
+          <span>前往下一題</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 7: PAUSE PENALTY MODAL -->
+  <div id="modal-pause-penalty" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md hidden">
+    <div class="glass-modal max-w-sm w-full rounded-2xl p-6 shadow-2xl border border-rose-500/30 text-center">
+      <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center text-3xl animate-bounce">
+        <i class="fa-solid fa-hand"></i>
+      </div>
+      <h3 class="text-xl font-bold text-white mb-1">受突發狀況影響：暫停一次！</h3>
+      <p class="text-xs text-slate-300 mb-6">您踩中了暫停陷阱，需等待冷卻時間結束後才能繼續答題。</p>
+
+      <div class="text-4xl font-black text-rose-400 mb-6 font-mono" id="pause-countdown">5</div>
+
+      <button id="btn-pause-done" disabled class="w-full py-2.5 rounded-xl bg-slate-800 text-slate-500 font-bold transition">
+        冷卻中...
+      </button>
+    </div>
+  </div>
+
   <script>
     /* ==========================================================================
        1. FIREBASE CONFIGURATION & INITIALIZATION
@@ -606,7 +717,7 @@
        2. GLOBAL APP STATE
        ========================================================================== */
     let currentRole = 'NONE'; // 'STUDENT' or 'TEACHER'
-    let currentStudent = null; // { id, seat, nickname, score, correctCount, progress, wrongRecords }
+    let currentStudent = null; // { id, seat, nickname, score, steps, isPaused, correctCount, progress, wrongRecords }
     let questionBank = []; // Array of { question, correct, wrong: [w1, w2, w3] }
     let studentQueue = []; // Active queue of questions for student
     let currentQuestionItem = null;
@@ -831,6 +942,7 @@
       allStudentsData = snapshot.val() || {};
       if (currentRole === 'TEACHER') {
         renderStudentMonitorTable();
+        renderRaceTab();
         renderAnalyticsTab();
       }
     });
@@ -852,12 +964,11 @@
 
       // Check if question bank is empty
       if (!questionBank || questionBank.length === 0) {
-        showToast('目前題庫為空，請請老師先匯入題目後再進行答題！', 'error');
+        showToast('目前題庫為空，請老師先匯入題目後再進行答題！', 'error');
         return;
       }
 
       const formattedSeat = String(seat).padStart(2, '0');
-      // 修改處：移除時間戳記，以座號建立唯一的 ID（例如 student_05），重複登入時即可直接覆蓋舊資料
       const studentId = `student_${formattedSeat}`;
 
       currentStudent = {
@@ -865,16 +976,17 @@
         seat: formattedSeat,
         nickname: nickname,
         score: 0,
-        correctCount: 0, // 紀錄首次答對的題數
+        steps: 0,
+        isPaused: false,
+        correctCount: 0,
         progress: 0,
         totalQuestions: questionBank.length,
         status: '進行中',
-        wrongRecords: {}, // { questionIndex: { wrongCount: 0, pickedWrongOptions: [] } }
+        wrongRecords: {},
         completedAt: null
       };
 
       // Prepare Student Queue
-      // Each queue item: { originalIndex, question, correct, wrong, attemptCount: 0, wrongPicked: [] }
       studentQueue = questionBank.map((q, idx) => ({
         originalIndex: idx,
         question: q.question,
@@ -902,7 +1014,7 @@
       document.getElementById('quiz-nickname-display').innerText = currentStudent.nickname;
 
       showNextQuestion();
-      showToast(`歡迎 ${currentStudent.nickname}！挑戰開始！`, 'success');
+      showToast(`歡迎 ${currentStudent.nickname}！挑戰與賽跑開始！`, 'success');
     }
 
     function saveStudentStateToFirebase() {
@@ -911,7 +1023,9 @@
       const payload = {
         seat: currentStudent.seat,
         nickname: currentStudent.nickname,
-        score: currentStudent.score,
+        score: currentStudent.score || 0,
+        steps: currentStudent.steps || 0,
+        isPaused: currentStudent.isPaused || false,
         correctCount: currentStudent.correctCount || 0,
         progress: currentStudent.progress,
         totalQuestions: currentStudent.totalQuestions,
@@ -923,29 +1037,69 @@
       db.ref(`students/${currentStudent.id}`).set(payload);
     }
 
+    function checkAndHandlePause(callback) {
+      if (currentStudent && currentStudent.isPaused) {
+        openModal('modal-pause-penalty');
+        let seconds = 5;
+        const countdownEl = document.getElementById('pause-countdown');
+        const btnDone = document.getElementById('btn-pause-done');
+        countdownEl.innerText = seconds;
+        btnDone.disabled = true;
+        btnDone.innerText = `冷卻中 (${seconds}s)...`;
+
+        const timer = setInterval(() => {
+          seconds--;
+          if (seconds > 0) {
+            countdownEl.innerText = seconds;
+            btnDone.innerText = `冷卻中 (${seconds}s)...`;
+          } else {
+            clearInterval(timer);
+            countdownEl.innerText = "0";
+            btnDone.disabled = false;
+            btnDone.className = "w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-lg cursor-pointer";
+            btnDone.innerText = "解除暫停，繼續答題！";
+            btnDone.onclick = () => {
+              currentStudent.isPaused = false;
+              saveStudentStateToFirebase();
+              closeModal('modal-pause-penalty');
+              callback();
+            };
+          }
+        }, 1000);
+      } else {
+        callback();
+      }
+    }
+
     function showNextQuestion() {
       if (studentQueue.length === 0) {
-        // Quiz Finished!
         finishQuiz();
         return;
       }
 
+      checkAndHandlePause(() => {
+        renderCurrentQuestionUI();
+      });
+    }
+
+    function renderCurrentQuestionUI() {
       currentQuestionItem = studentQueue[0];
 
-      // Update Progress UI
+      // Update Progress & Stats UI
       const total = currentStudent.totalQuestions;
       const completed = currentStudent.progress;
       const pct = Math.round((completed / total) * 100);
 
       document.getElementById('quiz-progress-text').innerText = `${completed} / ${total} 題`;
       document.getElementById('quiz-progress-bar').style.width = `${pct}%`;
-      document.getElementById('quiz-score-display').innerHTML = `${currentStudent.score} <span class="text-xs text-slate-400 font-normal">/ 100</span>`;
+      document.getElementById('quiz-steps-display').innerText = currentStudent.steps || 0;
+      document.getElementById('quiz-score-display').innerText = currentStudent.score || 0;
 
       // Recycled hint badge
       const badge = document.getElementById('quiz-attempt-badge');
       if (currentQuestionItem.attemptCount > 0) {
         badge.className = "px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
-        badge.innerText = `重試第 ${currentQuestionItem.attemptCount + 1} 次 (答對得 0 分)`;
+        badge.innerText = `重試第 ${currentQuestionItem.attemptCount + 1} 次 (無法擲骰子)`;
       } else {
         badge.className = "px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700";
         badge.innerText = `首次嘗試`;
@@ -993,8 +1147,9 @@
         // CORRECT ANSWER
         playSound('correct');
 
-        // 計分規則：首次答對計入題數，總得分為 (首次答對題數 * 100 / 總題數) 後四捨五入
-        if (qItem.attemptCount === 0) {
+        const isFirstAttempt = (qItem.attemptCount === 0);
+
+        if (isFirstAttempt) {
           currentStudent.correctCount = (currentStudent.correctCount || 0) + 1;
           currentStudent.score = Math.round((currentStudent.correctCount * 100) / currentStudent.totalQuestions);
         }
@@ -1005,11 +1160,16 @@
         // Remove solved question from queue
         studentQueue.shift();
 
-        // Update Firebase
+        // Save progress to Firebase
         saveStudentStateToFirebase();
 
-        showToast('答對了！太棒囉！', 'success');
-        showNextQuestion();
+        if (isFirstAttempt) {
+          // Trigger Dice Roll Modal for first-time correct answer
+          openDiceModal();
+        } else {
+          showToast('答對了！（第二次以後答對不獲得擲骰子機會）', 'success');
+          showNextQuestion();
+        }
 
       } else {
         // WRONG ANSWER
@@ -1035,9 +1195,9 @@
           currentStudent.wrongRecords[origIdx].pickedOptions.push(option.text);
         }
 
-        // Score penalty = 0 points, but recycled to the back of the queue!
-        studentQueue.shift(); // Remove from front
-        studentQueue.push(qItem); // Push to back
+        // Recycled to the back of the queue
+        studentQueue.shift();
+        studentQueue.push(qItem);
 
         // Update Firebase
         saveStudentStateToFirebase();
@@ -1045,6 +1205,101 @@
         showToast('答錯囉！題目已移至隊伍最後面重新試答。', 'warning');
         showNextQuestion();
       }
+    }
+
+    /* ==========================================================================
+       DICE ROLL & RANDOM EVENT MODAL LOGIC
+       ========================================================================== */
+    function openDiceModal() {
+      // Reset Modal Display State
+      document.getElementById('dice-box').innerHTML = `<i class="fa-solid fa-dice-d6 animate-pulse"></i>`;
+      document.getElementById('dice-box').className = "w-24 h-24 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 text-5xl font-black shadow-xl shadow-amber-500/20 border-2 border-amber-200 transition-transform duration-300";
+      document.getElementById('dice-result-details').classList.add('hidden');
+      document.getElementById('random-event-box').classList.add('hidden');
+      
+      const btnRoll = document.getElementById('btn-roll-dice');
+      btnRoll.disabled = false;
+      btnRoll.classList.remove('opacity-50', 'hidden');
+      document.getElementById('btn-dice-continue').classList.add('hidden');
+
+      openModal('modal-dice-roll');
+    }
+
+    function rollDiceAction() {
+      const btnRoll = document.getElementById('btn-roll-dice');
+      btnRoll.disabled = true;
+      btnRoll.classList.add('opacity-50');
+
+      const diceBox = document.getElementById('dice-box');
+      diceBox.classList.add('animate-spin');
+
+      playSound('correct');
+
+      setTimeout(() => {
+        diceBox.classList.remove('animate-spin');
+        
+        // Random 1 to 6 steps
+        const diceResult = Math.floor(Math.random() * 6) + 1;
+        diceBox.innerText = diceResult;
+
+        let extraSteps = 0;
+        let extraScore = 0;
+        let eventMsg = '';
+
+        // 60% chance to trigger Random Event (突發狀況)
+        if (Math.random() < 0.6) {
+          const eventType = Math.floor(Math.random() * 4);
+          if (eventType === 0) {
+            // 加 1~6 步
+            const bonus = Math.floor(Math.random() * 6) + 1;
+            extraSteps += bonus;
+            eventMsg = `🚀 幸運加成！獲得額外前進 ${bonus} 步！`;
+          } else if (eventType === 1) {
+            // 退後 1~6 步
+            const penalty = Math.floor(Math.random() * 6) + 1;
+            extraSteps -= penalty;
+            eventMsg = `⚠️ 突發事故！退後 ${penalty} 步！`;
+          } else if (eventType === 2) {
+            // 暫停一次
+            currentStudent.isPaused = true;
+            eventMsg = `🛑 踩到陷阱！下一題將暫停冷卻一次！`;
+          } else if (eventType === 3) {
+            // 得分加 1~6 分
+            const bonusScore = Math.floor(Math.random() * 6) + 1;
+            extraScore += bonusScore;
+            eventMsg = `⭐ 幸運星降臨！答題得分額外加 ${bonusScore} 分！`;
+          }
+        }
+
+        // Apply Steps & Score Changes
+        const stepDelta = diceResult + extraSteps;
+        currentStudent.steps = Math.max(0, (currentStudent.steps || 0) + stepDelta);
+        if (extraScore > 0) {
+          currentStudent.score = (currentStudent.score || 0) + extraScore;
+        }
+
+        saveStudentStateToFirebase();
+
+        // Render Results
+        document.getElementById('dice-step-text').innerText = `擲出 ${diceResult} 步 ${extraSteps !== 0 ? (extraSteps > 0 ? `(+ 額外 ${extraSteps} 步)` : `(- 退後 ${Math.abs(extraSteps)} 步)`) : ''}`;
+        
+        if (eventMsg) {
+          document.getElementById('random-event-msg').innerText = eventMsg;
+          document.getElementById('random-event-box').classList.remove('hidden');
+        }
+
+        document.getElementById('dice-total-steps').innerText = currentStudent.steps;
+        document.getElementById('dice-result-details').classList.remove('hidden');
+
+        btnRoll.classList.add('hidden');
+        document.getElementById('btn-dice-continue').classList.remove('hidden');
+
+      }, 800);
+    }
+
+    function closeDiceModalAndNext() {
+      closeModal('modal-dice-roll');
+      showNextQuestion();
     }
 
     function finishQuiz() {
@@ -1066,7 +1321,8 @@
       document.getElementById('view-student-result').classList.remove('hidden');
 
       // Render Final Results
-      document.getElementById('result-final-score').innerText = `${currentStudent.score} 分`;
+      document.getElementById('result-final-steps').innerText = `${currentStudent.steps || 0} 步`;
+      document.getElementById('result-final-score').innerText = `${currentStudent.score || 0} 分`;
       
       const wrongCount = Object.keys(currentStudent.wrongRecords || {}).length;
       document.getElementById('result-wrong-count').innerText = `${wrongCount} 題`;
@@ -1135,7 +1391,6 @@
        ========================================================================== */
     function openTeacherAuthModal() {
       if (currentRole === 'TEACHER') {
-        // Already logged in
         showTeacherPanel();
         return;
       }
@@ -1146,7 +1401,6 @@
       e.preventDefault();
       const pwd = document.getElementById('input-teacher-pwd').value;
 
-      // Strictly password check without UI hints
       if (pwd === 'source88') {
         currentRole = 'TEACHER';
         closeModal('modal-teacher-auth');
@@ -1161,14 +1415,11 @@
     }
 
     function showTeacherPanel() {
-      // Hide all student views
       document.getElementById('view-student-login').classList.add('hidden');
       document.getElementById('view-student-quiz').classList.add('hidden');
-
       document.getElementById('view-student-quiz').classList.remove('flex');
       document.getElementById('view-student-result').classList.add('hidden');
 
-      // Show Teacher panel
       document.getElementById('view-teacher-panel').classList.remove('hidden');
       document.getElementById('view-teacher-panel').classList.add('flex');
 
@@ -1187,21 +1438,21 @@
     }
 
     function switchTeacherTab(tabId) {
-      // Tabs
-      ['tab-students', 'tab-questions', 'tab-analytics'].forEach(id => {
+      ['tab-students', 'tab-race', 'tab-questions', 'tab-analytics'].forEach(id => {
         const btn = document.getElementById(`tab-btn-${id.replace('tab-', '')}`);
         const content = document.getElementById(`tab-content-${id.replace('tab-', '')}`);
         
         if (id === tabId) {
-          btn.className = "flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 bg-blue-600 text-white shadow";
+          btn.className = "flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-blue-600 text-white shadow";
           content.classList.remove('hidden');
         } else {
-          btn.className = "flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-2";
+          btn.className = "flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5";
           content.classList.add('hidden');
         }
       });
 
       if (tabId === 'tab-students') renderStudentMonitorTable();
+      if (tabId === 'tab-race') renderRaceTab();
       if (tabId === 'tab-questions') renderQuestionBankTable();
       if (tabId === 'tab-analytics') renderAnalyticsTab();
     }
@@ -1222,7 +1473,7 @@
       if (studentsList.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="7" class="py-8 text-center text-slate-500 text-xs">
+            <td colspan="8" class="py-8 text-center text-slate-500 text-xs">
               目前尚無學生作答紀錄
             </td>
           </tr>
@@ -1243,6 +1494,7 @@
         tr.innerHTML = `
           <td class="py-3 px-4 font-bold text-white">${st.seat}</td>
           <td class="py-3 px-4 font-medium text-slate-200">${st.nickname}</td>
+          <td class="py-3 px-4 font-black text-emerald-400"><i class="fa-solid fa-shoe-prints text-xs"></i> ${st.steps || 0} 步</td>
           <td class="py-3 px-4 font-black text-amber-400">${st.score || 0} 分</td>
           <td class="py-3 px-4">
             <div class="flex items-center gap-2">
@@ -1261,6 +1513,81 @@
       });
     }
 
+    // Render Tab 2: Race Competition (賽跑比賽)
+    function renderRaceTab() {
+      const container = document.getElementById('race-tracks-container');
+      const podiumContainer = document.getElementById('race-podium-container');
+      container.innerHTML = '';
+      podiumContainer.innerHTML = '';
+
+      const studentsList = Object.values(allStudentsData || {});
+      
+      if (studentsList.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">目前無學生參賽數據</div>`;
+        return;
+      }
+
+      // Sort students by steps descending
+      studentsList.sort((a, b) => (b.steps || 0) - (a.steps || 0));
+
+      // Render Podium (Top 3)
+      const top3 = studentsList.slice(0, 3);
+      const podiumConfig = [
+        { title: '冠軍 🥇', color: 'from-amber-500/20 to-slate-900 border-amber-500/40', crown: '👑' },
+        { title: '亞軍 🥈', color: 'from-slate-400/20 to-slate-900 border-slate-400/40', crown: '🥈' },
+        { title: '季軍 🥉', color: 'from-amber-700/20 to-slate-900 border-amber-700/40', crown: '🥉' }
+      ];
+
+      top3.forEach((st, i) => {
+        const conf = podiumConfig[i];
+        const div = document.createElement('div');
+        div.className = `glass-card rounded-2xl p-4 border flex flex-col items-center justify-center shadow-xl bg-gradient-to-b ${conf.color}`;
+        div.innerHTML = `
+          <div class="text-2xl mb-1">${conf.crown}</div>
+          <div class="text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">${conf.title}</div>
+          <div class="text-base font-black text-white">[${st.seat}] ${st.nickname}</div>
+          <div class="text-xl font-extrabold text-emerald-400 mt-1">${st.steps || 0} <span class="text-xs text-slate-400 font-normal">步</span></div>
+        `;
+        podiumContainer.appendChild(div);
+      });
+
+      // Max steps scaling for progress bar
+      const maxStepsInClass = Math.max(30, ...studentsList.map(s => s.steps || 0));
+
+      // Render Race Tracks
+      studentsList.forEach((st, idx) => {
+        const steps = st.steps || 0;
+        const pct = Math.min(100, Math.max(0, Math.round((steps / maxStepsInClass) * 100)));
+
+        const row = document.createElement('div');
+        row.className = "bg-slate-950/70 rounded-xl p-3 border border-slate-800 space-y-2";
+        row.innerHTML = `
+          <div class="flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full ${idx < 3 ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-300'} flex items-center justify-center text-xs font-bold">
+                ${idx + 1}
+              </span>
+              <span class="font-bold text-white text-sm">[${st.seat}] ${st.nickname}</span>
+              ${st.isPaused ? '<span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px]">⏸️ 暫停中</span>' : ''}
+            </div>
+            <div class="font-black text-emerald-400 text-sm flex items-center gap-1.5">
+              <i class="fa-solid fa-person-running"></i>
+              <span>${steps} 步</span>
+              <span class="text-xs text-slate-500 font-normal">(${st.score || 0}分)</span>
+            </div>
+          </div>
+
+          <!-- Track Bar -->
+          <div class="w-full h-4 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5 relative">
+            <div class="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-400 rounded-full transition-all duration-500 flex items-center justify-end pr-1" style="width: ${Math.max(6, pct)}%">
+              <span class="text-[9px] font-bold text-white drop-shadow">🏃</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
     async function deleteStudentRecord(id) {
       if (await customConfirm('確認刪除', '您確定要刪除該學生的作答紀錄嗎？')) {
         db.ref(`students/${id}`).remove();
@@ -1269,7 +1596,7 @@
     }
 
     async function confirmClearAllStudents() {
-      if (await customConfirm('清除所有紀錄', '確定要清空全班所有學生的測驗紀錄嗎？此操作無法復原！')) {
+      if (await customConfirm('清除所有紀錄', '確定要清空全班所有學生的測驗與賽跑紀錄嗎？此操作無法復原！')) {
         db.ref('students').remove();
         showToast('已成功清除所有學生紀錄', 'success');
       }
@@ -1282,23 +1609,23 @@
         return;
       }
 
-      let csvContent = "\uFEFF座號,暱稱,目前得分,答題進度,總題數,狀態,總錯題次數\n";
+      let csvContent = "\uFEFF座號,暱稱,目前總步數,目前得分,答題進度,總題數,狀態,總錯題次數\n";
       studentsList.forEach(st => {
         const wrongTotal = Object.values(st.wrongRecords || {}).reduce((acc, curr) => acc + (curr.wrongAttempts || 0), 0);
-        csvContent += `"${st.seat}","${st.nickname}",${st.score || 0},${st.progress || 0},${st.totalQuestions || 0},"${st.status || ''}",${wrongTotal}\n`;
+        csvContent += `"${st.seat}","${st.nickname}",${st.steps || 0},${st.score || 0},${st.progress || 0},${st.totalQuestions || 0},"${st.status || ''}",${wrongTotal}\n`;
       });
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `答題競賽戰報_${new Date().toISOString().slice(0,10)}.csv`);
+      link.setAttribute("download", `答題與賽跑戰報_${new Date().toISOString().slice(0,10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     }
 
-    // Render Tab 2: Question Bank Table
+    // Render Tab 3: Question Bank Table
     function renderQuestionBankTable() {
       const tbody = document.getElementById('question-bank-tbody');
       tbody.innerHTML = '';
@@ -1386,11 +1713,9 @@
       };
 
       if (idxStr !== '') {
-        // Edit existing
         const idx = parseInt(idxStr);
         questionBank[idx] = newObj;
       } else {
-        // Add new
         questionBank.push(newObj);
       }
 
@@ -1447,7 +1772,6 @@
           }
 
           let addedCount = 0;
-          // Skip header row
           for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             if (row && row.length >= 5) {
@@ -1503,7 +1827,6 @@
         const trimmed = line.trim();
         if (!trimmed) return;
 
-        // Split by semicolon (supports both English ; and Chinese ；)
         const parts = trimmed.split(/;|；/).map(p => p.trim());
         if (parts.length >= 5) {
           const qText = parts[0];
@@ -1532,7 +1855,7 @@
       }
     }
 
-    // Render Tab 3: Analytics
+    // Render Tab 4: Analytics
     function renderAnalyticsTab() {
       const container = document.getElementById('analytics-cards-container');
       container.innerHTML = '';
@@ -1548,11 +1871,10 @@
         return;
       }
 
-      // Compute statistics for each question
       questionBank.forEach((q, qIdx) => {
         let totalWrongAttempts = 0;
-        const studentsWhoGotWrong = []; // { seat, nickname, wrongAttempts, pickedOptions }
-        const optionChoiceCounts = {}; // { optionText: count }
+        const studentsWhoGotWrong = [];
+        const optionChoiceCounts = {};
 
         studentsList.forEach(st => {
           const wRec = st.wrongRecords?.[qIdx];
