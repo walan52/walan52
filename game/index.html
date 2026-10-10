@@ -1,0 +1,3290 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>互動答題王 - 智慧競賽與賽跑系統 (錯題後移與教師重設重來版)</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- KaTeX CSS & JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+  <!-- SheetJS (XLSX) for Excel import/export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- Firebase Compat Libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+  <!-- Custom Styles for Glassmorphism & Math -->
+  <style>
+    .glass-card {
+      background: rgba(30, 41, 59, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .glass-modal {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .option-btn {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .option-btn:hover {
+      transform: translateY(-2px);
+    }
+    .katex-display {
+      margin: 0.5em 0 !important;
+    }
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.5);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.8);
+    }
+  </style>
+</head>
+<body class="h-full font-sans antialiased flex flex-col justify-between selection:bg-brand-500 selection:text-white">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4"></div>
+
+  <!-- Main Application Header -->
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+          <i class="fa-solid font-bold text-xl text-white fa-brain"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-lg sm:text-xl tracking-tight text-white flex items-center gap-2">
+            互動答題王
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">v3.6 道具卡牌擴充版</span>
+          </h1>
+          <p class="text-xs text-slate-400 hidden sm:block">即時線上智慧競賽、卡片大作戰與賽跑大比拼</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- Firebase Connection Status Badge -->
+        <span id="db-status-badge" class="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          連線中...
+        </span>
+
+        <!-- Mode Toggle / Login Button -->
+        <button id="teacher-login-btn" onclick="openTeacherAuthModal()" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-2">
+          <i class="fa-solid fa-user-shield text-slate-400"></i>
+          <span id="teacher-btn-text">教師管理</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Interactive Viewport Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col justify-center">
+
+    <!-- VIEW 1: STUDENT LOGIN SCREEN -->
+    <section id="view-student-login" class="w-full max-w-md mx-auto my-auto py-8">
+      <div class="glass-card rounded-2xl p-6 sm:p-8 shadow-2xl border border-slate-700/50 relative overflow-hidden">
+        <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div class="text-center mb-6">
+          <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-blue-400 text-2xl shadow-inner">
+            <i class="fa-solid fa-graduation-cap"></i>
+          </div>
+          <h2 class="text-2xl font-bold text-white">學生測驗與賽跑登入</h2>
+          <p class="text-sm text-slate-400 mt-1">請輸入座號與暱稱，相同座號可接續上次進度</p>
+        </div>
+
+        <form onsubmit="handleStudentLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">座號 (Seat Number)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                <i class="fa-solid fa-arrow-down-1-9"></i>
+              </span>
+              <input type="number" id="input-seat-num" min="1" max="99" required placeholder="例如：05 或 12" class="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">暱稱 (Nickname)</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                <i class="fa-solid fa-user"></i>
+              </span>
+              <input type="text" id="input-nickname" required placeholder="例如：小明" class="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+            </div>
+          </div>
+
+          <button type="submit" class="w-full py-3 px-4 rounded-xl font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-lg shadow-blue-600/30 active:scale-95 transition flex items-center justify-center gap-2 mt-6">
+            <span>開始/繼續答題與賽跑</span>
+            <i class="fa-solid fa-arrow-right text-sm"></i>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- VIEW 2: STUDENT QUIZ PLAY SCREEN -->
+    <section id="view-student-quiz" class="hidden w-full max-w-3xl mx-auto flex-col gap-6 py-4">
+      <!-- Student Quiz Header Progress Bar -->
+      <div class="glass-card rounded-2xl p-4 sm:p-6 shadow-xl border border-slate-700/50 flex flex-col gap-4">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold text-sm">
+              <span id="quiz-seat-display">00</span>
+            </div>
+            <div>
+              <div id="quiz-nickname-display" class="font-bold text-white">學生暱稱</div>
+              <div class="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
+                <span id="quiz-attempt-badge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">首次嘗試</span>
+                <span id="double-dice-status-tag" class="hidden px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold animate-pulse">
+                  <i class="fa-solid fa-dice-d6"></i> 骰子點數翻倍中
+                </span>
+                <span id="turtle-status-tag" class="hidden px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold animate-pulse">
+                  <i class="fa-solid fa-turtle"></i> 烏龜卡中 (剩 <span id="turtle-turns-count">0</span> 次 1 點)
+                </span>
+                <span id="jinx-status-tag" class="hidden px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold animate-pulse">
+                  <i class="fa-solid fa-ghost"></i> 衰神卡中 (剩 <span id="jinx-turns-count">0</span> 次負步數)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-4">
+            <div class="text-right">
+              <div class="text-xs text-slate-400">目前步數 / 得分</div>
+              <div class="text-lg sm:text-xl font-black text-emerald-400 flex items-center gap-2 justify-end">
+                <span><i class="fa-solid fa-shoe-prints text-xs"></i> <span id="quiz-steps-display">0</span> 步</span>
+                <span class="text-slate-600">|</span>
+                <span class="text-amber-400"><span id="quiz-score-display">0</span> <span class="text-xs text-slate-400 font-normal">/ 100分</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div>
+          <div class="flex justify-between text-xs font-semibold text-slate-400 mb-1">
+            <span>完成進度</span>
+            <span id="quiz-progress-text">0 / 0 題</span>
+          </div>
+          <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+            <div id="quiz-progress-bar" class="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-300 w-0"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MY CARDS INVENTORY PANEL (我的卡牌包) -->
+      <div class="glass-card rounded-2xl p-4 border border-indigo-500/30 shadow-lg">
+        <div class="flex items-center justify-between mb-2">
+          <div class="text-xs font-bold text-indigo-300 flex items-center gap-2">
+            <i class="fa-solid fa-id-card text-amber-400"></i>
+            我的道具卡包 (點擊使用卡片，使用後卡片消失)
+          </div>
+          <div class="text-[11px] text-slate-400">
+            手牌數：<span id="inventory-card-count" class="font-bold text-amber-400">0</span> 張
+          </div>
+        </div>
+        <div id="student-inventory-container" class="flex flex-wrap gap-2 min-h-[44px] items-center">
+          <span class="text-xs text-slate-500 italic">尚無道具卡片，答對題目擲骰子時有機會隨機抽卡！</span>
+        </div>
+      </div>
+
+      <!-- Question Card Container -->
+      <div class="glass-card rounded-2xl p-6 sm:p-8 shadow-2xl border border-slate-700/50 flex flex-col justify-between min-h-[320px]">
+        <div>
+          <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-question"></i>
+                題目內容
+              </span>
+              <span id="quiz-category-tag" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                預設分類
+              </span>
+            </div>
+            <span id="question-penalty-hint" class="text-xs text-slate-400 italic"></span>
+          </div>
+
+          <!-- Question Content with KaTeX Support -->
+          <div id="question-text-container" class="text-lg sm:text-xl font-medium text-slate-100 leading-relaxed mb-6 border-b border-slate-800/80 pb-6">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Options Grid -->
+        <div id="options-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: STUDENT COMPLETE / RESULT SCREEN -->
+    <section id="view-student-result" class="hidden w-full max-w-xl mx-auto py-8">
+      <div class="glass-card rounded-2xl p-8 text-center shadow-2xl border border-slate-700/50 relative overflow-hidden">
+        <div class="w-20 h-20 mx-auto mb-4 rounded-3xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-4xl shadow-lg">
+          <i class="fa-solid fa-trophy animate-bounce"></i>
+        </div>
+
+        <h2 class="text-3xl font-black text-white mb-1">測驗挑戰完成！</h2>
+        <p class="text-slate-400 text-sm mb-6">太棒了！您已成功完成所有答題任務與賽跑！</p>
+
+        <div class="bg-slate-950/60 rounded-2xl p-6 border border-slate-800 mb-6 flex justify-around items-center">
+          <div>
+            <div class="text-xs text-slate-400 mb-1">最終總步數</div>
+            <div id="result-final-steps" class="text-3xl font-black text-emerald-400">0 步</div>
+          </div>
+          <div class="w-px h-10 bg-slate-800"></div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">最終得分</div>
+            <div id="result-final-score" class="text-3xl font-black text-amber-400">0 分</div>
+          </div>
+          <div class="w-px h-10 bg-slate-800"></div>
+          <div>
+            <div class="text-xs text-slate-400 mb-1">錯題數量</div>
+            <div id="result-wrong-count" class="text-2xl font-bold text-rose-400">0 題</div>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button onclick="openStudentWrongReviewModal()" class="flex-1 py-3 px-4 rounded-xl font-semibold bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-magnifying-glass font-normal"></i>
+            <span>錯題檢討與解析</span>
+          </button>
+          
+          <button onclick="logoutStudent()" class="flex-1 py-3 px-4 rounded-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-right-from-bracket"></i>
+            <span>完成並登出</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: TEACHER ADMIN PANEL -->
+    <section id="view-teacher-panel" class="hidden w-full flex-col gap-6 py-4">
+      <!-- Admin Header & Tabs Navigation -->
+      <div class="glass-card rounded-2xl p-4 sm:p-6 border border-slate-700/50 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3 w-full md:w-auto">
+          <div class="w-12 h-12 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-user-gear"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-white">教師管理控制台</h2>
+            <p class="text-xs text-slate-400">管理題目分類、卡片與出現機率、賽跑比賽與歷史歸檔</p>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="flex items-center p-1 bg-slate-950/80 rounded-xl border border-slate-800 w-full md:w-auto overflow-x-auto">
+          <button onclick="switchTeacherTab('tab-students')" id="tab-btn-students" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-blue-600 text-white shadow">
+            <i class="fa-solid fa-users"></i>
+            <span>學生即時戰況</span>
+          </button>
+          <button onclick="switchTeacherTab('tab-race')" id="tab-btn-race" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-flag-checkered text-emerald-400"></i>
+            <span>賽跑比賽</span>
+          </button>
+          <button onclick="switchTeacherTab('tab-cards')" id="tab-btn-cards" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-id-card text-amber-400"></i>
+            <span>卡片與機率管理</span>
+          </button>
+          <button onclick="switchTeacherTab('tab-questions')" id="tab-btn-questions" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-list-check"></i>
+            <span>題目庫管理</span>
+          </button>
+          <button onclick="switchTeacherTab('tab-analytics')" id="tab-btn-analytics" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-chart-pie"></i>
+            <span>錯題統計分析</span>
+          </button>
+          <button onclick="switchTeacherTab('tab-history')" id="tab-btn-history" class="flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-clock-rotate-left text-purple-400"></i>
+            <span>歷史歸檔</span>
+          </button>
+        </div>
+
+        <button onclick="logoutTeacher()" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition self-end md:self-auto flex items-center gap-1.5">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>退出管理</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: STUDENT MONITOR -->
+      <div id="tab-content-students" class="space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-3">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-tower-broadcast text-emerald-400 animate-pulse"></i>
+            全班即時作答狀況
+          </h3>
+          <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button onclick="archiveCurrentSession()" class="px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-xs font-medium text-purple-300 border border-purple-500/30 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-box-archive text-purple-400"></i>
+              <span>歸檔目前戰報</span>
+            </button>
+            <button onclick="exportStudentsCSV()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-file-csv text-emerald-400"></i>
+              <span>匯出 CSV 戰報</span>
+            </button>
+            <button onclick="confirmClearAllStudents()" class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-xs font-medium text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-trash-can"></i>
+              <span>清除所有紀錄</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-card rounded-2xl overflow-hidden border border-slate-700/50 shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-300">
+              <thead class="bg-slate-950/80 text-xs uppercase text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th class="py-3.5 px-4 font-bold">座號</th>
+                  <th class="py-3.5 px-4 font-bold">暱稱</th>
+                  <th class="py-3.5 px-4 font-bold text-emerald-400">目前總步數</th>
+                  <th class="py-3.5 px-4 font-bold text-amber-400">目前得分</th>
+                  <th class="py-3.5 px-4 font-bold">持有道具卡</th>
+                  <th class="py-3.5 px-4 font-bold">狀態 (重來數)</th>
+                  <th class="py-3.5 px-4 font-bold text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody id="student-monitor-tbody" class="divide-y divide-slate-800">
+                <!-- Dynamic student list -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: RACE COMPETITION (賽跑比賽) -->
+      <div id="tab-content-race" class="hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-person-running text-emerald-400"></i>
+              學生賽跑比賽實況
+            </h3>
+            <p class="text-xs text-slate-400">依據學生答題獲得的總步數進行即時競速排行榜</p>
+          </div>
+        </div>
+
+        <!-- Top 3 Podium Cards -->
+        <div id="race-podium-container" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <!-- Dynamic Podium Cards -->
+        </div>
+
+        <!-- Full Race Tracks -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-700/50 shadow-xl space-y-4">
+          <h4 class="text-sm font-bold text-slate-300 border-b border-slate-800 pb-2 flex items-center gap-2">
+            <i class="fa-solid fa-bars-staggered text-blue-400"></i>
+            全班跑道位置總覽
+          </h4>
+          <div id="race-tracks-container" class="space-y-3">
+            <!-- Dynamic Race Tracks -->
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: CARD MANAGEMENT (卡片與機率設定) -->
+      <div id="tab-content-cards" class="hidden space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-id-card text-amber-400"></i>
+              卡片功能與出現機率管理
+            </h3>
+            <p class="text-xs text-slate-400">在此設定學生擲骰子時抽中的卡片類型、功能屬性與抽取機率（%）</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="resetDefaultCardsConfig()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 border border-slate-700 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-rotate-left"></i>
+              <span>恢復預設卡片</span>
+            </button>
+            <button onclick="openEditCardModal()" class="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-plus"></i>
+              <span>新增卡片種類</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-card rounded-2xl overflow-hidden border border-slate-700/50 shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-300">
+              <thead class="bg-slate-950/80 text-xs uppercase text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th class="py-3.5 px-4 font-bold">卡片名稱</th>
+                  <th class="py-3.5 px-4 font-bold">功能屬性</th>
+                  <th class="py-3.5 px-4 font-bold text-amber-400">出現機率 (%)</th>
+                  <th class="py-3.5 px-4 font-bold">效果描述</th>
+                  <th class="py-3.5 px-4 font-bold">啟用狀態</th>
+                  <th class="py-3.5 px-4 font-bold text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody id="cards-config-tbody" class="divide-y divide-slate-800">
+                <!-- Dynamic cards config table -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: QUESTION BANK & DISPATCH MANAGEMENT -->
+      <div id="tab-content-questions" class="hidden space-y-4">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-database text-blue-400"></i>
+              題目庫總覽 (<span id="question-count-badge">0</span> 題)
+            </h3>
+            <p class="text-xs text-slate-400">管理題目分類、控制派送給學生的題目與匯入題目（支援小數、分數、整數）</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <button onclick="downloadExcelTemplate()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-emerald-400 border border-slate-700 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-file-excel"></i>
+              <span>下載 Excel 範本</span>
+            </button>
+            <label class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition cursor-pointer flex items-center gap-1.5">
+              <i class="fa-solid fa-file-import text-blue-400"></i>
+              <span>匯入 Excel</span>
+              <input type="file" accept=".xlsx, .xls" onchange="handleExcelImport(event)" class="hidden">
+            </label>
+            <button onclick="openBatchSemicolonModal()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-amber-300 border border-slate-700 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-paste"></i>
+              <span>分號批次匯入</span>
+            </button>
+            <button onclick="openSingleQuestionModal()" class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-plus"></i>
+              <span>單題新增</span>
+            </button>
+            <button onclick="confirmClearAllQuestions()" class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-xs font-medium text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-trash"></i>
+              <span>清空題庫</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter & Batch Dispatch Control Bar -->
+        <div class="glass-card rounded-2xl p-4 border border-slate-700/50 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                <i class="fa-solid fa-filter text-blue-400"></i> 分類篩選：
+              </label>
+              <select id="question-category-filter" onchange="renderQuestionBankTable()" class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <option value="ALL">全部分類</option>
+              </select>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-semibold text-slate-300 flex items-center gap-1">
+                <i class="fa-solid fa-paper-plane text-emerald-400"></i> 派送狀態：
+              </label>
+              <select id="question-dispatch-filter" onchange="renderQuestionBankTable()" class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <option value="ALL">全部狀態</option>
+                <option value="DISPATCHED">僅已派送</option>
+                <option value="NOT_DISPATCHED">僅未派送</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="dispatchCurrentCategoryQuestions(true)" class="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-check"></i>
+              <span>派送當前分類</span>
+            </button>
+            <button onclick="dispatchCurrentCategoryQuestions(false)" class="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold transition flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-pause"></i>
+              <span>停派當前分類</span>
+            </button>
+            <button onclick="dispatchAllQuestions()" class="px-3 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600/40 text-blue-200 border border-blue-500/30 text-xs font-semibold transition flex items-center gap-1.5">
+              <i class="fa-solid fa-paper-plane"></i>
+              <span>全選派送</span>
+            </button>
+            <button onclick="undispatchAllQuestions()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5">
+              <i class="fa-solid fa-ban"></i>
+              <span>全部停派</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-card rounded-2xl overflow-hidden border border-slate-700/50 shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-300">
+              <thead class="bg-slate-950/80 text-xs uppercase text-slate-400 border-b border-slate-800">
+                <tr>
+                  <th class="py-3.5 px-4 font-bold w-12">#</th>
+                  <th class="py-3.5 px-4 font-bold w-28">題目分類</th>
+                  <th class="py-3.5 px-4 font-bold">題目內容 (含小數/分數/數學公式)</th>
+                  <th class="py-3.5 px-4 font-bold text-emerald-400">正確答案</th>
+                  <th class="py-3.5 px-4 font-bold text-rose-400">錯誤選項</th>
+                  <th class="py-3.5 px-4 font-bold w-28">派送狀態</th>
+                  <th class="py-3.5 px-4 font-bold text-right w-24">操作</th>
+                </tr>
+              </thead>
+              <tbody id="question-bank-tbody" class="divide-y divide-slate-800">
+                <!-- Dynamic questions list -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: CLASS WRONG-QUESTION ANALYTICS -->
+      <div id="tab-content-analytics" class="hidden space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-chart-column text-purple-400"></i>
+              全班錯題數據與分析
+            </h3>
+            <p class="text-xs text-slate-400">深入了解全班常錯題目、作答迷思概念與學生名單</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-semibold text-slate-300 flex items-center gap-1">
+              <i class="fa-solid fa-filter text-purple-400"></i> 篩選分類：
+            </label>
+            <select id="analytics-category-filter" onchange="renderAnalyticsTab()" class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:ring-1 focus:ring-purple-500">
+              <option value="ALL">全部分類</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="analytics-cards-container" class="grid grid-cols-1 gap-4">
+          <!-- Dynamic Analytics Cards -->
+        </div>
+      </div>
+
+      <!-- TAB 6: HISTORICAL RECORDS & ARCHIVES -->
+      <div id="tab-content-history" class="hidden space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-clock-rotate-left text-purple-400"></i>
+              歷史測驗戰報與歸檔紀錄
+            </h3>
+            <p class="text-xs text-slate-400">檢視過去歸檔保存的測驗戰報，支援個別匯出 CSV 與歷史刪除管理</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button onclick="archiveCurrentSession()" class="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-box-archive"></i>
+              <span>歸檔當前戰報</span>
+            </button>
+            <button onclick="confirmClearAllHistory()" class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-xs font-medium text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-trash"></i>
+              <span>清空所有歷史</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- History Sessions List Container -->
+        <div id="history-sessions-container" class="space-y-4">
+          <!-- Dynamic History Session Cards -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500 bg-slate-950/60">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+      <div>© 2026 互動答題王 - 智慧教學與競賽系統</div>
+      <div class="flex items-center gap-3 text-slate-400">
+        <span><i class="fa-solid fa-code text-blue-400"></i> KaTeX 數學與小數/分數解析</span>
+        <span><i class="fa-solid fa-bolt text-amber-400"></i> 即時數據同步</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL 1: TEACHER AUTHENTICATION -->
+  <div id="modal-teacher-auth" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="glass-modal max-w-sm w-full rounded-2xl p-6 shadow-2xl border border-slate-700">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-lock text-indigo-400"></i>
+          教師身分驗證
+        </h3>
+        <button onclick="closeModal('modal-teacher-auth')" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleTeacherLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">管理密碼</label>
+          <input type="password" id="input-teacher-pwd" required placeholder="請輸入教師管理密碼" class="w-full px-4 py-2.5 bg-slate-950/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-teacher-auth')" class="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold hover:bg-slate-700 transition">取消</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 transition shadow-lg">登入管理</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: BATCH SEMICOLON IMPORT -->
+  <div id="modal-batch-import" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="glass-modal max-w-2xl w-full rounded-2xl p-6 shadow-2xl border border-slate-700">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-paste text-amber-400"></i>
+          分號批次匯入題目
+        </h3>
+        <button onclick="closeModal('modal-batch-import')" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs font-semibold text-blue-300 mb-1">預設批次分類：</label>
+        <input type="text" id="batch-category-input" placeholder="例如：期中考複習、數學" value="預設分類" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-amber-500">
+      </div>
+
+      <p class="text-xs text-slate-300 mb-1">請貼上每行以分號（; 或 ；）分隔的題目資料（支援小數與分數）：</p>
+      <p class="text-xs text-amber-300/80 font-mono bg-slate-950 p-2 rounded-lg border border-slate-800 mb-4">
+        格式 (5欄)：題目; 正確答案; 錯誤選項1; 錯誤選項2; 錯誤選項3<br>
+        格式 (6欄)：分類; 題目; 正確答案; 錯誤選項1; 錯誤選項2; 錯誤選項3
+      </p>
+
+      <textarea id="batch-import-text" rows="8" placeholder="例如：
+0.25 + 0.5 = ?; 0.75; 0.5; 0.85; 1.25
+1/2 + 1/3 = ?; 5/6; 2/5; 3/5; 1/6
+數學; 解方程式 0.5x = 3; 6; 5; 4; 3" class="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 mb-4"></textarea>
+
+      <div class="flex justify-end gap-2">
+        <button onclick="closeModal('modal-batch-import')" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 font-semibold hover:bg-slate-700 transition">取消</button>
+        <button onclick="executeBatchSemicolonImport()" class="px-5 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition shadow-lg">執行匯入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: SINGLE QUESTION EDIT / ADD -->
+  <div id="modal-single-question" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 shadow-2xl border border-slate-700">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="single-question-modal-title" class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-pen-to-square text-blue-400"></i>
+          新增/編輯題目
+        </h3>
+        <button onclick="closeModal('modal-single-question')" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleSaveSingleQuestion(event)" class="space-y-3">
+        <input type="hidden" id="edit-question-index">
+
+        <div>
+          <label class="block text-xs font-semibold text-blue-300 mb-1">題目分類</label>
+          <input type="text" id="edit-category" list="category-list" required placeholder="例如：數學" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <datalist id="category-list"></datalist>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">題目內容 (支援小數、分數 1/2 或 KaTeX)</label>
+          <textarea id="edit-question-text" required rows="3" placeholder="例如：計算 0.75 + 1/4 = ?" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-emerald-400 mb-1">正確答案 (可填小數、分數或字串)</label>
+          <input type="text" id="edit-correct-ans" required placeholder="例如：1.0 或 1/1" class="w-full p-2 bg-slate-950 border border-emerald-500/50 rounded-xl text-white text-sm">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-rose-400 mb-1">錯誤選項 1</label>
+          <input type="text" id="edit-wrong-1" required placeholder="錯誤選項 1" class="w-full p-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-rose-400 mb-1">錯誤選項 2</label>
+          <input type="text" id="edit-wrong-2" required placeholder="錯誤選項 2" class="w-full p-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-rose-400 mb-1">錯誤選項 3</label>
+          <input type="text" id="edit-wrong-3" required placeholder="錯誤選項 3" class="w-full p-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm">
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="edit-dispatched" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer">
+          <label for="edit-dispatched" class="text-xs font-medium text-slate-200 cursor-pointer">派送給學生</label>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-single-question')" class="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold hover:bg-slate-700 transition">取消</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition shadow-lg">儲存題目</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: STUDENT WRONG REVIEW -->
+  <div id="modal-student-wrong-review" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="glass-modal max-w-2xl w-full rounded-2xl p-6 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-clipboard-check text-rose-400"></i>
+          個人錯題檢討與解析
+        </h3>
+        <button onclick="closeModal('modal-student-wrong-review')" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div id="student-wrong-review-list" class="flex-1 overflow-y-auto space-y-4 pr-1">
+        <!-- Rendered wrong questions dynamically -->
+      </div>
+
+      <div class="pt-4 border-t border-slate-800 text-right">
+        <button onclick="closeModal('modal-student-wrong-review')" class="px-5 py-2 rounded-xl bg-slate-800 text-slate-200 font-semibold hover:bg-slate-700 transition">關閉檢討</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: CUSTOM CONFIRMATION MODAL -->
+  <div id="modal-custom-confirm" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="glass-modal max-w-sm w-full rounded-2xl p-6 shadow-2xl border border-slate-700 text-center">
+      <div class="w-12 h-12 mx-auto mb-3 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center text-xl">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 id="confirm-title" class="text-lg font-bold text-white mb-1">確認操作</h3>
+      <p id="confirm-msg" class="text-xs text-slate-300 mb-5">您確定要執行此操作嗎？</p>
+
+      <div class="flex gap-2">
+        <button onclick="closeCustomConfirm(false)" class="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold hover:bg-slate-700 transition">取消</button>
+        <button id="confirm-action-btn" onclick="closeCustomConfirm(true)" class="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-500 transition shadow-lg">確認執行</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 6: DICE ROLL & CARD DRAW MODAL -->
+  <div id="modal-dice-roll" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 sm:p-8 shadow-2xl border border-slate-700 text-center relative overflow-hidden">
+      <div class="absolute -top-16 -left-16 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl pointer-events-none"></div>
+      
+      <h3 class="text-xl font-black text-white mb-1 flex items-center justify-center gap-2">
+        <i class="fa-solid fa-dice text-amber-400 text-2xl"></i>
+        首次答對獎勵：擲骰子與隨機抽卡！
+      </h3>
+      <p class="text-xs text-slate-400 mb-6">答對囉！點擊擲骰子決定前進步數並有機會獲得隨機道具卡片</p>
+
+      <!-- Dice Roll Area -->
+      <div id="dice-container" class="my-6 flex flex-col items-center justify-center min-h-[110px]">
+        <div id="dice-box" class="w-24 h-24 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 text-5xl font-black shadow-xl shadow-amber-500/20 border-2 border-amber-200 transition-transform duration-300">
+          <i class="fa-solid fa-dice-d6 animate-pulse"></i>
+        </div>
+      </div>
+
+      <!-- Event Outcome Details -->
+      <div id="dice-result-details" class="hidden space-y-3 mb-6">
+        <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-200 text-sm">
+          <div class="text-xs text-slate-400">骰子點數與加成</div>
+          <div id="dice-step-text" class="text-2xl font-black text-amber-400">+0 步</div>
+        </div>
+
+        <!-- Random Drawn Card Box Banner -->
+        <div id="drawn-card-box" class="hidden p-3.5 rounded-xl bg-indigo-950/90 border border-indigo-500/60 text-indigo-200 text-xs text-left animate-bounce">
+          <div class="font-bold text-amber-300 flex items-center gap-2 text-sm mb-1">
+            <i class="fa-solid fa-gift"></i> 恭喜獲得隨機卡片！
+          </div>
+          <div id="drawn-card-name" class="text-base font-extrabold text-white">【卡片名稱】</div>
+          <div id="drawn-card-desc" class="text-xs text-slate-300 mt-0.5">卡片功能效果描述...</div>
+        </div>
+
+        <div class="text-xs font-semibold text-emerald-400">
+          目前累積總步數：<span id="dice-total-steps" class="text-base font-extrabold text-white">0</span> 步
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button id="btn-roll-dice" onclick="rollDiceAction()" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-dice"></i>
+          <span>開始擲骰子！</span>
+        </button>
+        <button id="btn-dice-continue" onclick="closeDiceModalAndNext()" class="hidden w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-lg transition flex items-center justify-center gap-2">
+          <span>前往下一題</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 7: PAUSE / BOMB FREEZE PENALTY MODAL -->
+  <div id="modal-pause-penalty" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md hidden">
+    <div class="glass-modal max-w-sm w-full rounded-2xl p-6 shadow-2xl border border-rose-500/30 text-center">
+      <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center text-3xl animate-bounce">
+        <i class="fa-solid fa-bomb"></i>
+      </div>
+      <h3 id="pause-modal-title" class="text-xl font-bold text-white mb-1">遭受炸彈轟炸 / 陷阱暫停！</h3>
+      <p id="pause-modal-desc" class="text-xs text-slate-300 mb-6">您被炸彈擊中，需等待冷卻時間結束後才能繼續答題與賽跑。</p>
+
+      <div class="text-4xl font-black text-rose-400 mb-6 font-mono" id="pause-countdown">10</div>
+
+      <button id="btn-pause-done" disabled class="w-full py-2.5 rounded-xl bg-slate-800 text-slate-500 font-bold transition">
+        冷卻中...
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL 8: TARGET SELECTION FOR CARD USAGE (對換卡 / 炸彈卡 / 核彈卡 / 烏龜卡 / 衰神卡 / 偷竊卡 / 偷步卡 / 退步卡) -->
+  <div id="modal-card-target" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md hidden">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 shadow-2xl border border-slate-700">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="target-modal-title" class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-crosshairs text-amber-400"></i>
+          選擇卡片施放對象
+        </h3>
+        <button onclick="closeModal('modal-card-target')" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <p id="target-modal-subtitle" class="text-xs text-slate-300 mb-4">請選擇全班同學中的一名學生作為目標：</p>
+
+      <div id="target-students-list" class="space-y-2 max-h-60 overflow-y-auto pr-1 mb-4">
+        <!-- Target choices dynamic rendering -->
+      </div>
+
+      <div class="text-right">
+        <button onclick="closeModal('modal-card-target')" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition">取消使用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 9: TEACHER EDIT CARD CONFIG MODAL -->
+  <div id="modal-edit-card" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+    <div class="glass-modal max-w-md w-full rounded-2xl p-6 shadow-2xl border border-slate-700">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="card-modal-title" class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-id-card text-amber-400"></i>
+          新增/編輯卡片設定
+        </h3>
+        <button onclick="closeModal('modal-edit-card')" class="text-slate-400 hover:text-white transition">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form onsubmit="handleSaveCardConfig(event)" class="space-y-3">
+        <input type="hidden" id="edit-card-id">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">卡片名稱</label>
+          <input type="text" id="edit-card-name" required placeholder="例如：衰神卡" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">功能類型</label>
+          <select id="edit-card-effect" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <option value="SWAP">對換卡 (和指定學生對換位置)</option>
+            <option value="STEAL_CARD">偷竊卡 (隨機偷取同學一張卡片)</option>
+            <option value="STEAL_STEPS">偷步卡 (偷取同學 5% 的步數)</option>
+            <option value="DECREASE_STEPS">退步卡 (讓同學退步 5% 的步數)</option>
+            <option value="BOMB">炸彈卡 (炸停指定學生 10 秒)</option>
+            <option value="NUKE">核彈卡 (炸停 5 秒且步數歸零)</option>
+            <option value="TURTLE">烏龜卡 (指定學生接下來 3 次擲骰只能得 1 點)</option>
+            <option value="JINX">衰神卡 (指定學生接下來 3 次擲骰獲得負數步數)</option>
+            <option value="SHIELD">免罪卡 (免除處罰/防護罩)</option>
+            <option value="DOUBLE_DICE">骰子翻倍卡 (下次骰子步數 x2)</option>
+            <option value="EMPTY">銘謝惠顧 (無特殊效果)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-amber-400 mb-1">出現機率 (%) (總和可大於 0，系統以權重計算)</label>
+          <input type="number" id="edit-card-prob" min="0" max="100" required placeholder="例如：15" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">卡片描述</label>
+          <input type="text" id="edit-card-desc" required placeholder="例如：使指定學生接下來 3 次擲骰子獲得的步數強制變為負數！" class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="edit-card-enabled" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500 cursor-pointer">
+          <label for="edit-card-enabled" class="text-xs font-medium text-slate-200 cursor-pointer">啟用此卡片 (學生抽卡池中出現)</label>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeModal('modal-edit-card')" class="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold hover:bg-slate-700 transition">取消</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition shadow-lg">儲存設定</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. FIREBASE CONFIGURATION & INITIALIZATION
+       ========================================================================== */
+    const firebaseConfig = {
+      apiKey: "AIzaSyAnIvHgTK2FY1QP6tBhYD81nCi0R4Zy87A",
+      authDomain: "game-3bea2.firebaseapp.com",
+      databaseURL: "https://game-3bea2-default-rtdb.firebaseio.com",
+      projectId: "game-3bea2",
+      storageBucket: "game-3bea2.firebasestorage.app",
+      messagingSenderId: "961740301423",
+      appId: "1:961740301423:web:8437e91fd4a4bbab26599a",
+      measurementId: "G-59CBDKJ3MP"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+
+    // Database Connection Listener
+    const connectedRef = db.ref(".info/connected");
+    connectedRef.on("value", (snap) => {
+      const badge = document.getElementById('db-status-badge');
+      if (snap.val() === true) {
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span>已連線`;
+      } else {
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>斷線重連中...`;
+      }
+    });
+
+    /* ==========================================================================
+       2. GLOBAL APP STATE & DEFAULT CARDS CONFIGURATION
+       ========================================================================== */
+    let currentRole = 'NONE'; // 'STUDENT' or 'TEACHER'
+    let currentStudent = null; 
+    let questionBank = []; 
+    let studentQueue = []; 
+    let currentQuestionItem = null;
+    let allStudentsData = {}; 
+    let historyData = {}; 
+    let cardConfigList = []; // Realtime loaded cards config
+
+    // Default Card Pool Configuration (包含偷竊卡、偷步卡與退步卡)
+    const DEFAULT_CARDS = [
+      { id: 'card_swap', name: '對換卡', effect: 'SWAP', prob: 10, desc: '選擇一名同學，和對方對換目前的賽跑步數位置', enabled: true, icon: 'fa-right-left', color: 'text-amber-400' },
+      { id: 'card_steal_card', name: '偷竊卡', effect: 'STEAL_CARD', prob: 10, desc: '隨機偷取指定同學的一張卡片', enabled: true, icon: 'fa-mask', color: 'text-amber-300' },
+      { id: 'card_steal_steps', name: '偷步卡', effect: 'STEAL_STEPS', prob: 10, desc: '偷取指定同學 5% 的累積步數加到自己身上', enabled: true, icon: 'fa-user-ninja', color: 'text-cyan-400' },
+      { id: 'card_decrease_steps', name: '退步卡', effect: 'DECREASE_STEPS', prob: 10, desc: '讓指定同學退步 5% 的累積步數', enabled: true, icon: 'fa-person-walking-arrow-loop-left', color: 'text-rose-300' },
+      { id: 'card_bomb', name: '炸彈卡', effect: 'BOMB', prob: 10, desc: '轟炸指定學生，使對方定身暫停 10 秒無法答題', enabled: true, icon: 'fa-bomb', color: 'text-rose-400' },
+      { id: 'card_nuke', name: '核彈卡', effect: 'NUKE', prob: 10, desc: '毀滅性轟炸指定學生，對方暫停 5 秒且累積步數歸零！', enabled: true, icon: 'fa-biohazard', color: 'text-purple-400' },
+      { id: 'card_turtle', name: '烏龜卡', effect: 'TURTLE', prob: 10, desc: '指定學生接下來 3 次擲骰子強制只能獲得 1 點！', enabled: true, icon: 'fa-turtle', color: 'text-emerald-400' },
+      { id: 'card_jinx', name: '衰神卡', effect: 'JINX', prob: 10, desc: '指定學生接下來 3 次擲骰子獲得的步數強制變為負數！', enabled: true, icon: 'fa-ghost', color: 'text-purple-400' },
+      { id: 'card_shield', name: '免罪卡', effect: 'SHIELD', prob: 10, desc: '被炸彈/核彈/烏龜/衰神/偷竊/退步卡襲擊或踩中處罰時，自動抵擋並免除處罰', enabled: true, icon: 'fa-shield-halved', color: 'text-blue-400' },
+      { id: 'card_double', name: '骰子翻倍卡', effect: 'DOUBLE_DICE', prob: 10, desc: '點擊使用後，下次擲骰子獲得雙倍步數', enabled: true, icon: 'fa-dice-d6', color: 'text-emerald-400' },
+      { id: 'card_empty', name: '銘謝惠顧', effect: 'EMPTY', prob: 10, desc: '什麼事情都沒發生，手氣平平', enabled: true, icon: 'fa-face-meh', color: 'text-slate-400' }
+    ];
+
+    let confirmResolver = null;
+    let activeCardUsageContext = null;
+
+    /* ==========================================================================
+       3. WEB AUDIO SYNTHESIZER SOUND EFFECTS
+       ========================================================================== */
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new AudioCtx();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playSound(type) {
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+
+        if (type === 'correct') {
+          const osc1 = audioCtx.createOscillator();
+          const osc2 = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc1.type = 'sine';
+          osc2.type = 'sine';
+
+          osc1.frequency.setValueAtTime(523.25, now);
+          osc1.frequency.setValueAtTime(659.25, now + 0.1);
+          osc1.frequency.setValueAtTime(783.99, now + 0.2);
+
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+          osc1.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc1.start(now);
+          osc1.stop(now + 0.4);
+
+        } else if (type === 'wrong' || type === 'bomb') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.linearRampToValueAtTime(80, now + 0.3);
+
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.3);
+
+        } else if (type === 'card') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(400, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.2);
+
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.25);
+
+        } else if (type === 'victory') {
+          const notes = [523.25, 659.25, 783.99, 1046.50];
+          notes.forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.2, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.3);
+          });
+        }
+      } catch (e) {
+        console.warn('Audio error:', e);
+      }
+    }
+
+    /* ==========================================================================
+       4. UI UTILITIES (TOAST, MODALS, KATEX PARSER WITH FRACTIONS & DECIMALS)
+       ========================================================================== */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const typeClasses = {
+        success: 'bg-emerald-950 border-emerald-600/80 text-emerald-200',
+        error: 'bg-rose-950 border-rose-600/80 text-rose-200',
+        warning: 'bg-amber-950 border-amber-600/80 text-amber-200',
+        info: 'bg-slate-900 border-slate-700 text-slate-200'
+      };
+
+      const iconMap = {
+        success: 'fa-circle-check text-emerald-400',
+        error: 'fa-circle-xmark text-rose-400',
+        warning: 'fa-triangle-exclamation text-amber-400',
+        info: 'fa-circle-info text-blue-400'
+      };
+
+      toast.className = `pointer-events-auto p-3.5 rounded-xl border shadow-xl flex items-center gap-3 text-xs sm:text-sm font-medium transition-all duration-300 opacity-0 transform translate-y-2 ${typeClasses[type] || typeClasses.info}`;
+      toast.innerHTML = `
+        <i class="fa-solid ${iconMap[type] || iconMap.info} text-base"></i>
+        <div class="flex-1">${message}</div>
+      `;
+
+      container.appendChild(toast);
+      
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-2');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    function openModal(id) {
+      document.getElementById(id)?.classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id)?.classList.add('hidden');
+    }
+
+    function customConfirm(title, message) {
+      document.getElementById('confirm-title').innerText = title;
+      document.getElementById('confirm-msg').innerText = message;
+      openModal('modal-custom-confirm');
+
+      return new Promise((resolve) => {
+        confirmResolver = resolve;
+      });
+    }
+
+    function closeCustomConfirm(result) {
+      closeModal('modal-custom-confirm');
+      if (confirmResolver) {
+        confirmResolver(result);
+        confirmResolver = null;
+      }
+    }
+
+    function renderMathText(text) {
+      if (text === null || text === undefined) return '';
+      let str = String(text);
+
+      let formatted = str.replace(/(?<!\\)(?<!\w)(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)(?!\w)/g, '\\frac{$1}{$2}');
+      if (formatted.includes('\\frac') && !formatted.includes('\\(') && !formatted.includes('$')) {
+        formatted = formatted.replace(/(\\frac\{[^{}]+\}\{[^{}]+\})/g, '\\($1\\)');
+      }
+
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = formatted;
+
+      if (window.renderMathInElement) {
+        window.renderMathInElement(tempDiv, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false },
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true }
+          ],
+          throwOnError: false
+        });
+      }
+
+      return tempDiv.innerHTML;
+    }
+
+    function shuffleArray(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function getUniqueCategories() {
+      const cats = new Set();
+      questionBank.forEach(q => {
+        cats.add(q.category || '預設分類');
+      });
+      return Array.from(cats);
+    }
+
+    function updateCategoryDropdowns() {
+      const categories = getUniqueCategories();
+      const filterSelect = document.getElementById('question-category-filter');
+      const analyticsFilterSelect = document.getElementById('analytics-category-filter');
+      const dataList = document.getElementById('category-list');
+      
+      if (filterSelect) {
+        const currentVal = filterSelect.value || 'ALL';
+        filterSelect.innerHTML = '<option value="ALL">全部分類</option>';
+        categories.forEach(cat => {
+          filterSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+        });
+        filterSelect.value = categories.includes(currentVal) ? currentVal : 'ALL';
+      }
+
+      if (analyticsFilterSelect) {
+        const currentVal = analyticsFilterSelect.value || 'ALL';
+        analyticsFilterSelect.innerHTML = '<option value="ALL">全部分類</option>';
+        categories.forEach(cat => {
+          analyticsFilterSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+        });
+        analyticsFilterSelect.value = categories.includes(currentVal) ? currentVal : 'ALL';
+      }
+
+      if (dataList) {
+        dataList.innerHTML = '';
+        categories.forEach(cat => {
+          dataList.innerHTML += `<option value="${cat}">`;
+        });
+      }
+    }
+
+    /* ==========================================================================
+       5. FIREBASE REALTIME DB LISTENERS
+       ========================================================================== */
+    // Sync Questions Node (/questions)
+    db.ref('questions').on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (Array.isArray(data)) {
+        questionBank = data.filter(q => q && (q.question !== undefined && q.question !== null));
+      } else if (data && typeof data === 'object') {
+        questionBank = Object.values(data).filter(q => q && (q.question !== undefined && q.question !== null));
+      } else {
+        questionBank = [];
+      }
+
+      questionBank.forEach(q => {
+        if (!q.category) q.category = '預設分類';
+        if (q.dispatched === undefined) q.dispatched = true;
+        q.question = String(q.question);
+        q.correct = String(q.correct);
+        q.wrong = (q.wrong || []).map(w => String(w));
+      });
+
+      document.getElementById('question-count-badge').innerText = questionBank.length;
+      if (currentRole === 'TEACHER') {
+        renderQuestionBankTable();
+        renderAnalyticsTab();
+      }
+    });
+
+    // Sync Cards Config Node (/cardConfig)
+    db.ref('cardConfig').on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data && Array.isArray(data) && data.length > 0) {
+        cardConfigList = data;
+      } else if (data && typeof data === 'object') {
+        cardConfigList = Object.values(data);
+      } else {
+        cardConfigList = DEFAULT_CARDS;
+        db.ref('cardConfig').set(DEFAULT_CARDS);
+      }
+
+      if (currentRole === 'TEACHER') {
+        renderCardConfigTable();
+      }
+    });
+
+    // Sync Students Node (/students)
+    db.ref('students').on('value', (snapshot) => {
+      allStudentsData = snapshot.val() || {};
+
+      if (currentRole === 'STUDENT' && currentStudent) {
+        const myData = allStudentsData[currentStudent.id];
+        if (myData) {
+          currentStudent.steps = myData.steps || 0;
+          currentStudent.score = myData.score || 0;
+          currentStudent.cards = myData.cards || [];
+          currentStudent.doubleDiceActive = myData.doubleDiceActive || false;
+          currentStudent.turtleTurns = myData.turtleTurns || 0;
+          currentStudent.jinxTurns = myData.jinxTurns || 0;
+          currentStudent.frozenUntil = myData.frozenUntil || 0;
+          currentStudent.restartCount = myData.restartCount || 0;
+
+          renderStudentInventory();
+          checkBombStatus();
+        }
+      }
+
+      if (currentRole === 'TEACHER') {
+        renderStudentMonitorTable();
+        renderRaceTab();
+        renderAnalyticsTab();
+      }
+    });
+
+    // Sync History Node (/history)
+    db.ref('history').on('value', (snapshot) => {
+      historyData = snapshot.val() || {};
+      if (currentRole === 'TEACHER') {
+        renderHistoryTab();
+      }
+    });
+
+    /* ==========================================================================
+       6. STUDENT QUIZ LOGIC & WORKFLOW
+       ========================================================================== */
+    function handleStudentLogin(e) {
+      e.preventDefault();
+      initAudio();
+
+      const seat = document.getElementById('input-seat-num').value.trim();
+      const nickname = document.getElementById('input-nickname').value.trim();
+
+      if (!seat || !nickname) {
+        showToast('請完整填寫座號與暱稱！', 'warning');
+        return;
+      }
+
+      if (!questionBank || questionBank.length === 0) {
+        showToast('目前題庫為空，請老師先匯入題目後再進行答題！', 'error');
+        return;
+      }
+
+      const dispatchedQuestions = questionBank
+        .map((q, idx) => ({ ...q, originalIndex: idx }))
+        .filter(q => q.dispatched !== false);
+
+      if (dispatchedQuestions.length === 0) {
+        showToast('目前沒有已派送的題目，請聯繫老師派送題目後再開始！', 'error');
+        return;
+      }
+
+      const formattedSeat = String(seat).padStart(2, '0');
+      const studentId = `student_${formattedSeat}`;
+
+      const existingData = allStudentsData[studentId] || null;
+
+      if (existingData && existingData.seat) {
+        let rawQueue = existingData.studentQueue;
+        let savedQueue = [];
+        if (rawQueue) {
+          if (Array.isArray(rawQueue)) {
+            savedQueue = rawQueue;
+          } else if (typeof rawQueue === 'object') {
+            savedQueue = Object.values(rawQueue);
+          }
+        }
+
+        const isFinished = (existingData.status === '已完成') || 
+                           (savedQueue.length === 0 && (existingData.progress >= existingData.totalQuestions));
+        const restartCount = existingData.restartCount || 0;
+
+        if (isFinished) {
+          if (restartCount >= 1) {
+            currentStudent = {
+              id: studentId,
+              seat: formattedSeat,
+              nickname: nickname || existingData.nickname,
+              score: existingData.score || 0,
+              steps: existingData.steps || 0,
+              cards: existingData.cards || [],
+              doubleDiceActive: existingData.doubleDiceActive || false,
+              turtleTurns: existingData.turtleTurns || 0,
+              jinxTurns: existingData.jinxTurns || 0,
+              frozenUntil: existingData.frozenUntil || 0,
+              isPaused: existingData.isPaused || false,
+              correctCount: existingData.correctCount || 0,
+              progress: existingData.progress || existingData.totalQuestions,
+              totalQuestions: existingData.totalQuestions || dispatchedQuestions.length,
+              status: '已完成',
+              wrongRecords: existingData.wrongRecords || {},
+              restartCount: restartCount,
+              completedAt: existingData.lastUpdated || Date.now()
+            };
+            currentRole = 'STUDENT';
+            studentQueue = [];
+
+            document.getElementById('view-student-login').classList.add('hidden');
+            document.getElementById('view-student-result').classList.remove('hidden');
+
+            document.getElementById('result-final-steps').innerText = `${currentStudent.steps || 0} 步`;
+            document.getElementById('result-final-score').innerText = `${currentStudent.score || 0} 分`;
+            const wrongCount = Object.keys(currentStudent.wrongRecords || {}).length;
+            document.getElementById('result-wrong-count').innerText = `${wrongCount} 題`;
+
+            showToast('您已完成測驗且重來機會已用盡，如需重來請聯繫老師重置次數！', 'warning');
+            return;
+          } else {
+            showToast('偵測到您已完成先前測驗，已為您重置並開啟重新挑戰！', 'info');
+            currentStudent = {
+              id: studentId,
+              seat: formattedSeat,
+              nickname: nickname,
+              score: 0,
+              steps: 0,
+              cards: [],
+              doubleDiceActive: false,
+              turtleTurns: 0,
+              jinxTurns: 0,
+              frozenUntil: 0,
+              isPaused: false,
+              correctCount: 0,
+              progress: 0,
+              totalQuestions: dispatchedQuestions.length,
+              status: '進行中',
+              wrongRecords: {},
+              restartCount: restartCount + 1,
+              completedAt: null
+            };
+
+            studentQueue = dispatchedQuestions.map((q) => ({
+              originalIndex: q.originalIndex,
+              question: String(q.question),
+              correct: String(q.correct),
+              wrong: (q.wrong || []).map(w => String(w)),
+              category: q.category || '預設分類',
+              attemptCount: 0,
+              wrongPicked: []
+            }));
+            studentQueue = shuffleArray(studentQueue);
+          }
+        } else {
+          currentStudent = {
+            id: studentId,
+            seat: formattedSeat,
+            nickname: nickname || existingData.nickname,
+            score: existingData.score || 0,
+            steps: existingData.steps || 0,
+            cards: existingData.cards || [],
+            doubleDiceActive: existingData.doubleDiceActive || false,
+            turtleTurns: existingData.turtleTurns || 0,
+            jinxTurns: existingData.jinxTurns || 0,
+            frozenUntil: existingData.frozenUntil || 0,
+            isPaused: existingData.isPaused || false,
+            correctCount: existingData.correctCount || 0,
+            progress: existingData.progress || 0,
+            totalQuestions: existingData.totalQuestions || dispatchedQuestions.length,
+            status: '進行中',
+            wrongRecords: existingData.wrongRecords || {},
+            restartCount: restartCount,
+            completedAt: null
+          };
+
+          if (savedQueue && savedQueue.length > 0) {
+            studentQueue = savedQueue.map((q) => ({
+              originalIndex: q.originalIndex,
+              question: String(q.question || ''),
+              correct: String(q.correct || ''),
+              wrong: Array.isArray(q.wrong) ? q.wrong.map(w => String(w)) : [],
+              category: q.category || '預設分類',
+              attemptCount: q.attemptCount || 0,
+              wrongPicked: Array.isArray(q.wrongPicked) ? q.wrongPicked : []
+            }));
+          } else {
+            studentQueue = dispatchedQuestions.map((q) => ({
+              originalIndex: q.originalIndex,
+              question: String(q.question),
+              correct: String(q.correct),
+              wrong: (q.wrong || []).map(w => String(w)),
+              category: q.category || '預設分類',
+              attemptCount: 0,
+              wrongPicked: []
+            }));
+            studentQueue = shuffleArray(studentQueue);
+          }
+
+          showToast(`歡迎回來，${currentStudent.nickname}！已接續您的作答進度。`, 'success');
+        }
+      } else {
+        currentStudent = {
+          id: studentId,
+          seat: formattedSeat,
+          nickname: nickname,
+          score: 0,
+          steps: 0,
+          cards: [],
+          doubleDiceActive: false,
+          turtleTurns: 0,
+          jinxTurns: 0,
+          frozenUntil: 0,
+          isPaused: false,
+          correctCount: 0,
+          progress: 0,
+          totalQuestions: dispatchedQuestions.length,
+          status: '進行中',
+          wrongRecords: {},
+          restartCount: 0,
+          completedAt: null
+        };
+
+        studentQueue = dispatchedQuestions.map((q) => ({
+          originalIndex: q.originalIndex,
+          question: String(q.question),
+          correct: String(q.correct),
+          wrong: (q.wrong || []).map(w => String(w)),
+          category: q.category || '預設分類',
+          attemptCount: 0,
+          wrongPicked: []
+        }));
+        studentQueue = shuffleArray(studentQueue);
+
+        showToast(`歡迎 ${currentStudent.nickname}！答題、抽卡與賽跑開始！`, 'success');
+      }
+
+      currentRole = 'STUDENT';
+      saveStudentStateToFirebase();
+
+      document.getElementById('view-student-login').classList.add('hidden');
+      document.getElementById('view-student-quiz').classList.remove('hidden');
+      document.getElementById('view-student-quiz').classList.add('flex');
+
+      document.getElementById('quiz-seat-display').innerText = currentStudent.seat;
+      document.getElementById('quiz-nickname-display').innerText = currentStudent.nickname;
+
+      renderStudentInventory();
+      showNextQuestion();
+    }
+
+    function saveStudentStateToFirebase() {
+      if (!currentStudent) return;
+      
+      const payload = {
+        seat: currentStudent.seat,
+        nickname: currentStudent.nickname,
+        score: currentStudent.score || 0,
+        steps: currentStudent.steps || 0,
+        cards: currentStudent.cards || [],
+        doubleDiceActive: currentStudent.doubleDiceActive || false,
+        turtleTurns: currentStudent.turtleTurns || 0,
+        jinxTurns: currentStudent.jinxTurns || 0,
+        frozenUntil: currentStudent.frozenUntil || 0,
+        isPaused: currentStudent.isPaused || false,
+        correctCount: currentStudent.correctCount || 0,
+        progress: currentStudent.progress || 0,
+        totalQuestions: currentStudent.totalQuestions || 0,
+        status: currentStudent.status || '進行中',
+        wrongRecords: currentStudent.wrongRecords || {},
+        restartCount: currentStudent.restartCount || 0,
+        studentQueue: studentQueue || [],
+        lastUpdated: firebase.database.ServerValue.TIMESTAMP
+      };
+
+      db.ref(`students/${currentStudent.id}`).set(payload);
+    }
+
+    let bombCountdownInterval = null;
+    function checkBombStatus() {
+      if (!currentStudent) return;
+      const now = Date.now();
+      if (currentStudent.frozenUntil && currentStudent.frozenUntil > now) {
+        openModal('modal-pause-penalty');
+        document.getElementById('pause-modal-title').innerText = "💥 遭受轟炸定身中！";
+        document.getElementById('pause-modal-desc').innerText = "您被同學施放炸彈/核彈襲擊，定身中無法答題。";
+
+        if (!bombCountdownInterval) {
+          playSound('bomb');
+          bombCountdownInterval = setInterval(() => {
+            const remSec = Math.max(0, Math.ceil((currentStudent.frozenUntil - Date.now()) / 1000));
+            document.getElementById('pause-countdown').innerText = remSec;
+
+            if (remSec <= 0) {
+              clearInterval(bombCountdownInterval);
+              bombCountdownInterval = null;
+              currentStudent.frozenUntil = 0;
+              saveStudentStateToFirebase();
+              closeModal('modal-pause-penalty');
+              showToast('解凍成功！可以繼續答題了！', 'success');
+            }
+          }, 500);
+        }
+      }
+    }
+
+    function checkAndHandlePause(callback) {
+      if (currentStudent && currentStudent.isPaused) {
+        openModal('modal-pause-penalty');
+        document.getElementById('pause-modal-title').innerText = "🛑 踩中暫停陷阱！";
+        document.getElementById('pause-modal-desc').innerText = "您踩中了陷阱，需等待冷卻時間結束。";
+
+        let seconds = 5;
+        const countdownEl = document.getElementById('pause-countdown');
+        const btnDone = document.getElementById('btn-pause-done');
+        countdownEl.innerText = seconds;
+        btnDone.disabled = true;
+        btnDone.innerText = `冷卻中 (${seconds}s)...`;
+
+        const timer = setInterval(() => {
+          seconds--;
+          if (seconds > 0) {
+            countdownEl.innerText = seconds;
+            btnDone.innerText = `冷卻中 (${seconds}s)...`;
+          } else {
+            clearInterval(timer);
+            countdownEl.innerText = "0";
+            btnDone.disabled = false;
+            btnDone.className = "w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition shadow-lg cursor-pointer";
+            btnDone.innerText = "解除暫停，繼續答題！";
+            btnDone.onclick = () => {
+              currentStudent.isPaused = false;
+              saveStudentStateToFirebase();
+              closeModal('modal-pause-penalty');
+              callback();
+            };
+          }
+        }, 1000);
+      } else {
+        callback();
+      }
+    }
+
+    function showNextQuestion() {
+      if (studentQueue.length === 0) {
+        finishQuiz();
+        return;
+      }
+
+      checkAndHandlePause(() => {
+        renderCurrentQuestionUI();
+      });
+    }
+
+    function renderCurrentQuestionUI() {
+      currentQuestionItem = studentQueue[0];
+
+      const total = currentStudent.totalQuestions;
+      const completed = currentStudent.progress;
+      const pct = Math.round((completed / total) * 100);
+
+      document.getElementById('quiz-progress-text').innerText = `${completed} / ${total} 題`;
+      document.getElementById('quiz-progress-bar').style.width = `${pct}%`;
+      document.getElementById('quiz-steps-display').innerText = currentStudent.steps || 0;
+      document.getElementById('quiz-score-display').innerText = currentStudent.score || 0;
+      
+      document.getElementById('quiz-category-tag').innerText = currentQuestionItem.category || '預設分類';
+
+      const tagDouble = document.getElementById('double-dice-status-tag');
+      if (currentStudent.doubleDiceActive) {
+        tagDouble.classList.remove('hidden');
+      } else {
+        tagDouble.classList.add('hidden');
+      }
+
+      const tagTurtle = document.getElementById('turtle-status-tag');
+      if (currentStudent.turtleTurns && currentStudent.turtleTurns > 0) {
+        tagTurtle.classList.remove('hidden');
+        document.getElementById('turtle-turns-count').innerText = currentStudent.turtleTurns;
+      } else {
+        tagTurtle.classList.add('hidden');
+      }
+
+      const tagJinx = document.getElementById('jinx-status-tag');
+      if (currentStudent.jinxTurns && currentStudent.jinxTurns > 0) {
+        tagJinx.classList.remove('hidden');
+        document.getElementById('jinx-turns-count').innerText = currentStudent.jinxTurns;
+      } else {
+        tagJinx.classList.add('hidden');
+      }
+
+      const badge = document.getElementById('quiz-attempt-badge');
+      if (currentQuestionItem.attemptCount > 0) {
+        badge.className = "px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30";
+        badge.innerText = `重試第 ${currentQuestionItem.attemptCount + 1} 次 (無法擲骰子)`;
+      } else {
+        badge.className = "px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700";
+        badge.innerText = `首次嘗試`;
+      }
+
+      const qContainer = document.getElementById('question-text-container');
+      qContainer.innerHTML = renderMathText(currentQuestionItem.question);
+
+      const allOptions = [
+        { text: currentQuestionItem.correct, isCorrect: true },
+        ...currentQuestionItem.wrong.map(w => ({ text: w, isCorrect: false }))
+      ];
+      const shuffledOptions = shuffleArray(allOptions);
+
+      const grid = document.getElementById('options-grid');
+      grid.innerHTML = '';
+
+      shuffledOptions.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'option-btn w-full p-4 rounded-xl text-left bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-blue-500/50 text-slate-100 font-medium text-base shadow-md flex items-center justify-between group cursor-pointer';
+        
+        btn.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="w-7 h-7 rounded-lg bg-slate-800 group-hover:bg-blue-600 text-slate-300 group-hover:text-white font-bold text-xs flex items-center justify-center border border-slate-700 transition">
+              ${String.fromCharCode(65 + idx)}
+            </span>
+            <span class="text-slate-100">${renderMathText(opt.text)}</span>
+          </div>
+          <i class="fa-solid fa-chevron-right text-xs text-slate-600 group-hover:text-blue-400 transition"></i>
+        `;
+
+        btn.onclick = () => handleSelectOption(opt, btn);
+        grid.appendChild(btn);
+      });
+    }
+
+    function handleSelectOption(option, buttonEl) {
+      const qItem = currentQuestionItem;
+
+      if (option.isCorrect) {
+        playSound('correct');
+
+        const isFirstAttempt = (qItem.attemptCount === 0);
+
+        if (isFirstAttempt) {
+          currentStudent.correctCount = (currentStudent.correctCount || 0) + 1;
+          currentStudent.score = Math.round((currentStudent.correctCount * 100) / currentStudent.totalQuestions);
+        }
+
+        currentStudent.progress += 1;
+        studentQueue.shift();
+        saveStudentStateToFirebase();
+
+        if (isFirstAttempt) {
+          openDiceModal();
+        } else {
+          showToast('答對了！（第二次以後答對不獲得擲骰子機會）', 'success');
+          showNextQuestion();
+        }
+
+      } else {
+        playSound('wrong');
+
+        qItem.attemptCount = (qItem.attemptCount || 0) + 1;
+        if (!Array.isArray(qItem.wrongPicked)) {
+          qItem.wrongPicked = [];
+        }
+        if (!qItem.wrongPicked.includes(option.text)) {
+          qItem.wrongPicked.push(option.text);
+        }
+
+        const origIdx = qItem.originalIndex;
+        if (!currentStudent.wrongRecords) currentStudent.wrongRecords = {};
+        if (!currentStudent.wrongRecords[origIdx]) {
+          currentStudent.wrongRecords[origIdx] = {
+            question: qItem.question,
+            correct: qItem.correct,
+            wrongAttempts: 0,
+            pickedOptions: []
+          };
+        }
+        if (!Array.isArray(currentStudent.wrongRecords[origIdx].pickedOptions)) {
+          currentStudent.wrongRecords[origIdx].pickedOptions = [];
+        }
+        currentStudent.wrongRecords[origIdx].wrongAttempts += 1;
+        if (!currentStudent.wrongRecords[origIdx].pickedOptions.includes(option.text)) {
+          currentStudent.wrongRecords[origIdx].pickedOptions.push(option.text);
+        }
+
+        studentQueue.shift();
+        studentQueue.push(qItem);
+
+        saveStudentStateToFirebase();
+
+        showToast('答錯囉！題目已移至隊伍最後面重新試答。', 'warning');
+        showNextQuestion();
+      }
+    }
+
+    /* ==========================================================================
+       7. CARD INVENTORY & CARD USAGE MECHANICS (包含新增之卡片功能)
+       ========================================================================== */
+    function renderStudentInventory() {
+      const container = document.getElementById('student-inventory-container');
+      const countBadge = document.getElementById('inventory-card-count');
+      if (!container) return;
+
+      const cards = currentStudent?.cards || [];
+      countBadge.innerText = cards.length;
+
+      if (cards.length === 0) {
+        container.innerHTML = `<span class="text-xs text-slate-500 italic">尚無道具卡片，答對題目擲骰子時有機會隨機抽卡！</span>`;
+        return;
+      }
+
+      container.innerHTML = '';
+      cards.forEach((card, index) => {
+        const btn = document.createElement('div');
+        btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400/80 transition text-xs shadow-md";
+        
+        btn.innerHTML = `
+          <i class="fa-solid ${card.icon || 'fa-id-card'} ${card.color || 'text-amber-400'}"></i>
+          <span class="font-bold text-slate-200">${card.name}</span>
+          <button onclick="useCardAction(${index})" class="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[11px] transition shadow">
+            使用
+          </button>
+        `;
+        container.appendChild(btn);
+      });
+    }
+
+    function drawRandomCardFromPool() {
+      const enabledCards = cardConfigList.filter(c => c.enabled !== false && c.prob > 0);
+      if (enabledCards.length === 0) return null;
+
+      const totalWeight = enabledCards.reduce((sum, c) => sum + Number(c.prob || 0), 0);
+      let rand = Math.random() * totalWeight;
+
+      for (let card of enabledCards) {
+        if (rand < Number(card.prob)) {
+          return card;
+        }
+        rand -= Number(card.prob);
+      }
+      return enabledCards[enabledCards.length - 1];
+    }
+
+    function useCardAction(cardIndex) {
+      if (!currentStudent || !currentStudent.cards || !currentStudent.cards[cardIndex]) return;
+
+      const card = currentStudent.cards[cardIndex];
+
+      if (card.effect === 'DOUBLE_DICE') {
+        currentStudent.doubleDiceActive = true;
+        currentStudent.cards.splice(cardIndex, 1);
+        saveStudentStateToFirebase();
+        showToast('🎲 已使用【骰子翻倍卡】！下次擲骰前進步數翻倍！', 'success');
+        renderCurrentQuestionUI();
+
+      } else if (card.effect === 'SWAP' || card.effect === 'BOMB' || card.effect === 'NUKE' || card.effect === 'TURTLE' || card.effect === 'JINX' || card.effect === 'STEAL_CARD' || card.effect === 'STEAL_STEPS' || card.effect === 'DECREASE_STEPS') {
+        activeCardUsageContext = { cardIndex, effect: card.effect, cardName: card.name };
+        openTargetSelectionModal(card.effect, card.name);
+
+      } else if (card.effect === 'SHIELD') {
+        showToast('🛡️ 免罪卡不需要主動點擊，當您遭受各類陷阱/偷竊/扣步襲擊時會自動為您抵擋！', 'info');
+
+      } else if (card.effect === 'EMPTY') {
+        currentStudent.cards.splice(cardIndex, 1);
+        saveStudentStateToFirebase();
+        showToast('使用了【銘謝惠顧】，這張卡片消失了，什麼也沒發生！', 'info');
+      }
+    }
+
+    function openTargetSelectionModal(effect, cardName) {
+      const container = document.getElementById('target-students-list');
+      container.innerHTML = '';
+
+      document.getElementById('target-modal-title').innerText = `使用【${cardName}】 - 選擇對象`;
+
+      const otherStudents = Object.values(allStudentsData || {}).filter(s => s.seat !== currentStudent.seat);
+
+      if (otherStudents.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-400 p-4 text-center">全班目前無其他人在線學生</div>`;
+      } else {
+        otherStudents.forEach(st => {
+          const div = document.createElement('div');
+          div.className = "flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-500/50 transition";
+          div.innerHTML = `
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded bg-slate-800 font-bold text-white text-xs flex items-center justify-center">${st.seat}</span>
+              <span class="text-sm font-bold text-white">${st.nickname}</span>
+              <span class="text-xs text-emerald-400">(${st.steps || 0} 步)</span>
+            </div>
+            <button onclick="executeTargetCard('${st.seat}')" class="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs shadow hover:from-amber-400 hover:to-amber-500">
+              選擇此同學
+            </button>
+          `;
+          container.appendChild(div);
+        });
+      }
+
+      openModal('modal-card-target');
+    }
+
+    function executeTargetCard(targetSeat) {
+      if (!activeCardUsageContext || !currentStudent) return;
+
+      const { cardIndex, effect, cardName } = activeCardUsageContext;
+      const targetStudentId = `student_${targetSeat}`;
+      const targetStudent = allStudentsData[targetStudentId];
+
+      if (!targetStudent) {
+        showToast('找不到目標學生資料！', 'error');
+        return;
+      }
+
+      if (effect === 'SWAP') {
+        const mySteps = currentStudent.steps || 0;
+        const targetSteps = targetStudent.steps || 0;
+
+        currentStudent.steps = targetSteps;
+        db.ref(`students/${targetStudentId}/steps`).set(mySteps);
+
+        currentStudent.cards.splice(cardIndex, 1);
+        saveStudentStateToFirebase();
+
+        closeModal('modal-card-target');
+        playSound('card');
+        showToast(`✨ 使用【對換卡】成功！您與 [${targetSeat}] ${targetStudent.nickname} 交換了位置（換為 ${targetSteps} 步）！`, 'success');
+
+      } else if (effect === 'BOMB' || effect === 'NUKE' || effect === 'TURTLE' || effect === 'JINX' || effect === 'STEAL_CARD' || effect === 'STEAL_STEPS' || effect === 'DECREASE_STEPS') {
+        const targetCards = targetStudent.cards || [];
+        const shieldIdx = targetCards.findIndex(c => c.effect === 'SHIELD');
+
+        if (shieldIdx !== -1) {
+          targetCards.splice(shieldIdx, 1);
+          db.ref(`students/${targetStudentId}/cards`).set(targetCards);
+
+          currentStudent.cards.splice(cardIndex, 1);
+          saveStudentStateToFirebase();
+
+          closeModal('modal-card-target');
+          playSound('card');
+          showToast(`🛡️ 攻擊被攔截了！[${targetSeat}] ${targetStudent.nickname} 持有【免罪卡】，自動抵擋了您的【${cardName}】！`, 'warning');
+
+        } else {
+          if (effect === 'BOMB') {
+            const freezeTimestamp = Date.now() + 10000;
+            db.ref(`students/${targetStudentId}/frozenUntil`).set(freezeTimestamp);
+
+            currentStudent.cards.splice(cardIndex, 1);
+            saveStudentStateToFirebase();
+
+            closeModal('modal-card-target');
+            playSound('bomb');
+            showToast(`💣 成功對 [${targetSeat}] ${targetStudent.nickname} 施放【炸彈卡】！對方將被定身 10 秒！`, 'success');
+
+          } else if (effect === 'NUKE') {
+            const freezeTimestamp = Date.now() + 5000;
+            db.ref(`students/${targetStudentId}/frozenUntil`).set(freezeTimestamp);
+            db.ref(`students/${targetStudentId}/steps`).set(0);
+
+            currentStudent.cards.splice(cardIndex, 1);
+            saveStudentStateToFirebase();
+
+            closeModal('modal-card-target');
+            playSound('bomb');
+            showToast(`☢️ 成功對 [${targetSeat}] ${targetStudent.nickname} 施放【核彈卡】！對方累積步數歸零且定身 5 秒！`, 'success');
+
+          } else if (effect === 'TURTLE') {
+            const currentTurtleTurns = targetStudent.turtleTurns || 0;
+            db.ref(`students/${targetStudentId}/turtleTurns`).set(currentTurtleTurns + 3);
+
+            currentStudent.cards.splice(cardIndex, 1);
+            saveStudentStateToFirebase();
+
+            closeModal('modal-card-target');
+            playSound('card');
+            showToast(`🐢 成功對 [${targetSeat}] ${targetStudent.nickname} 施放【烏龜卡】！對方接下來 3 次擲骰子只能前進 1 步！`, 'success');
+
+          } else if (effect === 'JINX') {
+            const currentJinxTurns = targetStudent.jinxTurns || 0;
+            db.ref(`students/${targetStudentId}/jinxTurns`).set(currentJinxTurns + 3);
+
+            currentStudent.cards.splice(cardIndex, 1);
+            saveStudentStateToFirebase();
+
+            closeModal('modal-card-target');
+            playSound('card');
+            showToast(`👻 成功對 [${targetSeat}] ${targetStudent.nickname} 施放【衰神卡】！對方接下來 3 次擲骰子獲得的步數強制變為負數！`, 'success');
+
+          } else if (effect === 'STEAL_CARD') {
+            const availableTargetCards = targetStudent.cards || [];
+            if (availableTargetCards.length === 0) {
+              currentStudent.cards.splice(cardIndex, 1);
+              saveStudentStateToFirebase();
+
+              closeModal('modal-card-target');
+              playSound('card');
+              showToast(`🔍 [${targetSeat}] ${targetStudent.nickname} 手上沒有任何卡片，什麼也沒偷到！`, 'warning');
+            } else {
+              const randomIndex = Math.floor(Math.random() * availableTargetCards.length);
+              const stolenCard = availableTargetCards.splice(randomIndex, 1)[0];
+
+              db.ref(`students/${targetStudentId}/cards`).set(availableTargetCards);
+
+              currentStudent.cards.splice(cardIndex, 1);
+              currentStudent.cards.push(stolenCard);
+              saveStudentStateToFirebase();
+
+              closeModal('modal-card-target');
+              playSound('card');
+              showToast(`🥷 成功對 [${targetSeat}] ${targetStudent.nickname} 使用【偷竊卡】，隨機偷到了【${stolenCard.name}】！`, 'success');
+            }
+
+          } else if (effect === 'STEAL_STEPS') {
+            const targetSteps = targetStudent.steps || 0;
+            const stolenSteps = Math.round(targetSteps * 0.05);
+            const newTargetSteps = Math.max(0, targetSteps - stolenSteps);
+
+            currentStudent.steps = (currentStudent.steps || 0) + stolenSteps;
+            db.ref(`students/${targetStudentId}/steps`).set(newTargetSteps);
+
+            currentStudent.cards.splice(cardIndex, 1);
+            saveStudentStateToFirebase();
+
+            closeModal('modal-card-target');
+            playSound('card');
+            showToast(`🥷 成功對 [${targetSeat}] ${targetStudent.nickname} 使用【偷步卡】，偷取了 ${stolenSteps} 步 (5%)！`, 'success');
+
+          } else if (effect === 'DECREASE_STEPS') {
+            const targetSteps = targetStudent.steps || 0;
+            const decreasedSteps = Math.round(targetSteps * 0.05);
+            const newTargetSteps = Math.max(0, targetSteps - decreasedSteps);
+
+            db.ref(`students/${targetStudentId}/steps`).set(newTargetSteps);
+
+            currentStudent.cards.splice(cardIndex, 1);
+            saveStudentStateToFirebase();
+
+            closeModal('modal-card-target');
+            playSound('card');
+            showToast(`🔻 成功對 [${targetSeat}] ${targetStudent.nickname} 使用【退步卡】，使其退步了 ${decreasedSteps} 步 (5%)！`, 'success');
+          }
+        }
+      }
+
+      activeCardUsageContext = null;
+    }
+
+    /* ==========================================================================
+       8. DICE ROLL & RANDOM DRAW MODAL LOGIC
+       ========================================================================== */
+    function openDiceModal() {
+      document.getElementById('dice-box').innerHTML = `<i class="fa-solid fa-dice-d6 animate-pulse"></i>`;
+      document.getElementById('dice-box').className = "w-24 h-24 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 text-5xl font-black shadow-xl shadow-amber-500/20 border-2 border-amber-200 transition-transform duration-300";
+      document.getElementById('dice-result-details').classList.add('hidden');
+      document.getElementById('drawn-card-box').classList.add('hidden');
+      
+      const btnRoll = document.getElementById('btn-roll-dice');
+      btnRoll.disabled = false;
+      btnRoll.classList.remove('opacity-50', 'hidden');
+      document.getElementById('btn-dice-continue').classList.add('hidden');
+
+      openModal('modal-dice-roll');
+    }
+
+    function rollDiceAction() {
+      const btnRoll = document.getElementById('btn-roll-dice');
+      btnRoll.disabled = true;
+      btnRoll.classList.add('opacity-50');
+
+      const diceBox = document.getElementById('dice-box');
+      diceBox.classList.add('animate-spin');
+
+      playSound('correct');
+
+      setTimeout(() => {
+        diceBox.classList.remove('animate-spin');
+        
+        let diceResult = Math.floor(Math.random() * 6) + 1;
+        let isDoubled = false;
+        let isTurtle = false;
+        let isJinx = false;
+
+        if (currentStudent.turtleTurns && currentStudent.turtleTurns > 0) {
+          diceResult = 1;
+          isTurtle = true;
+          currentStudent.turtleTurns -= 1;
+        } else if (currentStudent.jinxTurns && currentStudent.jinxTurns > 0) {
+          diceResult = -diceResult;
+          isJinx = true;
+          currentStudent.jinxTurns -= 1;
+        } else if (currentStudent.doubleDiceActive) {
+          diceResult = diceResult * 2;
+          isDoubled = true;
+          currentStudent.doubleDiceActive = false;
+        }
+
+        diceBox.innerText = Math.abs(diceResult);
+
+        currentStudent.steps = Math.max(0, (currentStudent.steps || 0) + diceResult);
+
+        const drawnCard = drawRandomCardFromPool();
+        if (drawnCard) {
+          if (drawnCard.effect !== 'EMPTY') {
+            if (!currentStudent.cards) currentStudent.cards = [];
+            currentStudent.cards.push(drawnCard);
+          }
+
+          document.getElementById('drawn-card-name').innerText = `【${drawnCard.name}】`;
+          document.getElementById('drawn-card-desc').innerText = (drawnCard.effect === 'EMPTY') 
+            ? '手氣平平，本次未獲得卡片（不佔用手牌包）。' 
+            : (drawnCard.desc || '已存入您的道具卡包');
+          document.getElementById('drawn-card-box').classList.remove('hidden');
+          playSound('card');
+        }
+
+        saveStudentStateToFirebase();
+
+        document.getElementById('dice-step-text').innerText = `${diceResult >= 0 ? '+' : ''}${diceResult} 步 ${isTurtle ? '(🐢 烏龜卡效應：限制 1 步！)' : (isJinx ? '(👻 衰神卡效應：步數變為負數！)' : (isDoubled ? '(翻倍加成 x2!)' : ''))}`;
+        document.getElementById('dice-total-steps').innerText = currentStudent.steps;
+        document.getElementById('dice-result-details').classList.remove('hidden');
+
+        btnRoll.classList.add('hidden');
+        document.getElementById('btn-dice-continue').classList.remove('hidden');
+
+      }, 800);
+    }
+
+    function closeDiceModalAndNext() {
+      closeModal('modal-dice-roll');
+      showNextQuestion();
+    }
+
+    function finishQuiz() {
+      playSound('victory');
+      if (window.confetti) {
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 }
+        });
+
+      }
+
+      currentStudent.status = '已完成';
+      currentStudent.completedAt = Date.now();
+      saveStudentStateToFirebase();
+
+      document.getElementById('view-student-quiz').classList.add('hidden');
+      document.getElementById('view-student-quiz').classList.remove('flex');
+      document.getElementById('view-student-result').classList.remove('hidden');
+
+      document.getElementById('result-final-steps').innerText = `${currentStudent.steps || 0} 步`;
+      document.getElementById('result-final-score').innerText = `${currentStudent.score || 0} 分`;
+      
+      const wrongCount = Object.keys(currentStudent.wrongRecords || {}).length;
+      document.getElementById('result-wrong-count').innerText = `${wrongCount} 題`;
+    }
+
+    function openStudentWrongReviewModal() {
+      const container = document.getElementById('student-wrong-review-list');
+      container.innerHTML = '';
+
+      const wrongEntries = Object.values(currentStudent.wrongRecords || {});
+
+      if (wrongEntries.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-slate-400">
+            <i class="fa-solid fa-circle-check text-4xl text-emerald-400 mb-2"></i>
+            <p class="text-base font-bold text-white">完美的作答紀錄！</p>
+            <p class="text-xs">您本次測驗所有題目皆為第一次就答對，無錯題需要檢討！</p>
+          </div>
+        `;
+      } else {
+        wrongEntries.forEach((item, idx) => {
+          const div = document.createElement('div');
+          div.className = "bg-slate-900/90 rounded-xl p-4 border border-slate-800 space-y-2";
+          div.innerHTML = `
+            <div class="flex items-start justify-between gap-2">
+              <span class="text-xs font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">錯題 #${idx + 1} (答錯 ${item.wrongAttempts} 次)</span>
+            </div>
+            <div class="text-slate-200 text-sm font-medium border-b border-slate-800/80 pb-2">
+              ${renderMathText(item.question)}
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+              <div class="p-2 rounded bg-emerald-950/60 border border-emerald-800/50 text-emerald-300">
+                <span class="font-bold">正確答案：</span>${renderMathText(item.correct)}
+              </div>
+              <div class="p-2 rounded bg-rose-950/60 border border-rose-800/50 text-rose-300">
+                <span class="font-bold">您的誤選：</span>${(item.pickedOptions || []).map(o => renderMathText(o)).join(' , ')}
+              </div>
+            </div>
+          `;
+          container.appendChild(div);
+        });
+      }
+
+      openModal('modal-student-wrong-review');
+    }
+
+    function logoutStudent() {
+      currentStudent = null;
+      studentQueue = [];
+      currentRole = 'NONE';
+
+      document.getElementById('view-student-result').classList.add('hidden');
+      document.getElementById('view-student-quiz').classList.add('hidden');
+      document.getElementById('view-student-quiz').classList.remove('flex');
+      document.getElementById('view-student-login').classList.remove('hidden');
+
+      document.getElementById('input-seat-num').value = '';
+      document.getElementById('input-nickname').value = '';
+
+      showToast('已安全登出。', 'info');
+    }
+
+    /* ==========================================================================
+       9. TEACHER MANAGEMENT PANEL LOGIC
+       ========================================================================== */
+    function openTeacherAuthModal() {
+      if (currentRole === 'TEACHER') {
+        showTeacherPanel();
+        return;
+      }
+      openModal('modal-teacher-auth');
+    }
+
+    function handleTeacherLogin(e) {
+      e.preventDefault();
+      const pwd = document.getElementById('input-teacher-pwd').value;
+
+      if (pwd === 'source88') {
+        currentRole = 'TEACHER';
+        closeModal('modal-teacher-auth');
+        document.getElementById('input-teacher-pwd').value = '';
+        document.getElementById('teacher-btn-text').innerText = '管理中';
+        
+        showTeacherPanel();
+        showToast('教師身分驗證成功！', 'success');
+      } else {
+        showToast('密碼錯誤，存取拒絕！', 'error');
+      }
+    }
+
+    function showTeacherPanel() {
+      document.getElementById('view-student-login').classList.add('hidden');
+      document.getElementById('view-student-quiz').classList.add('hidden');
+      document.getElementById('view-student-quiz').classList.remove('flex');
+      document.getElementById('view-student-result').classList.add('hidden');
+
+      document.getElementById('view-teacher-panel').classList.remove('hidden');
+      document.getElementById('view-teacher-panel').classList.add('flex');
+
+      switchTeacherTab('tab-students');
+    }
+
+    function logoutTeacher() {
+      currentRole = 'NONE';
+      document.getElementById('teacher-btn-text').innerText = '教師管理';
+
+      document.getElementById('view-teacher-panel').classList.add('hidden');
+      document.getElementById('view-teacher-panel').classList.remove('flex');
+      document.getElementById('view-student-login').classList.remove('hidden');
+
+      showToast('已退出教師管理模式', 'info');
+    }
+
+    function switchTeacherTab(tabId) {
+      ['tab-students', 'tab-race', 'tab-cards', 'tab-questions', 'tab-analytics', 'tab-history'].forEach(id => {
+        const btn = document.getElementById(`tab-btn-${id.replace('tab-', '')}`);
+        const content = document.getElementById(`tab-content-${id.replace('tab-', '')}`);
+        
+        if (id === tabId) {
+          btn.className = "flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-blue-600 text-white shadow";
+          content.classList.remove('hidden');
+        } else {
+          btn.className = "flex-1 md:flex-none px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center gap-1.5";
+          content.classList.add('hidden');
+        }
+      });
+
+      if (tabId === 'tab-students') renderStudentMonitorTable();
+      if (tabId === 'tab-race') renderRaceTab();
+      if (tabId === 'tab-cards') renderCardConfigTable();
+      if (tabId === 'tab-questions') renderQuestionBankTable();
+      if (tabId === 'tab-analytics') renderAnalyticsTab();
+      if (tabId === 'tab-history') renderHistoryTab();
+    }
+
+    function renderStudentMonitorTable() {
+      const tbody = document.getElementById('student-monitor-tbody');
+      tbody.innerHTML = '';
+
+      const studentsList = Object.entries(allStudentsData || {}).map(([id, data]) => ({
+        id,
+        ...data
+      }));
+
+      studentsList.sort((a, b) => (a.seat || '').localeCompare(b.seat || ''));
+
+      if (studentsList.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="py-8 text-center text-slate-500 text-xs">
+              目前尚無學生作答紀錄
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      studentsList.forEach(st => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-900/50 transition";
+
+        const cardsCount = (st.cards || []).length;
+        const restartCountVal = st.restartCount || 0;
+        const statusBadge = st.status === '已完成'
+          ? `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">已完成 (已重來:${restartCountVal}次)</span>`
+          : `<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">作答中 (已重來:${restartCountVal}次)</span>`;
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-bold text-white">${st.seat}</td>
+          <td class="py-3 px-4 font-medium text-slate-200">${st.nickname}</td>
+          <td class="py-3 px-4 font-black text-emerald-400"><i class="fa-solid fa-shoe-prints text-xs"></i> ${st.steps || 0} 步</td>
+          <td class="py-3 px-4 font-black text-amber-400">${st.score || 0} 分</td>
+          <td class="py-3 px-4 font-bold text-indigo-300"><i class="fa-solid fa-id-card text-xs"></i> ${cardsCount} 張</td>
+          <td class="py-3 px-4">${statusBadge}</td>
+          <td class="py-3 px-4 text-right space-x-1">
+            <button onclick="editStudentRestartCount('${st.id}')" class="text-xs text-amber-300 hover:text-amber-200 p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 transition" title="修改/重置重來次數">
+              <i class="fa-solid fa-rotate-left mr-1"></i>重來次數
+            </button>
+            <button onclick="deleteStudentRecord('${st.id}')" class="text-xs text-rose-400 hover:text-rose-300 p-1.5 rounded-lg hover:bg-rose-500/10 transition" title="刪除紀錄">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function editStudentRestartCount(studentId) {
+      const st = allStudentsData[studentId];
+      if (!st) return;
+      const currentCount = st.restartCount || 0;
+      const input = prompt(`[${st.seat}] ${st.nickname} 目前的重來次數為：${currentCount} 次\n\n請輸入新的重來次數（若輸入 0，代表學生可再度登入並重新作答挑戰）：`, "0");
+      if (input === null) return;
+      const newCount = parseInt(input.trim());
+      if (isNaN(newCount) || newCount < 0) {
+        showToast('請輸入有效的非負整數！', 'warning');
+        return;
+      }
+
+      await db.ref(`students/${studentId}/restartCount`).set(newCount);
+      showToast(`已成功將 [${st.seat}] ${st.nickname} 的重來次數修改為 ${newCount} 次！`, 'success');
+    }
+
+    function renderRaceTab() {
+      const container = document.getElementById('race-tracks-container');
+      const podiumContainer = document.getElementById('race-podium-container');
+      container.innerHTML = '';
+      podiumContainer.innerHTML = '';
+
+      const studentsList = Object.values(allStudentsData || {});
+      
+      if (studentsList.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">目前無學生參賽數據</div>`;
+        return;
+      }
+
+      studentsList.sort((a, b) => (b.steps || 0) - (a.steps || 0));
+
+      const top3 = studentsList.slice(0, 3);
+      const podiumConfig = [
+        { title: '冠軍 🥇', color: 'from-amber-500/20 to-slate-900 border-amber-500/40', crown: '👑' },
+        { title: '亞軍 🥈', color: 'from-slate-400/20 to-slate-900 border-slate-400/40', crown: '🥈' },
+        { title: '季軍 🥉', color: 'from-amber-700/20 to-slate-900 border-amber-700/40', crown: '🥉' }
+      ];
+
+      top3.forEach((st, i) => {
+        const conf = podiumConfig[i];
+        const div = document.createElement('div');
+        div.className = `glass-card rounded-2xl p-4 border flex flex-col items-center justify-center shadow-xl bg-gradient-to-b ${conf.color}`;
+        div.innerHTML = `
+          <div class="text-2xl mb-1">${conf.crown}</div>
+          <div class="text-xs font-bold uppercase tracking-wider text-amber-300 mb-1">${conf.title}</div>
+          <div class="text-base font-black text-white">[${st.seat}] ${st.nickname}</div>
+          <div class="text-xl font-extrabold text-emerald-400 mt-1">${st.steps || 0} <span class="text-xs text-slate-400 font-normal">步</span></div>
+        `;
+        podiumContainer.appendChild(div);
+      });
+
+      const maxStepsInClass = Math.max(30, ...studentsList.map(s => s.steps || 0));
+
+      studentsList.forEach((st, idx) => {
+        const steps = st.steps || 0;
+        const pct = Math.min(100, Math.max(0, Math.round((steps / maxStepsInClass) * 100)));
+
+        const isFrozen = (st.frozenUntil && st.frozenUntil > Date.now());
+        const isTurtle = (st.turtleTurns && st.turtleTurns > 0);
+        const isJinx = (st.jinxTurns && st.jinxTurns > 0);
+
+        const row = document.createElement('div');
+        row.className = "bg-slate-950/70 rounded-xl p-3 border border-slate-800 space-y-2";
+        row.innerHTML = `
+          <div class="flex items-center justify-between text-xs flex-wrap gap-1">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-full ${idx < 3 ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-300'} flex items-center justify-center text-xs font-bold">
+                ${idx + 1}
+              </span>
+              <span class="font-bold text-white text-sm">[${st.seat}] ${st.nickname}</span>
+              ${isFrozen ? '<span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] animate-pulse">💥 轟炸定身中</span>' : ''}
+              ${isTurtle ? `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] animate-pulse">🐢 烏龜慢行中(${st.turtleTurns}次)</span>` : ''}
+              ${isJinx ? `<span class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] animate-pulse">👻 衰神附身中(${st.jinxTurns}次)</span>` : ''}
+            </div>
+            <div class="font-black text-emerald-400 text-sm flex items-center gap-1.5">
+              <i class="fa-solid fa-person-running"></i>
+              <span>${steps} 步</span>
+              <span class="text-xs text-slate-500 font-normal">(${st.score || 0}分)</span>
+            </div>
+          </div>
+
+          <div class="w-full h-4 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5 relative">
+            <div class="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-400 rounded-full transition-all duration-500 flex items-center justify-end pr-1" style="width: ${Math.max(6, pct)}%">
+              <span class="text-[9px] font-bold text-white drop-shadow">${isJinx ? '👻' : (isTurtle ? '🐢' : '🏃')}</span>
+            </div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function renderCardConfigTable() {
+      const tbody = document.getElementById('cards-config-tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (cardConfigList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs">目前尚未設定任何卡片資訊</td></tr>`;
+        return;
+      }
+
+      cardConfigList.forEach((card, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-900/50 transition";
+
+        const enabledBadge = (card.enabled !== false)
+          ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">已啟用</span>`
+          : `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-500 border border-slate-700">已停用</span>`;
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-bold text-white flex items-center gap-2">
+            <i class="fa-solid ${card.icon || 'fa-id-card'} ${card.color || 'text-amber-400'}"></i>
+            ${card.name}
+          </td>
+          <td class="py-3 px-4 font-mono text-xs text-indigo-300">${card.effect}</td>
+          <td class="py-3 px-4 font-black text-amber-400">${card.prob}%</td>
+          <td class="py-3 px-4 text-xs text-slate-300">${card.desc}</td>
+          <td class="py-3 px-4">${enabledBadge}</td>
+          <td class="py-3 px-4 text-right space-x-1">
+            <button onclick="openEditCardModal('${card.id}')" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 transition text-xs">
+              <i class="fa-solid fa-pen"></i> 編輯
+            </button>
+            <button onclick="deleteCardConfig('${card.id}')" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 transition text-xs">
+              <i class="fa-solid fa-trash"></i> 刪除
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openEditCardModal(cardId = null) {
+      if (cardId) {
+        const card = cardConfigList.find(c => c.id === cardId);
+        if (card) {
+          document.getElementById('card-modal-title').innerText = '編輯卡片設定';
+          document.getElementById('edit-card-id').value = card.id;
+          document.getElementById('edit-card-name').value = card.name;
+          document.getElementById('edit-card-effect').value = card.effect;
+          document.getElementById('edit-card-prob').value = card.prob;
+          document.getElementById('edit-card-desc').value = card.desc;
+          document.getElementById('edit-card-enabled').checked = card.enabled !== false;
+        }
+      } else {
+        document.getElementById('card-modal-title').innerText = '新增卡片種類';
+        document.getElementById('edit-card-id').value = '';
+        document.getElementById('edit-card-name').value = '';
+        document.getElementById('edit-card-effect').value = 'SWAP';
+        document.getElementById('edit-card-prob').value = '10';
+        document.getElementById('edit-card-desc').value = '';
+        document.getElementById('edit-card-enabled').checked = true;
+      }
+      openModal('modal-edit-card');
+    }
+
+    function handleSaveCardConfig(e) {
+      e.preventDefault();
+      const cardId = document.getElementById('edit-card-id').value;
+      const name = document.getElementById('edit-card-name').value.trim();
+      const effect = document.getElementById('edit-card-effect').value;
+      const prob = parseInt(document.getElementById('edit-card-prob').value) || 0;
+      const desc = document.getElementById('edit-card-desc').value.trim();
+      const enabled = document.getElementById('edit-card-enabled').checked;
+
+      const effectIcons = {
+        'SWAP': 'fa-right-left',
+        'STEAL_CARD': 'fa-mask',
+        'STEAL_STEPS': 'fa-user-ninja',
+        'DECREASE_STEPS': 'fa-person-walking-arrow-loop-left',
+        'BOMB': 'fa-bomb',
+        'NUKE': 'fa-biohazard',
+        'TURTLE': 'fa-turtle',
+        'JINX': 'fa-ghost',
+        'SHIELD': 'fa-shield-halved',
+        'DOUBLE_DICE': 'fa-dice-d6',
+        'EMPTY': 'fa-face-meh'
+      };
+
+      const effectColors = {
+        'SWAP': 'text-amber-400',
+        'STEAL_CARD': 'text-amber-300',
+        'STEAL_STEPS': 'text-cyan-400',
+        'DECREASE_STEPS': 'text-rose-300',
+        'BOMB': 'text-rose-400',
+        'NUKE': 'text-purple-400',
+        'TURTLE': 'text-emerald-400',
+        'JINX': 'text-purple-400',
+        'SHIELD': 'text-blue-400',
+        'DOUBLE_DICE': 'text-emerald-400',
+        'EMPTY': 'text-slate-400'
+      };
+
+      if (cardId) {
+        const idx = cardConfigList.findIndex(c => c.id === cardId);
+        if (idx !== -1) {
+          cardConfigList[idx] = {
+            id: cardId,
+            name, effect, prob, desc, enabled,
+            icon: effectIcons[effect] || 'fa-id-card',
+            color: effectColors[effect] || 'text-amber-400'
+          };
+        }
+      } else {
+        const newId = `card_${Date.now()}`;
+        cardConfigList.push({
+          id: newId,
+          name, effect, prob, desc, enabled,
+          icon: effectIcons[effect] || 'fa-id-card',
+          color: effectColors[effect] || 'text-amber-400'
+        });
+      }
+
+      db.ref('cardConfig').set(cardConfigList);
+      closeModal('modal-edit-card');
+      showToast('卡片設定已成功儲存！', 'success');
+    }
+
+    async function deleteCardConfig(cardId) {
+      if (await customConfirm('確認刪除卡片', '確定要刪除這張卡片種類嗎？')) {
+        cardConfigList = cardConfigList.filter(c => c.id !== cardId);
+        db.ref('cardConfig').set(cardConfigList);
+        showToast('卡片已被刪除', 'success');
+      }
+    }
+
+    async function resetDefaultCardsConfig() {
+      if (await customConfirm('重置卡片', '確定要將所有卡片恢復為系統預設值嗎？')) {
+        cardConfigList = DEFAULT_CARDS;
+        db.ref('cardConfig').set(DEFAULT_CARDS);
+        showToast('已恢復預設卡片設定', 'success');
+      }
+    }
+
+    async function deleteStudentRecord(id) {
+      if (await customConfirm('確認刪除', '您確定要刪除該學生的作答紀錄嗎？')) {
+        db.ref(`students/${id}`).remove();
+        showToast('已刪除該學生紀錄', 'success');
+      }
+    }
+
+    async function confirmClearAllStudents() {
+      if (await customConfirm('清除所有紀錄', '確定要清空全班所有學生的測驗與賽跑紀錄嗎？此操作無法復原！')) {
+        db.ref('students').remove();
+        showToast('已成功清除所有學生紀錄', 'success');
+      }
+    }
+
+    function exportStudentsCSV() {
+      const studentsList = Object.values(allStudentsData || {});
+      if (studentsList.length === 0) {
+        showToast('目前沒有任何學生紀錄可供匯出', 'warning');
+        return;
+      }
+
+      let csvContent = "\uFEFF座號,暱稱,目前總步數,目前得分,答題進度,總題數,狀態,重來次數,總錯題次數\n";
+      studentsList.forEach(st => {
+        const wrongTotal = Object.values(st.wrongRecords || {}).reduce((acc, curr) => acc + (curr.wrongAttempts || 0), 0);
+        csvContent += `"${st.seat}","${st.nickname}",${st.steps || 0},${st.score || 0},${st.progress || 0},${st.totalQuestions || 0},"${st.status || ''}",${st.restartCount || 0},${wrongTotal}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `答題與賽跑戰報_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    /* ==========================================================================
+       10. QUESTION BANK MANAGEMENT & DISPATCHING LOGIC
+       ========================================================================== */
+    function renderQuestionBankTable() {
+      updateCategoryDropdowns();
+
+      const tbody = document.getElementById('question-bank-tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const catFilter = document.getElementById('question-category-filter')?.value || 'ALL';
+      const dispatchFilter = document.getElementById('question-dispatch-filter')?.value || 'ALL';
+
+      const filtered = questionBank.map((q, idx) => ({ ...q, originalIdx: idx })).filter(q => {
+        const catMatch = (catFilter === 'ALL') || ((q.category || '預設分類') === catFilter);
+        const isDispatched = q.dispatched !== false;
+        const dispatchMatch = (dispatchFilter === 'ALL') || 
+                              (dispatchFilter === 'DISPATCHED' && isDispatched) || 
+                              (dispatchFilter === 'NOT_DISPATCHED' && !isDispatched);
+        return catMatch && dispatchMatch;
+      });
+
+      if (questionBank.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="py-8 text-center text-slate-500 text-xs">
+              目前題庫為空，請點擊「單題新增」、「匯入 Excel」或「分號批次匯入」來建立題目。
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="py-8 text-center text-slate-500 text-xs">
+              沒有符合當前篩選條件的題目。
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(q => {
+        const idx = q.originalIdx;
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-900/50 transition";
+
+        const categoryText = q.category || '預設分類';
+        const isDispatched = q.dispatched !== false;
+        const wrongOpts = (q.wrong || []).map(w => renderMathText(w)).join(' , ');
+
+        const dispatchBadge = isDispatched
+          ? `<button onclick="toggleQuestionDispatch(${idx})" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition flex items-center gap-1 cursor-pointer">
+               <i class="fa-solid fa-circle-check text-emerald-400"></i> 已派送
+             </button>`
+          : `<button onclick="toggleQuestionDispatch(${idx})" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition flex items-center gap-1 cursor-pointer">
+               <i class="fa-solid fa-circle-xmark text-slate-500"></i> 未派送
+             </button>`;
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-mono text-slate-400 text-xs">${idx + 1}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-medium">
+              ${categoryText}
+            </span>
+          </td>
+          <td class="py-3 px-4 font-medium text-slate-100">${renderMathText(q.question)}</td>
+          <td class="py-3 px-4 font-semibold text-emerald-400">${renderMathText(q.correct)}</td>
+          <td class="py-3 px-4 text-xs text-rose-300">${wrongOpts}</td>
+          <td class="py-3 px-4">${dispatchBadge}</td>
+          <td class="py-3 px-4 text-right space-x-1">
+            <button onclick="editQuestionModal(${idx})" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 transition text-xs" title="編輯">
+              <i class="fa-solid fa-pen"></i>
+            </button>
+            <button onclick="deleteSingleQuestion(${idx})" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-400 transition text-xs" title="刪除">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function toggleQuestionDispatch(idx) {
+      if (questionBank[idx]) {
+        questionBank[idx].dispatched = (questionBank[idx].dispatched === false) ? true : false;
+        db.ref('questions').set(questionBank);
+        showToast(questionBank[idx].dispatched ? '已將該題設為派送！' : '已將該題設為停止派送！', 'info');
+      }
+    }
+
+    function dispatchAllQuestions() {
+      questionBank.forEach(q => { q.dispatched = true; });
+      db.ref('questions').set(questionBank);
+      showToast('已將全體題目設為派送！', 'success');
+    }
+
+    function undispatchAllQuestions() {
+      questionBank.forEach(q => { q.dispatched = false; });
+      db.ref('questions').set(questionBank);
+      showToast('已取消派送所有題目！', 'info');
+    }
+
+    function dispatchCurrentCategoryQuestions(status = true) {
+      const catFilter = document.getElementById('question-category-filter')?.value || 'ALL';
+      if (catFilter === 'ALL') {
+        if (status) dispatchAllQuestions();
+        else undispatchAllQuestions();
+        return;
+      }
+
+      let count = 0;
+      questionBank.forEach(q => {
+        if ((q.category || '預設分類') === catFilter) {
+          q.dispatched = status;
+          count++;
+        }
+      });
+
+      db.ref('questions').set(questionBank);
+      showToast(`已將「${catFilter}」分類下的 ${count} 題設為${status ? '派送' : '停派'}！`, 'success');
+    }
+
+    function openSingleQuestionModal(editIdx = null) {
+      updateCategoryDropdowns();
+      document.getElementById('edit-question-index').value = editIdx !== null ? editIdx : '';
+      
+      if (editIdx !== null && questionBank[editIdx]) {
+        const q = questionBank[editIdx];
+        document.getElementById('single-question-modal-title').innerText = '編輯題目';
+        document.getElementById('edit-category').value = q.category || '預設分類';
+        document.getElementById('edit-question-text').value = q.question !== undefined ? q.question : '';
+        document.getElementById('edit-correct-ans').value = q.correct !== undefined ? q.correct : '';
+        document.getElementById('edit-wrong-1').value = q.wrong?.[0] !== undefined ? q.wrong[0] : '';
+        document.getElementById('edit-wrong-2').value = q.wrong?.[1] !== undefined ? q.wrong[1] : '';
+        document.getElementById('edit-wrong-3').value = q.wrong?.[2] !== undefined ? q.wrong[2] : '';
+        document.getElementById('edit-dispatched').checked = q.dispatched !== false;
+      } else {
+        document.getElementById('single-question-modal-title').innerText = '單題新增';
+        document.getElementById('edit-category').value = '預設分類';
+        document.getElementById('edit-question-text').value = '';
+        document.getElementById('edit-correct-ans').value = '';
+        document.getElementById('edit-wrong-1').value = '';
+        document.getElementById('edit-wrong-2').value = '';
+        document.getElementById('edit-wrong-3').value = '';
+        document.getElementById('edit-dispatched').checked = true;
+      }
+
+      openModal('modal-single-question');
+    }
+
+    function editQuestionModal(idx) {
+      openSingleQuestionModal(idx);
+    }
+
+    function handleSaveSingleQuestion(e) {
+      e.preventDefault();
+      const idxStr = document.getElementById('edit-question-index').value;
+      const category = document.getElementById('edit-category').value.trim() || '預設分類';
+      const questionText = document.getElementById('edit-question-text').value.trim();
+      const correct = document.getElementById('edit-correct-ans').value.trim();
+      const wrong1 = document.getElementById('edit-wrong-1').value.trim();
+      const wrong2 = document.getElementById('edit-wrong-2').value.trim();
+      const wrong3 = document.getElementById('edit-wrong-3').value.trim();
+      const dispatched = document.getElementById('edit-dispatched').checked;
+
+      if (questionText === '' || correct === '' || wrong1 === '' || wrong2 === '' || wrong3 === '') {
+        showToast('請填寫完整題目與 4 個選項', 'warning');
+        return;
+      }
+
+      const newObj = {
+        category: category,
+        question: questionText,
+        correct: correct,
+        wrong: [wrong1, wrong2, wrong3],
+        dispatched: dispatched
+      };
+
+      if (idxStr !== '') {
+        const idx = parseInt(idxStr);
+        questionBank[idx] = newObj;
+      } else {
+        questionBank.push(newObj);
+      }
+
+      db.ref('questions').set(questionBank);
+      closeModal('modal-single-question');
+      showToast('題目已儲存同步！', 'success');
+    }
+
+    async function deleteSingleQuestion(idx) {
+      if (await customConfirm('確認刪除題目', `確定要刪除第 ${idx + 1} 題嗎？`)) {
+        questionBank.splice(idx, 1);
+        db.ref('questions').set(questionBank);
+        showToast('題目已刪除', 'success');
+      }
+    }
+
+    async function confirmClearAllQuestions() {
+      if (await customConfirm('清空題庫', '確定要清空 Firebase 中的所有題目嗎？')) {
+        questionBank = [];
+        db.ref('questions').set([]);
+        showToast('題庫已清空', 'success');
+      }
+    }
+
+    function downloadExcelTemplate() {
+      const templateData = [
+        ["分類", "題目", "正確答案", "錯誤選項1", "錯誤選項2", "錯誤選項3"],
+        ["數學", "計算 \\frac{1}{2} + \\frac{1}{3} = ?", "5/6", "2/5", "3/5", "1/6"],
+        ["數學", "計算 0.25 + 0.5 = ?", "0.75", "0.5", "0.85", "1.25"],
+        ["數學", "已知 2x + 0.5 = 3.5，求 x 的值？", "1.5", "1.0", "2.5", "3.0"],
+        ["自然", "下列何者為植物光合作用的主要產物？", "氧氣與葡萄糖", "二氧化碳", "氮氣", "水蒸氣"]
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(templateData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "題目庫範本");
+      XLSX.writeFile(wb, "互動答題王_題目匯入範本.xlsx");
+    }
+
+    function handleExcelImport(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array', cellDates: false });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: '' });
+
+          if (!rows || rows.length <= 1) {
+            showToast('匯入失敗：檔案中缺乏有效的題目資料', 'error');
+            return;
+          }
+
+          let addedCount = 0;
+          const cleanVal = (val) => (val !== undefined && val !== null) ? String(val).trim() : '';
+
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length < 5) continue;
+
+            let category = '預設分類';
+            let qText = '', correct = '', w1 = '', w2 = '', w3 = '';
+
+            if (row.length >= 6) {
+              category = cleanVal(row[0]) || '預設分類';
+              qText = cleanVal(row[1]);
+              correct = cleanVal(row[2]);
+              w1 = cleanVal(row[3]);
+              w2 = cleanVal(row[4]);
+              w3 = cleanVal(row[5]);
+            } else {
+              qText = cleanVal(row[0]);
+              correct = cleanVal(row[1]);
+              w1 = cleanVal(row[2]);
+              w2 = cleanVal(row[3]);
+              w3 = cleanVal(row[4]);
+            }
+
+            if (qText !== '' && correct !== '' && w1 !== '' && w2 !== '' && w3 !== '') {
+              questionBank.push({
+                category: category,
+                question: qText,
+                correct: correct,
+                wrong: [w1, w2, w3],
+                dispatched: true
+              });
+              addedCount++;
+            }
+          }
+
+          if (addedCount > 0) {
+            db.ref('questions').set(questionBank);
+            showToast(`成功從 Excel 匯入 ${addedCount} 題題目！`, 'success');
+          } else {
+            showToast('未發現符合格式的題目列', 'warning');
+          }
+
+        } catch (err) {
+          console.error(err);
+          showToast('解析 Excel 檔案發生錯誤', 'error');
+        }
+        event.target.value = '';
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function openBatchSemicolonModal() {
+      document.getElementById('batch-import-text').value = '';
+      openModal('modal-batch-import');
+    }
+
+    function executeBatchSemicolonImport() {
+      const text = document.getElementById('batch-import-text').value.trim();
+      const defaultCat = document.getElementById('batch-category-input')?.value.trim() || '預設分類';
+
+      if (!text) {
+        showToast('請輸入批次匯入內容', 'warning');
+        return;
+      }
+
+      const lines = text.split('\n');
+      let addedCount = 0;
+
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+
+        const parts = trimmed.split(/;|；/).map(p => p.trim());
+        let category = defaultCat;
+        let qText = '', correct = '', w1 = '', w2 = '', w3 = '';
+
+        if (parts.length >= 6) {
+          category = parts[0] || defaultCat;
+          qText = parts[1];
+          correct = parts[2];
+          w1 = parts[3];
+          w2 = parts[4];
+          w3 = parts[5];
+        } else if (parts.length >= 5) {
+          qText = parts[0];
+          correct = parts[1];
+          w1 = parts[2];
+          w2 = parts[3];
+          w3 = parts[4];
+        }
+
+        if (qText !== '' && correct !== '' && w1 !== '' && w2 !== '' && w3 !== '') {
+          questionBank.push({
+            category: category,
+            question: qText,
+            correct: correct,
+            wrong: [w1, w2, w3],
+            dispatched: true
+          });
+          addedCount++;
+        }
+      });
+
+      if (addedCount > 0) {
+        db.ref('questions').set(questionBank);
+        closeModal('modal-batch-import');
+        showToast(`成功分號批次匯入 ${addedCount} 題！`, 'success');
+      } else {
+        showToast('格式不符合，請確認格式為：題目; 正確答案; 錯誤1; 錯誤2; 錯誤3', 'error');
+      }
+    }
+
+    /* ==========================================================================
+       11. CLASS WRONG-QUESTION ANALYTICS LOGIC
+       ========================================================================== */
+    function renderAnalyticsTab() {
+      updateCategoryDropdowns();
+      const container = document.getElementById('analytics-cards-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const studentsList = Object.values(allStudentsData || {});
+      const catFilter = document.getElementById('analytics-category-filter')?.value || 'ALL';
+
+      if (questionBank.length === 0) {
+        container.innerHTML = `
+          <div class="glass-card rounded-2xl p-8 text-center text-slate-400 text-xs">
+            目前題庫無資料
+          </div>
+        `;
+        return;
+      }
+
+      let displayedCount = 0;
+
+      questionBank.forEach((q, qIdx) => {
+        const qCat = q.category || '預設分類';
+        if (catFilter !== 'ALL' && qCat !== catFilter) return;
+
+        displayedCount++;
+
+        let totalWrongAttempts = 0;
+        const studentsWhoGotWrong = [];
+        const optionChoiceCounts = {};
+
+        studentsList.forEach(st => {
+          const wRec = st.wrongRecords?.[qIdx];
+          if (wRec && wRec.wrongAttempts > 0) {
+            totalWrongAttempts += wRec.wrongAttempts;
+            studentsWhoGotWrong.push({
+              seat: st.seat,
+              nickname: st.nickname,
+              wrongAttempts: wRec.wrongAttempts,
+              pickedOptions: wRec.pickedOptions || []
+            });
+
+            (wRec.pickedOptions || []).forEach(opt => {
+              optionChoiceCounts[opt] = (optionChoiceCounts[opt] || 0) + 1;
+            });
+          }
+        });
+
+        const card = document.createElement('div');
+        card.className = "glass-card rounded-2xl p-5 border border-slate-700/50 shadow-lg space-y-4";
+
+        const wrongStudentTags = studentsWhoGotWrong.map(s => 
+          `<span class="px-2 py-1 rounded-lg bg-rose-500/10 text-rose-300 border border-rose-500/20 text-xs">
+            [${s.seat}] ${s.nickname} (錯 ${s.wrongAttempts} 次)
+          </span>`
+        ).join(' ');
+
+        const optionDistribution = Object.entries(optionChoiceCounts).map(([optText, count]) =>
+          `<div class="flex items-center justify-between text-xs text-slate-300 bg-slate-950/50 px-3 py-1.5 rounded-lg border border-slate-800">
+            <span>誘答選項：<span class="text-rose-300 font-semibold">${renderMathText(optText)}</span></span>
+            <span class="font-bold text-amber-400">${count} 人次選擇</span>
+          </div>`
+        ).join('');
+
+        const isDispatched = q.dispatched !== false;
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-4 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-blue-400 uppercase tracking-wider">第 ${qIdx + 1} 題</span>
+                <span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-medium">${qCat}</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${isDispatched ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}">
+                  ${isDispatched ? '已派送' : '未派送'}
+                </span>
+              </div>
+              <div class="text-base font-semibold text-slate-100 mt-1.5">${renderMathText(q.question)}</div>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <div class="text-xs text-slate-400">總答錯人次</div>
+              <div class="text-xl font-black ${totalWrongAttempts > 0 ? 'text-rose-400' : 'text-emerald-400'}">${totalWrongAttempts} 次</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div class="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                正確答案
+              </div>
+              <div class="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/40 text-emerald-300 text-xs">
+                ${renderMathText(q.correct)}
+              </div>
+            </div>
+
+            <div>
+              <div class="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1.5">
+                <i class="fa-solid fa-users text-rose-400"></i>
+                曾答錯之學生名單 (${studentsWhoGotWrong.length} 人)
+              </div>
+              <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                ${studentsWhoGotWrong.length > 0 ? wrongStudentTags : '<span class="text-xs text-slate-500">尚無學生在此題答錯</span>'}
+              </div>
+            </div>
+          </div>
+
+          ${Object.keys(optionChoiceCounts).length > 0 ? `
+            <div class="pt-2 border-t border-slate-800/80">
+              <div class="text-xs font-bold text-slate-400 mb-2">錯誤選項吸引力分析 (誘答力)</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                ${optionDistribution}
+              </div>
+            </div>
+          ` : ''}
+        `;
+
+        container.appendChild(card);
+      });
+
+      if (displayedCount === 0) {
+        container.innerHTML = `
+          <div class="glass-card rounded-2xl p-8 text-center text-slate-400 text-xs">
+            此分類中無任何題目
+          </div>
+        `;
+      }
+    }
+
+    /* ==========================================================================
+       12. HISTORICAL RECORDS LOGIC
+       ========================================================================== */
+    async function archiveCurrentSession() {
+      const studentsList = Object.values(allStudentsData || {});
+      if (studentsList.length === 0) {
+        showToast('目前無任何學生作答資料可供歸檔！', 'warning');
+        return;
+      }
+
+      const defaultName = `測驗戰報_${new Date().toLocaleString('zh-TW', { hour12: false }).replace(/[\/:\s]/g, '-')}`;
+      const sessionName = prompt('請輸入此份歷史紀錄的名稱：', defaultName);
+
+      if (sessionName === null) return;
+
+      const newHistoryRef = db.ref('history').push();
+      const historyPayload = {
+        id: newHistoryRef.key,
+        name: sessionName.trim() || defaultName,
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        dateStr: new Date().toLocaleString('zh-TW'),
+        studentCount: studentsList.length,
+        students: JSON.parse(JSON.stringify(allStudentsData)),
+        questionsSnapshot: JSON.parse(JSON.stringify(questionBank))
+      };
+
+      await newHistoryRef.set(historyPayload);
+      showToast(`已成功歸檔歷史紀錄：「${historyPayload.name}」`, 'success');
+    }
+
+    function renderHistoryTab() {
+      const container = document.getElementById('history-sessions-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const historyList = Object.values(historyData || {});
+
+      if (historyList.length === 0) {
+        container.innerHTML = `
+          <div class="glass-card rounded-2xl p-12 text-center text-slate-400">
+            <i class="fa-solid fa-folder-open text-4xl text-slate-600 mb-3"></i>
+            <p class="text-base font-bold text-white">尚無歷史歸檔紀錄</p>
+            <p class="text-xs text-slate-500 mt-1">您可在「學生即時戰況」點擊「歸檔當前戰報」將測驗結果永久保存。</p>
+          </div>
+        `;
+        return;
+      }
+
+      historyList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      historyList.forEach((session, idx) => {
+        const card = document.createElement('div');
+        card.className = "glass-card rounded-2xl p-5 border border-slate-700/50 shadow-xl space-y-4";
+
+        const studentsArr = Object.values(session.students || {});
+        studentsArr.sort((a, b) => (a.seat || '').localeCompare(b.seat || ''));
+
+        const raceRanked = studentsArr.slice().sort((a,b) => (b.steps || 0) - (a.steps || 0));
+
+        let studentRows = studentsArr.map(st => `
+          <tr class="hover:bg-slate-900/50 transition">
+            <td class="py-2.5 px-3 font-bold text-white">${st.seat || ''}</td>
+            <td class="py-2.5 px-3 font-medium text-slate-200">${st.nickname || ''}</td>
+            <td class="py-2.5 px-3 font-black text-emerald-400">${st.steps || 0} 步</td>
+            <td class="py-2.5 px-3 font-black text-amber-400">${st.score || 0} 分</td>
+            <td class="py-2.5 px-3 text-xs text-slate-300">${st.progress || 0} / ${st.totalQuestions || 0}</td>
+            <td class="py-2.5 px-3 text-xs font-bold ${Object.keys(st.wrongRecords || {}).length > 0 ? 'text-rose-400' : 'text-slate-400'}">${Object.keys(st.wrongRecords || {}).length} 題</td>
+          </tr>
+        `).join('');
+
+        const sessionId = session.id;
+
+        card.innerHTML = `
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  紀錄 #${historyList.length - idx}
+                </span>
+                <h4 class="text-base font-bold text-white">${session.name || '未命名紀錄'}</h4>
+              </div>
+              <p class="text-xs text-slate-400 mt-1">
+                <i class="fa-regular fa-calendar-days text-blue-400 mr-1"></i> 歸檔時間：${session.dateStr || '未知時間'} ｜
+                <i class="fa-solid fa-users text-emerald-400 mr-1"></i> 參賽人數：${session.studentCount || studentsArr.length} 人
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button onclick="exportHistoryCSV('${sessionId}')" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-emerald-400 border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-file-csv"></i>
+                <span>匯出 CSV</span>
+              </button>
+              <button onclick="deleteHistorySession('${sessionId}')" class="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-xs font-medium text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-trash"></i>
+                <span>刪除紀錄</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800/80 text-xs">
+            <div>
+              <span class="text-slate-400">冠軍跑者：</span>
+              <span class="font-bold text-emerald-300">${raceRanked[0] ? `[${raceRanked[0].seat}] ${raceRanked[0].nickname} (${raceRanked[0].steps||0}步)` : '無'}</span>
+            </div>
+            <div>
+              <span class="text-slate-400">總參賽人數：</span>
+              <span class="font-bold text-amber-300">${studentsArr.length} 人</span>
+            </div>
+            <div>
+              <span class="text-slate-400">平均分數：</span>
+              <span class="font-bold text-blue-300">${studentsArr.length > 0 ? Math.round(studentsArr.reduce((a,b)=>a+(b.score||0),0)/studentsArr.length) : 0} 分</span>
+            </div>
+          </div>
+
+          <div class="space-y-3 pt-2">
+            <details class="group bg-slate-950/40 rounded-xl border border-slate-800/80 p-3">
+              <summary class="text-xs font-bold text-blue-400 hover:text-blue-300 cursor-pointer transition flex items-center justify-between select-none">
+                <span class="flex items-center gap-2"><i class="fa-solid fa-table-list"></i> 檢視學生成績戰報列表 (${studentsArr.length} 人)</span>
+                <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-slate-500"></i>
+              </summary>
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-800">
+                <table class="w-full text-left text-xs text-slate-300">
+                  <thead class="bg-slate-950/80 uppercase text-slate-400 border-b border-slate-800">
+                    <tr>
+                      <th class="py-2.5 px-3 font-bold">座號</th>
+                      <th class="py-2.5 px-3 font-bold">暱稱</th>
+                      <th class="py-2.5 px-3 font-bold text-emerald-400">總步數</th>
+                      <th class="py-2.5 px-3 font-bold text-amber-400">得分</th>
+                      <th class="py-2.5 px-3 font-bold">答題進度</th>
+                      <th class="py-2.5 px-3 font-bold text-rose-400">錯題數</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-800/60">
+                    ${studentRows || '<tr><td colspan="6" class="p-3 text-center text-slate-500">無學生成績紀錄</td></tr>'}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function exportHistoryCSV(sessionId) {
+      const session = historyData[sessionId];
+      if (!session || !session.students) {
+        showToast('找不到該筆歷史紀錄數據', 'error');
+        return;
+      }
+
+      const studentsList = Object.values(session.students || {});
+      studentsList.sort((a, b) => (a.seat || '').localeCompare(b.seat || ''));
+
+      let csvContent = "\uFEFF座號,暱稱,目前總步數,目前得分,答題進度,總題數,狀態,重來次數,總錯題次數\n";
+      studentsList.forEach(st => {
+        const wrongTotal = Object.values(st.wrongRecords || {}).reduce((acc, curr) => acc + (curr.wrongAttempts || 0), 0);
+        csvContent += `"${st.seat || ''}","${st.nickname || ''}",${st.steps || 0},${st.score || 0},${st.progress || 0},${st.totalQuestions || 0},"${st.status || ''}",${st.restartCount || 0},${wrongTotal}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${session.name || '歷史戰報'}_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    async function deleteHistorySession(sessionId) {
+      if (await customConfirm('確認刪除歷史紀錄', '您確定要刪除這筆歷史歸檔紀錄嗎？刪除後無法復原。')) {
+        db.ref(`history/${sessionId}`).remove();
+        showToast('已刪除該筆歷史紀錄', 'success');
+      }
+    }
+
+    async function confirmClearAllHistory() {
+      if (await customConfirm('清空所有歷史歸檔', '確定要清空 Firebase 中的所有歷史測驗紀錄嗎？此操作無法復原！')) {
+        db.ref('history').remove();
+        showToast('已清空所有歷史紀錄', 'success');
+      }
+    }
+
+    // Auto load KaTeX renderer on window load
+    window.onload = function() {
+      if (window.renderMathInElement) {
+        window.renderMathInElement(document.body);
+      }
+    };
+  </script>
+</body>
+</html>
