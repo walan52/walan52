@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>學生作業繳交狀態（僅觀看）</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #tableContainer {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid #ccc;
+    }
+    table {
+      border-collapse: collapse;
+      margin-top: 20px;
+      width: max-content;
+      min-width: 100%;
+    }
+    th, td {
+      border: 1px solid #999;
+      padding: 6px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    th {
+      background: #f0f0f0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .未交 {
+      background-color: #fbb;
+    }
+    .未訂正 {
+      background-color: #ff9;
+    }
+    .OK {
+      background-color: #9f9;
+    }
+    #filterButtons {
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    button, select {
+      padding: 6px 12px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button {
+      background-color: #4caf50;
+      color: white;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    select {
+      background-color: #2196F3;
+      color: white;
+    }
+    select:hover {
+      background-color: #0b7dda;
+    }
+    .student-name-btn {
+      cursor: pointer;
+      color: #0056b3;
+      text-decoration: underline;
+    }
+    .student-name-btn:hover {
+      color: #002a80;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h2>學生作業繳交狀態（僅觀看）</h2>
+
+  <div id="filterButtons">
+    <button onclick="showUnfinished()">顯示作業未全OK學生（依未OK數排序）</button>
+    <button onclick="showNetStudents()">顯示有網學生</button>
+    <select id="studentSelect" onchange="showSingleStudent(this.value)">
+      <option value="">-- 選擇學生單獨觀看個人積欠 --</option>
+    </select>
+  </div>
+
+  <div id="tableContainer">
+    <table id="studentTable">
+      <thead>
+        <tr id="headerRow">
+          <th>座號</th>
+          <th>姓名</th>
+        </tr>
+      </thead>
+      <tbody id="studentBody"></tbody>
+    </table>
+  </div>
+
+<script>
+  // ✅ Firebase 初始化（已替換為你提供的新資料）
+  const firebaseConfig = {
+    apiKey: "AIzaSyBIZByjsGNwP949OSVsyi7-PjU7Cpz-gzI",
+    authDomain: "student-score-app-6cca6.firebaseapp.com",
+    databaseURL: "https://student-score-app-6cca6-default-rtdb.firebaseio.com",
+    projectId: "student-score-app-6cca6",
+    storageBucket: "student-score-app-6cca6.firebasestorage.app",
+    messagingSenderId: "887092013369",
+    appId: "1:887092013369:web:42abc19c8cacca737b20e8",
+    measurementId: "G-8SREJH2ER3"
+  };
+
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const studentTableBody = document.getElementById("studentBody");
+  const headerRow = document.getElementById("headerRow");
+  const studentSelect = document.getElementById("studentSelect");
+
+  let allAssignments = {};
+  let allStudents = {};
+  let currentMode = "unfinished";
+  let currentStudentId = "";
+
+  // 監聽 assignments
+  db.ref("assignments").on("value", snapshot => {
+    allAssignments = snapshot.val() || {};
+    renderTable();
+  });
+
+  // 監聽 students
+  db.ref("students").on("value", snapshot => {
+    allStudents = snapshot.val() || {};
+    updateStudentSelect();
+    renderTable();
+  });
+
+  // 更新學生下拉選單
+  function updateStudentSelect() {
+    const previousValue = studentSelect.value || currentStudentId;
+    studentSelect.innerHTML = '<option value="">-- 選擇學生單獨觀看個人積欠 --</option>';
+
+    const studentList = Object.values(allStudents).sort((a, b) => Number(a.id) - Number(b.id));
+
+    studentList.forEach(student => {
+      const opt = document.createElement("option");
+      opt.value = student.id;
+      opt.textContent = `${student.id}號 ${student.name}`;
+      studentSelect.appendChild(opt);
+    });
+
+    studentSelect.value = previousValue;
+  }
+
+  // 顯示未OK學生
+  function showUnfinished() {
+    currentMode = "unfinished";
+    currentStudentId = "";
+    studentSelect.value = "";
+    renderTable();
+  }
+
+  // 顯示有網學生
+  function showNetStudents() {
+    currentMode = "hasNet";
+    currentStudentId = "";
+    studentSelect.value = "";
+    renderTable();
+  }
+
+  // 顯示單一學生個人積欠作業
+  function showSingleStudent(studentId) {
+    if (!studentId) {
+      showUnfinished();
+      return;
+    }
+    currentMode = "singleStudent";
+    currentStudentId = studentId;
+    studentSelect.value = studentId;
+    renderTable();
+  }
+
+  // 渲染表格
+  function renderTable() {
+    studentTableBody.innerHTML = "";
+
+    const assignmentList = Object.keys(allAssignments).filter(a => !a.includes("電腦"));
+
+    // 統計每個作業的未OK數
+    const assignmentStats = {};
+    assignmentList.forEach(a => assignmentStats[a] = 0);
+
+    Object.values(allStudents).forEach(student => {
+      const { assignments = {} } = student;
+      assignmentList.forEach(a => {
+        const status = assignments[a] || "未交";
+        if (status !== "OK") assignmentStats[a]++;
+      });
+    });
+
+    // 依未OK數排序（由大到小）；如果作業有"舊"這個字，就排到最後面
+    const sortedAssignments = assignmentList.sort((a, b) => {
+      const aOld = a.includes("舊");
+      const bOld = b.includes("舊");
+      if (aOld !== bOld) {
+        return aOld ? 1 : -1; // 帶有"舊"字的作業排到最後面
+      }
+      return assignmentStats[b] - assignmentStats[a]; // 其餘依未OK數排序
+    });
+
+    // 模式一：單獨觀看學生個人積欠作業
+    if (currentMode === "singleStudent") {
+      const student = Object.values(allStudents).find(s => String(s.id) === String(currentStudentId));
+
+      if (!student) {
+        headerRow.innerHTML = "<th>訊息</th>";
+        studentTableBody.innerHTML = "<tr><td>查無此學生資料</td></tr>";
+        return;
+      }
+
+      const { id, name, assignments = {} } = student;
+
+      // 篩選出狀態不是 OK 的積欠作業
+      const owedAssignments = sortedAssignments.filter(a => {
+        const status = assignments[a] || "未交";
+        return status !== "OK";
+      });
+
+      if (owedAssignments.length === 0) {
+        headerRow.innerHTML = "<th>座號</th><th>姓名</th><th>積欠作業數</th><th>狀態</th>";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${id}</td><td>${name}</td><td>0</td><td class="OK">所有作業皆已 OK（無積欠）</td>`;
+        studentTableBody.appendChild(tr);
+      } else {
+        headerRow.innerHTML = "<th>座號</th><th>姓名</th><th>積欠作業名稱</th><th>狀態</th>";
+        owedAssignments.forEach(a => {
+          const status = assignments[a] || "未交";
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${id}</td><td>${name}</td><td>${a}</td><td class="${status}">${status}</td>`;
+          studentTableBody.appendChild(tr);
+        });
+      }
+      return;
+    }
+
+    // 模式二與三：產生全表表頭
+    headerRow.innerHTML = "<th>座號</th><th>姓名</th>";
+    sortedAssignments.forEach(a => {
+      const th = document.createElement("th");
+      th.textContent = `${a} (${assignmentStats[a]})`;
+      headerRow.appendChild(th);
+    });
+
+    // 整理學生資料
+    const studentArray = Object.values(allStudents).map(student => {
+      const { id, name, assignments = {}, netStatus = "無網" } = student;
+
+      let notOKCount = 0;
+      sortedAssignments.forEach(a => {
+        const status = assignments[a] || "未交";
+        if (status !== "OK") notOKCount++;
+      });
+
+      return { id, name, assignments, netStatus, notOKCount };
+    });
+
+    // 篩選模式
+    let filtered = [];
+    if (currentMode === "unfinished") {
+      filtered = studentArray
+        .filter(s => s.notOKCount > 0)
+        .sort((a, b) => b.notOKCount - a.notOKCount || Number(a.id) - Number(b.id));
+    } else if (currentMode === "hasNet") {
+      filtered = studentArray.filter(s => s.netStatus === "有網");
+    } else {
+      filtered = studentArray;
+    }
+
+    // 顯示資料
+    filtered.forEach(student => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${student.id}</td><td class="student-name-btn" onclick="showSingleStudent('${student.id}')" title="點擊觀看個人積欠作業">${student.name}</td>`;
+
+      sortedAssignments.forEach(a => {
+        const status = student.assignments[a] || "未交";
+        const td = document.createElement("td");
+        td.textContent = status;
+        td.className = status;
+        tr.appendChild(td);
+      });
+
+      studentTableBody.appendChild(tr);
+    });
+  }
+</script>
+</body>
+</html>
