@@ -241,7 +241,7 @@
             </div>
 
             <div class="card">
-                <h2>📊 點數加扣與贈與紀錄</h2>
+                <h2>📊 點數加扣與贈與紀錄 (僅保留最近 5 日紀錄)</h2>
                 <table>
                     <thead><tr><th>時間</th><th>異動點數</th><th>說明 / 事由</th></tr></thead>
                     <tbody id="student-point-history"></tbody>
@@ -509,7 +509,7 @@
     let currentStudentId = null;
     let isTeacherLoggedIn = false;
 
-    // 確保資料庫欄位防呆與補全
+    // 確保資料庫欄位防呆與補全，並自動清除超過5天的點數異動紀錄
     function sanitizeDB() {
         if (!db) db = JSON.parse(JSON.stringify(defaultInitialDB));
         if (!Array.isArray(db.students)) db.students = [];
@@ -517,6 +517,17 @@
         if (!Array.isArray(db.orders)) db.orders = [];
         if (!Array.isArray(db.pointLogs)) db.pointLogs = [];
         if (!Array.isArray(db.transferRequests)) db.transferRequests = [];
+
+        // 🗓️ 自動清除超過最近 5 日的點數異動紀錄 (包含今天共往前保留5天)
+        const fiveDaysAgo = new Date();
+        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 4); // 今日加上前 4 天，即為最近 5 天
+        fiveDaysAgo.setHours(0, 0, 0, 0);
+        const cutoffTimestamp = fiveDaysAgo.getTime();
+
+        db.pointLogs = db.pointLogs.filter(log => {
+            const logTime = log.timestamp || (typeof log.id === 'number' ? Math.floor(log.id) : Date.now());
+            return logTime >= cutoffTimestamp;
+        });
 
         db.students.forEach(s => {
             if (s.unlimitedRolls === undefined) s.unlimitedRolls = false;
@@ -742,8 +753,20 @@
     function logPointChange(studentId, amount, reason) {
         sanitizeDB();
         const now = new Date();
+        const timestamp = now.getTime();
         const timeStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        db.pointLogs.unshift({ id: Date.now() + Math.random(), studentId, amount: Number(amount), reason, time: timeStr });
+        
+        db.pointLogs.unshift({ 
+            id: timestamp + Math.random(), 
+            timestamp: timestamp, 
+            studentId, 
+            amount: Number(amount), 
+            reason, 
+            time: timeStr 
+        });
+
+        // 寫入後再次觸發清理，確保持續維護在 5 日內
+        sanitizeDB();
     }
 
     function switchRole(role) {
@@ -1680,6 +1703,7 @@
         if (db.students.length === 0) {
             cardsEl.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #888; padding: 20px;">目前尚無學生資料，請利用上方欄位匯入 Excel/CSV 或貼上文字名單。</div>';
         } else {
+
             db.students.forEach(s => {
                 const card = document.createElement('div');
                 card.className = 'student-card';
