@@ -1,0 +1,1833 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班級好點數網路銀行 🏦 x 世界美食大富翁 🍱</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <!-- Firebase SDK (Compat Version) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, "微軟正黑體"; }
+        body { background-color: #f0f4f8; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        header { text-align: center; border-bottom: 2px dashed #4CAF50; padding-bottom: 15px; margin-bottom: 20px; }
+        h1 { color: #d32f2f; margin: 0; }
+        
+        .role-selector { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        .role-btn { padding: 10px 25px; font-size: 16px; border: none; border-radius: 20px; cursor: pointer; background-color: #e0e0e0; transition: 0.3s; }
+        .role-btn.active { background-color: #ff9800; color: white; font-weight: bold; }
+        
+        .card { background: #f9f9f9; border: 1px solid #e0e0e0; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .card h2 { margin-top: 0; color: #c62828; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        
+        input, select, button, textarea { padding: 8px 12px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; }
+        textarea { width: 100%; height: 80px; resize: vertical; }
+        button.action-btn { background-color: #2196F3; color: white; border: none; cursor: pointer; }
+        button.action-btn:hover { background-color: #1976D2; }
+        button.success-btn { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button.danger-btn { background-color: #f44336; color: white; border: none; cursor: pointer; }
+        button.purple-btn { background-color: #7b1fa2; color: white; border: none; cursor: pointer; }
+        button.purple-btn:hover { background-color: #6a1b9a; }
+
+        /* 40格標準大富翁正方形盤面 CSS */
+        .monopoly-container {
+            display: grid;
+            grid-template-columns: repeat(11, 1fr);
+            grid-template-rows: repeat(11, 1fr);
+            width: 100%;
+            max-width: 950px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            border: 4px solid #333;
+            background: #fef3c7;
+            gap: 2px;
+            padding: 2px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .tile {
+            background: #ffffff;
+            border: 1px solid #94a3b8;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 10px;
+            position: relative;
+            overflow: hidden;
+            padding: 2px;
+        }
+
+        .color-bar {
+            height: 12px;
+            width: 100%;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 2px;
+        }
+        .color-brown { background-color: #8b4513; }      
+        .color-light-blue { background-color: #38bdf8; } 
+        .color-pink { background-color: #ec4899; }       
+        .color-orange { background-color: #f97316; }     
+        .color-red { background-color: #ef4444; }        
+        .color-yellow { background-color: #eab308; }     
+        .color-green { background-color: #22c55e; }      
+        .color-dark-blue { background-color: #1e3a8a; }   
+
+        .tile-title { font-weight: bold; text-align: center; line-height: 1.1; font-size: 10px; word-break: break-all; }
+        .tile-info { text-align: center; color: #64748b; font-size: 9px; }
+        .tile-owner-tag { font-size: 8px; background: #e2e8f0; text-align: center; border-radius: 2px; padding: 1px 0; }
+        
+        .house-indicator { text-align: center; font-size: 9px; color: #d97706; font-weight: bold; }
+        .tile-players { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; margin-top: auto; }
+        .player-chip { background: #e11d48; color: white; font-size: 8px; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+
+        .board-center {
+            grid-column: 2 / 11;
+            grid-row: 2 / 11;
+            background: #fffbebf5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .dice-display { font-size: 36px; margin: 10px 0; }
+        .game-log-box { width: 100%; max-height: 120px; overflow-y: auto; background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; font-size: 12px; text-align: left; margin-top: 10px; }
+
+        .student-grid-5cols, .prize-grid-5cols { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 15px; }
+        @media (max-width: 992px) { .student-grid-5cols, .prize-grid-5cols { grid-template-columns: repeat(2, 1fr); } }
+
+        .student-card { background: white; border: 1px solid #ffcc80; border-top: 4px solid #ff9800; border-radius: 8px; padding: 10px; position: relative; }
+        .student-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+        .student-seat { background: #fff3e0; color: #e65100; font-weight: bold; padding: 2px 6px; border-radius: 10px; font-size: 12px; }
+        .student-name { font-size: 15px; font-weight: bold; }
+        .student-pts { font-size: 18px; color: #e65100; font-weight: bold; text-align: center; margin: 4px 0; }
+        .student-pts.negative { color: #d32f2f; }
+        
+        .quick-action-box { display: flex; flex-direction: column; gap: 5px; }
+        .quick-btn-group { display: flex; gap: 3px; justify-content: center; }
+        .quick-btn-group button { padding: 4px 6px; font-size: 11px; flex: 1; }
+        .custom-pts-group { display: flex; gap: 3px; align-items: center; }
+        .custom-pts-group input.pts-input { width: 50px; text-align: center; padding: 3px; font-size: 12px; }
+        .custom-pts-group input.reason-input { flex: 1; padding: 3px 5px; font-size: 11px; }
+
+        .batch-bar { background: #fff8e1; border: 1px solid #ffe082; padding: 12px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+        .prize-card { background: white; border: 2px solid #ffb74d; border-radius: 10px; padding: 12px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; }
+        .prize-card h3 { margin: 0 0 4px 0; font-size: 15px; color: #e65100; }
+        .prize-points { font-size: 16px; color: #d32f2f; font-weight: bold; margin-bottom: 8px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #fff3e0; }
+        .hidden { display: none !important; }
+        .points-display { font-size: 32px; color: #e65100; font-weight: bold; text-align: center; margin: 10px 0; }
+        .points-display.negative { color: #d32f2f; }
+        .login-box { max-width: 400px; margin: 0 auto; text-align: center; }
+        .login-box input { width: 80%; margin-bottom: 10px; }
+        .user-bar { display: flex; justify-content: space-between; align-items: center; background: #fff3e0; padding: 8px 15px; border-radius: 8px; margin-bottom: 15px; }
+        .upload-area { border: 2px dashed #ff9800; background: #fffde7; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .pts-plus { color: #2e7d32; font-weight: bold; }
+        .pts-minus { color: #d32f2f; font-weight: bold; }
+        
+        .property-manage-box { background: #fff; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .prop-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed #eee; }
+
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; max-width: 1000px; width: 92%; max-height: 85vh; overflow-y: auto; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ab47bc; padding-bottom: 10px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🍱 班級好點數網路銀行 x 世界美食大富翁 🌏</h1>
+        <p>收集世界名菜、再次踩中升級星級餐廳與旗艦米其林大飯店！</p>
+        <div id="db-status-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 15px; font-size: 13px; font-weight: bold; background: #f5f5f5; border: 1px solid #ddd; margin-top: 6px;">
+            <span id="db-status-dot" style="width: 10px; height: 10px; border-radius: 50%; background: #ff9800; display: inline-block;"></span>
+            <span id="db-status-text" style="color: #666;">資料庫連線中...</span>
+        </div>
+    </header>
+
+    <div class="role-selector">
+        <button class="role-btn active" onclick="switchRole('student')">👨‍🎓 學生專區</button>
+        <button class="role-btn" onclick="switchRole('teacher')">👩‍🏫 老師管理專區</button>
+    </div>
+
+    <!-- 學生專區 -->
+    <div id="student-view">
+        <div id="student-login-box" class="card login-box">
+            <h2>🔐 學生登入</h2>
+            <input type="number" id="student-seat-input" placeholder="請輸入座號 (帳號)"><br>
+            <input type="password" id="student-pass-input" placeholder="請輸入密碼"><br>
+            <button class="action-btn" onclick="studentLogin()">登入銀行</button>
+        </div>
+
+        <div id="student-dashboard" class="hidden">
+            <div class="user-bar">
+                <span>👤 歡迎美食家，<b id="student-name-display"></b> 同學！</span>
+                <button onclick="studentLogout()" class="danger-btn">登出</button>
+            </div>
+
+            <div class="card">
+                <h2>💰 我的美食基金存摺</h2>
+                <div class="points-display" id="my-points-container"><span id="my-points">0</span> 點</div>
+            </div>
+
+            <!-- 同學點數贈與 / 轉帳申請功能 -->
+            <div class="card">
+                <h2>🤝 點數贈與 (需老師審核)</h2>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+                    <label style="font-weight: bold;">贈送對象：</label>
+                    <select id="transfer-target-student" style="min-width: 180px;">
+                        <option value="">-- 請選擇同學 --</option>
+                    </select>
+
+                    <label style="font-weight: bold;">贈送點數：</label>
+                    <input type="number" id="transfer-amount" placeholder="輸入點數" min="1" style="width: 110px;">
+
+                    <input type="text" id="transfer-note" placeholder="備註 / 事由 (選填)" style="flex: 1; min-width: 150px;">
+
+                    <button class="purple-btn" onclick="transferPoints()">🎁 申請贈與</button>
+                </div>
+
+                <h3 style="font-size: 14px; margin-bottom: 5px; color: #555;">📋 我的贈與申請紀錄</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>申請時間</th>
+                            <th>贈送對象</th>
+                            <th>點數</th>
+                            <th>備註</th>
+                            <th>審核狀態</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-transfer-requests-list"></tbody>
+                </table>
+            </div>
+
+            <!-- 40格美食大富翁盤面 -->
+            <div class="card">
+                <h2>🎲 40 格環形世界美食地圖 (每日限擲骰一次)</h2>
+                <div class="monopoly-container" id="monopoly-board-grid">
+                    <div class="board-center">
+                        <h2 style="margin:0; color:#c62828;">🍱 世界美食大亨</h2>
+                        <div class="dice-display" id="dice-result-icon">🎲</div>
+                        <button id="roll-dice-btn" class="success-btn" style="font-size:18px; padding: 8px 25px; background-color:#ff9800;" onclick="rollDice()">擲骰子！ (每日乙次，消耗 20 點)</button>
+                        <div class="game-log-box" id="game-log-box">歡迎來到美食大富翁！每天限擲一次骰子，每次需花費 20 點基金。</div>
+                    </div>
+                </div>
+
+                <div class="property-manage-box card">
+                    <h3>🏠 我的美食名店清單 (需再次踩中該格才可升級)</h3>
+                    <div id="my-properties-list">目前尚未擁有美食地產</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🔑 修改登入密碼</h2>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <input type="password" id="student-old-pass" placeholder="舊密碼">
+                    <input type="password" id="student-new-pass" placeholder="新密碼">
+                    <input type="password" id="student-confirm-pass" placeholder="確認新密碼">
+                    <button class="success-btn" onclick="changeStudentPassword()">確認修改</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 點數加扣與贈與紀錄</h2>
+                <table>
+                    <thead><tr><th>時間</th><th>異動點數</th><th>說明 / 事由</th></tr></thead>
+                    <tbody id="student-point-history"></tbody>
+                </table>
+            </div>
+
+            <!-- 獎品兌換商城與學生自主上架 -->
+            <div class="card">
+                <h2>🎁 獎品兌換商城</h2>
+                
+                <div style="margin-bottom: 15px; background: #fff8e1; border: 1px solid #ffe082; padding: 12px; border-radius: 8px;">
+                    <b>🏪 我要上架商品 / 服務 (提供給其他同學兌換)</b><br>
+                    <span style="font-size: 12px; color: #666;">您可以上架自己能提供的服務或物品 (例：幫忙抬午餐、借看筆記等)。當其他同學兌換且經老師審核通過後，您將獲得該點數！</span>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px;">
+                        <input type="text" id="student-new-prize-name" placeholder="商品/服務名稱 (例: 幫忙抬午餐一次)" style="flex: 1; min-width: 160px;">
+                        <input type="number" id="student-new-prize-cost" placeholder="所需點數" min="1" style="width: 110px;">
+                        <button class="purple-btn" onclick="addStudentPrize()" style="font-weight: bold;">➕ 上架商品</button>
+                    </div>
+                </div>
+
+                <div class="prize-grid-5cols" id="student-prize-list"></div>
+            </div>
+
+            <div class="card">
+                <h2>📜 兌換紀錄與狀態</h2>
+                <table>
+                    <thead><tr><th>申請時間</th><th>獎品名稱</th><th>消耗點數</th><th>狀態</th></tr></thead>
+                    <tbody id="student-history"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 老師管理專區 -->
+    <div id="teacher-view" class="hidden">
+        <div id="teacher-login-box" class="card login-box">
+            <h2>🔒 老師身分驗證</h2>
+            <input type="text" id="teacher-account" placeholder="帳號"><br>
+            <input type="password" id="teacher-pass" placeholder="密碼"><br>
+            <button class="action-btn" onclick="teacherLogin()">登入後台</button>
+        </div>
+
+        <div id="teacher-dashboard" class="hidden">
+            <div class="user-bar">
+                <span>👩‍🏫 老師管理後台</span>
+                <div>
+                    <button onclick="openTycoonModal()" class="purple-btn" style="margin-right: 10px; font-weight: bold;">🍱 世界美食大亨狀況</button>
+                    <button onclick="teacherLogout()" class="danger-btn">登出</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📥 匯入與批次新增學生名單</h2>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <div class="upload-area" style="flex: 1; min-width: 280px; margin-bottom: 0;">
+                        <b>📁 方法一：上傳 Excel / CSV 檔案 (.xlsx, .xls, .csv)</b><br>
+                        <span style="font-size: 13px; color: #555;">欄位順序：<b>座號 | 姓名 | 初始點數 | 密碼</b></span><br>
+                        <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" onchange="importExcelFile(event)">
+                    </div>
+
+                    <div style="flex: 1; min-width: 280px; background: #fff8e1; border: 1px solid #ffe082; padding: 12px; border-radius: 8px;">
+                        <b>✏️ 方法二：批次文字貼上新增學生</b><br>
+                        <span style="font-size: 12px; color: #666;">格式 (每行一筆)：<b>座號 姓名 [初始點數] [密碼]</b> (預設500點，密碼預設8010865)</span><br>
+                        <textarea id="batch-add-students-text" placeholder="例如貼上：&#10;1 張小明 500 8010865&#10;2 李小華 500 8010865&#10;3 王大同" style="height: 80px; margin-top: 5px; font-size: 13px;"></textarea>
+                        <button class="purple-btn" onclick="batchAddStudentsText()" style="width: 100%; margin-top: 5px; font-weight: bold;">➕ 執行批次文字新增學生</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>👥 學生點數管理牆</h2>
+                
+                <div class="batch-bar">
+                    <label style="font-weight: bold; cursor: pointer;">
+                        <input type="checkbox" id="select-all-students" onchange="toggleSelectAllStudents(this)"> 全選 / 全不選
+                    </label>
+                    <span style="color:#aaa;">|</span>
+                    <input type="number" id="batch-pts-input" placeholder="加扣點數 (例如: 10 或 -10)" style="width: 180px;">
+                    <input type="text" id="batch-reason-input" placeholder="異動事由 (如: 批次獎勵)" style="width: 200px;">
+                    <button class="success-btn" onclick="batchModifyPoints()">⚡ 批次發放/扣除點數</button>
+                </div>
+
+                <div id="teacher-student-cards" class="student-grid-5cols"></div>
+            </div>
+
+            <!-- 老師後台：學生點數贈與審核與紀錄 -->
+            <div class="card">
+                <h2>🤝 學生點數贈與審核與紀錄</h2>
+                <p style="font-size: 13px; color: #666; margin-top: -5px;">審核同學之間的點數互贈申請。核准後系統將自動進行點數扣除與發放。</p>
+                <div class="batch-bar" style="margin-bottom: 10px;">
+                    <label style="font-weight: bold; cursor: pointer;">
+                        <input type="checkbox" id="select-all-transfers" onchange="toggleSelectAllTransfers(this)"> 全選 / 全不選
+                    </label>
+                    <span style="color:#aaa;">|</span>
+                    <button class="danger-btn" onclick="batchDeleteTransferRequests()">🗑️ 批次刪除選取紀錄</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">選取</th>
+                            <th>時間</th>
+                            <th>贈送學生 (轉出)</th>
+                            <th>接收學生 (轉入)</th>
+                            <th>贈送點數</th>
+                            <th>備註 / 事由</th>
+                            <th>狀態 / 操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teacher-transfer-history"></tbody>
+                </table>
+            </div>
+
+            <!-- 老師後台：土地/地產指派管理 -->
+            <div class="card">
+                <h2>🏡 美食地產 / 土地指派管理</h2>
+                <p style="font-size: 13px; color: #666; margin-top: -5px;">可以直接將名店/土地免費指派給學生，或調整該土地的建築等級（或收回所有權）。</p>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <select id="teacher-assign-tile" style="min-width: 220px;"></select>
+                    <select id="teacher-assign-student" style="min-width: 180px;"></select>
+                    <select id="teacher-assign-houses" style="min-width: 140px;">
+                        <option value="0">標準店面 (0星)</option>
+                        <option value="1">1 星級分店 🏠</option>
+                        <option value="2">2 星級分店 🏠</option>
+                        <option value="3">3 星級分店 🏠</option>
+                        <option value="4">4 星級分店 🏠</option>
+                        <option value="5">⭐️ 米其林大飯店 🏨</option>
+                    </select>
+                    <button class="purple-btn" onclick="assignPropertyByTeacher()">🛠️ 指派 / 更新土地所有權</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🎁 上架 / 管理獎品</h2>
+                <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="new-prize-name" placeholder="獎品名稱 (例: 免寫作業券)">
+                    <input type="number" id="new-prize-cost" placeholder="所需點數 (例: 50)">
+                    <button class="action-btn" onclick="addPrize()">➕ 新增官方獎品</button>
+                </div>
+                <div class="prize-grid-5cols" id="teacher-prize-list"></div>
+            </div>
+
+            <div class="card">
+                <h2>📋 審核學生兌換申請</h2>
+                <div class="batch-bar" style="margin-bottom: 10px;">
+                    <label style="font-weight: bold; cursor: pointer;">
+                        <input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders(this)"> 全選 / 全不選
+                    </label>
+                    <span style="color:#aaa;">|</span>
+                    <button class="danger-btn" onclick="batchDeleteOrders()">🗑️ 批次刪除選取紀錄</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">選取</th>
+                            <th>申請時間</th>
+                            <th>學生 (座號)</th>
+                            <th>申請獎品 / 服務</th>
+                            <th>消耗點數</th>
+                            <th>狀態 / 操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teacher-pending-list"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 世界美食大亨狀況 彈出視窗 -->
+<div id="tycoon-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 style="margin:0; color:#7b1fa2;">🍱 學生「世界美食大亨」遊玩狀況總覽</h2>
+            <button class="danger-btn" onclick="closeTycoonModal()">關閉視窗</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>座號</th>
+                    <th>姓名</th>
+                    <th>美食基金 (點數)</th>
+                    <th>當前位置</th>
+                    <th>擁有美食名店與等級</th>
+                    <th>今日擲骰狀態</th>
+                </tr>
+            </thead>
+            <tbody id="tycoon-status-tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // Firebase Realtime Database 設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyAbQUblapvMlbSlPdNWBXKX2EZ0uJuknkU",
+      authDomain: "game1-27a0d.firebaseapp.com",
+      databaseURL: "https://game1-27a0d-default-rtdb.firebaseio.com",
+      projectId: "game1-27a0d",
+      storageBucket: "game1-27a0d.firebasestorage.app",
+      messagingSenderId: "761305749566",
+      appId: "1:761305749566:web:f5a9825b9c5b0267ab996f",
+      measurementId: "G-HE53RBDNVY"
+    };
+
+    let rtdb = null;
+    let dbRef = null;
+    let isFirebaseOnline = false;
+
+    const defaultBoard40 = [
+        { id: 0, name: "🛫 美食出發", type: "start", price: 0, rent: [0], group: "special" },
+        { id: 1, name: "🍱 台灣滷肉飯", type: "property", price: 80, houseCost: 50, rent: [10, 50, 150, 450, 800, 1200], group: "brown" },
+        { id: 2, name: "🎁 幸運籤餅", type: "chance", price: 0, rent: [0], group: "special" },
+        { id: 3, name: "🧋 珍珠奶茶", type: "property", price: 90, houseCost: 50, rent: [12, 60, 180, 500, 900, 1300], group: "brown" },
+        { id: 4, name: "💸 衛生檢驗費", type: "tax", cost: 30, group: "special" },
+        { id: 5, name: "✈️ 遠東美食機場", type: "station", price: 150, group: "station" },
+        { id: 6, name: "🍜 豚骨拉麵", type: "property", price: 110, houseCost: 60, rent: [15, 75, 225, 650, 1000, 1450], group: "light-blue" },
+        { id: 7, name: "❓ 美食巡估", type: "community", price: 0, rent: [0], group: "special" },
+        { id: 8, name: "🍣 鮭魚握壽司", type: "property", price: 110, houseCost: 60, rent: [15, 75, 225, 650, 1000, 1450], group: "light-blue" },
+        { id: 9, name: "🍤 炸蝦天婦羅", type: "property", price: 120, houseCost: 60, rent: [18, 90, 270, 750, 1150, 1600], group: "light-blue" },
+        { id: 10, name: "🚔 腸胃不適休養", type: "jail", price: 0, group: "special" },
+        { id: 11, name: "🍲 韓式石鍋拌飯", type: "property", price: 140, houseCost: 70, rent: [22, 110, 330, 900, 1300, 1800], group: "pink" },
+        { id: 12, name: "⭐️ 米其林密探", type: "utility", price: 150, group: "utility" },
+        { id: 13, name: "🍗 韓式炸雞", type: "property", price: 140, houseCost: 70, rent: [22, 110, 330, 900, 1300, 1800], group: "pink" },
+        { id: 14, name: "🍢 辣炒年糕", type: "property", price: 150, houseCost: 70, rent: [25, 125, 375, 1000, 1450, 2000], group: "pink" },
+        { id: 15, name: "✈️ 歐洲美食機場", type: "station", price: 150, group: "station" },
+        { id: 16, name: "🍲 泰式酸辣湯", type: "property", price: 170, houseCost: 80, rent: [28, 140, 420, 1100, 1600, 2200], group: "orange" },
+        { id: 17, name: "🎁 幸運籤餅", type: "chance", price: 0, group: "special" },
+        { id: 18, name: "🍗 海南雞飯", type: "property", price: 170, houseCost: 80, rent: [28, 140, 420, 1100, 1600, 2200], group: "orange" },
+        { id: 19, name: "🍛 印度香料咖哩", type: "property", price: 180, houseCost: 80, rent: [32, 160, 480, 1250, 1750, 2400], group: "orange" },
+        { id: 20, name: "🅿️ 免費野餐區", type: "parking", price: 0, group: "special" },
+        { id: 21, name: "🍕 瑪格麗特披薩", type: "property", price: 200, houseCost: 100, rent: [35, 175, 525, 1350, 1900, 2600], group: "red" },
+        { id: 22, name: "❓ 美食巡估", type: "community", price: 0, group: "special" },
+        { id: 23, name: "🍝 肉醬義大利麵", type: "property", price: 200, houseCost: 100, rent: [35, 175, 525, 1350, 1900, 2600], group: "red" },
+        { id: 24, name: "🍰 提拉米蘇", type: "property", price: 210, houseCost: 100, rent: [40, 200, 600, 1500, 2100, 2800], group: "red" },
+        { id: 25, name: "✈️ 北美美食機場", type: "station", price: 150, group: "station" },
+        { id: 26, name: "🥩 法式油封鴨腿", type: "property", price: 230, houseCost: 110, rent: [45, 225, 675, 1650, 2300, 3000], group: "yellow" },
+        { id: 27, name: "🦪 普羅旺斯焗蠔", type: "property", price: 230, houseCost: 110, rent: [45, 225, 675, 1650, 2300, 3000], group: "yellow" },
+        { id: 28, name: "🛵 Foodpanda外送", type: "utility", price: 150, group: "utility" },
+        { id: 29, name: "🧁 法式甜點馬卡龍", type: "property", price: 240, houseCost: 110, rent: [50, 250, 750, 1800, 2500, 3300], group: "yellow" },
+        { id: 30, name: "👮 暴飲暴食強迫送醫", type: "go-to-jail", price: 0, group: "special" },
+        { id: 31, name: "🍔 雙層牛肉起司堡", type: "property", price: 260, houseCost: 130, rent: [55, 275, 825, 1950, 2700, 3600], group: "green" },
+        { id: 32, name: "🍖 煙燻美式烤肋排", type: "property", price: 260, houseCost: 130, rent: [55, 275, 825, 1950, 2700, 3600], group: "green" },
+        { id: 33, name: "🎁 幸運籤餅", type: "chance", price: 0, group: "special" },
+        { id: 34, name: "🍰 紐約重起司蛋糕", type: "property", price: 270, houseCost: 130, rent: [60, 300, 900, 2100, 2900, 3900], group: "green" },
+        { id: 35, name: "✈ 環球美食機場", type: "station", price: 150, group: "station" },
+        { id: 36, name: "❓ 美食巡估", type: "community", price: 0, group: "special" },
+        { id: 37, name: "🥩 日本A5黑毛和牛", type: "property", price: 290, houseCost: 150, rent: [70, 350, 1050, 2400, 3300, 4400], group: "dark-blue" },
+        { id: 38, name: "💎 頂級黑松露稅", type: "tax", cost: 50, group: "special" },
+        { id: 39, name: "🥣 里海黑金剛魚子醬", type: "property", price: 300, houseCost: 150, rent: [80, 400, 1200, 2800, 3800, 5000], group: "dark-blue" }
+    ];
+
+    // 初始資料庫結構
+    let defaultInitialDB = {
+        students: [],
+        prizes: [{ id: 101, name: "免寫一次作業券", cost: 50 }],
+        boardState: defaultBoard40.map(t => ({ ownerId: null, houses: 0 })),
+        orders: [],
+        pointLogs: [],
+        transferRequests: []
+    };
+
+    let localBackup = localStorage.getItem("classBankData_local");
+    let db = localBackup ? JSON.parse(localBackup) : JSON.parse(JSON.stringify(defaultInitialDB));
+
+    let currentStudentId = null;
+    let isTeacherLoggedIn = false;
+
+    // 確保資料庫欄位防呆與補全
+    function sanitizeDB() {
+        if (!db) db = JSON.parse(JSON.stringify(defaultInitialDB));
+        if (!Array.isArray(db.students)) db.students = [];
+        if (!Array.isArray(db.prizes)) db.prizes = [{ id: 101, name: "免寫一次作業券", cost: 50 }];
+        if (!Array.isArray(db.orders)) db.orders = [];
+        if (!Array.isArray(db.pointLogs)) db.pointLogs = [];
+        if (!Array.isArray(db.transferRequests)) db.transferRequests = [];
+
+        db.students.forEach(s => {
+            if (s.unlimitedRolls === undefined) s.unlimitedRolls = false;
+        });
+
+        if (!Array.isArray(db.boardState) || db.boardState.length !== 40) {
+            db.boardState = defaultBoard40.map(t => ({ ownerId: null, houses: 0 }));
+        } else {
+            db.boardState.forEach(tile => {
+                if (!tile) tile = {};
+                if (tile.ownerId === undefined) tile.ownerId = null;
+                if (tile.houses === undefined) tile.houses = 0;
+            });
+        }
+    }
+
+    function updateDbStatus(status, message) {
+        const dot = document.getElementById('db-status-dot');
+        const text = document.getElementById('db-status-text');
+        if (!dot || !text) return;
+
+        if (status === 'online') {
+            dot.style.backgroundColor = '#4CAF50';
+            text.innerText = message || 'Realtime Database 已即時同步';
+            text.style.color = '#2e7d32';
+        } else if (status === 'local') {
+            dot.style.backgroundColor = '#ff9800';
+            text.innerText = message || '本地模式 (Firebase權限不足/未啟用)';
+            text.style.color = '#e65100';
+        } else {
+            dot.style.backgroundColor = '#f44336';
+            text.innerText = message || '資料庫未連線';
+            text.style.color = '#c62828';
+        }
+    }
+
+    // 初始化 Realtime Database 監聽
+    try {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        rtdb = firebase.database();
+        dbRef = rtdb.ref("classBankData/bankState");
+
+        dbRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                isFirebaseOnline = true;
+                db = data;
+                sanitizeDB();
+                localStorage.setItem("classBankData_local", JSON.stringify(db));
+                updateDbStatus('online', 'Realtime Database 已即時同步');
+                renderAll();
+            } else {
+                sanitizeDB();
+                dbRef.set(db).then(() => {
+                    isFirebaseOnline = true;
+                    updateDbStatus('online', 'Realtime Database 已建立並連線');
+                }).catch(err => handleDbError(err));
+            }
+        }, (error) => {
+            handleDbError(error);
+        });
+    } catch (e) {
+        console.warn("Firebase RTDB 初始化異常，自動切換為本地儲存模式：", e);
+        sanitizeDB();
+        updateDbStatus('local', '使用本地儲存 (Firebase未初始化)');
+        renderAll();
+    }
+
+    function handleDbError(error) {
+        console.warn("Firebase 存取受阻，自動啟用本地 LocalStorage 備援：", error);
+        isFirebaseOnline = false;
+        sanitizeDB();
+        if (error && (error.code === 'PERMISSION_DENIED' || error.message.includes('permission_denied'))) {
+            updateDbStatus('local', '使用本地儲存 (請至RTDB開啟Rules權限)');
+        } else {
+            updateDbStatus('local', '使用本地儲存 (未連線至雲端)');
+        }
+        renderAll();
+    }
+
+    function getTodayString() {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function importExcelFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                let importedCount = 0;
+                let newStudents = [];
+
+                jsonRows.forEach((row, index) => {
+                    if (!row || row.length < 2) return;
+                    if (index === 0 && (String(row[0]).includes("座號") || String(row[1]).includes("姓名"))) return;
+
+                    const seat = parseInt(row[0]);
+                    const name = String(row[1]).trim();
+                    const pts = row[2] !== undefined && !isNaN(parseInt(row[2])) ? parseInt(row[2]) : 500;
+                    const pass = row[3] !== undefined ? String(row[3]).trim() : "8010865";
+
+                    if (!isNaN(seat) && name) {
+                        newStudents.push({
+                            id: Date.now() + index,
+                            seat: seat,
+                            name: name,
+                            points: pts,
+                            pass: pass,
+                            position: 0,
+                            lastRollDate: "",
+                            unlimitedRolls: false
+                        });
+                        importedCount++;
+                    }
+                });
+
+                if (importedCount > 0) {
+                    db.students = newStudents;
+                    saveData();
+                    alert(`🎉 成功匯入 ${importedCount} 位學生資料！`);
+                } else {
+                    alert("⚠️ 未讀取到有效的學生資料，請檢查 Excel/CSV 格式。");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("❌ 解析檔案失敗！請確定上傳有效的 Excel (.xlsx) 或 CSV 檔案。");
+            }
+            event.target.value = '';
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    // ✏️ 批次文字貼上新增學生
+    function batchAddStudentsText() {
+        sanitizeDB();
+        const textInput = document.getElementById('batch-add-students-text').value.trim();
+        if (!textInput) {
+            return alert("⚠️ 請先輸入或貼上學生名單文字！");
+        }
+
+        const lines = textInput.split(/\r?\n/);
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        lines.forEach((line, index) => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+
+            // 以空格、Tab 或逗號分隔
+            const parts = trimmed.split(/[\s,,\t]+/);
+            if (parts.length < 2) return;
+
+            const seat = parseInt(parts[0]);
+            const name = parts[1].trim();
+            if (isNaN(seat) || !name) return;
+
+            const pts = (parts[2] !== undefined && !isNaN(parseInt(parts[2]))) ? parseInt(parts[2]) : 500;
+            const pass = parts[3] !== undefined ? parts[3].trim() : "8010865";
+
+            // 檢查座號是否已存在
+            const existingIdx = db.students.findIndex(s => Number(s.seat) === seat);
+
+            if (existingIdx !== -1) {
+                // 更新既有學生
+                db.students[existingIdx].name = name;
+                db.students[existingIdx].points = pts;
+                db.students[existingIdx].pass = pass;
+                updatedCount++;
+            } else {
+                // 新增學生
+                db.students.push({
+                    id: Date.now() + index + Math.floor(Math.random() * 1000),
+                    seat: seat,
+                    name: name,
+                    points: pts,
+                    pass: pass,
+                    position: 0,
+                    lastRollDate: "",
+                    unlimitedRolls: false
+                });
+                addedCount++;
+            }
+        });
+
+        if (addedCount > 0 || updatedCount > 0) {
+            saveData();
+            document.getElementById('batch-add-students-text').value = '';
+            alert(`🎉 批次新增/更新成功！新增 ${addedCount} 位，更新 ${updatedCount} 位學生。`);
+        } else {
+            alert("⚠️ 未讀取到有效的學生格式，請檢查輸入內容。(格式：座號 姓名 [點數] [密碼])");
+        }
+    }
+
+    function saveData() {
+        sanitizeDB();
+        db.students.sort((a, b) => Number(a.seat) - Number(b.seat));
+        
+        localStorage.setItem("classBankData_local", JSON.stringify(db));
+
+        if (dbRef) {
+            dbRef.set(db).catch(err => {
+                console.warn("寫入 Realtime Database 失敗，已安全儲存至本地：", err);
+                updateDbStatus('local', '本地儲存已更新 (Firebase寫入失敗)');
+            });
+        }
+        renderAll();
+    }
+
+    function logPointChange(studentId, amount, reason) {
+        sanitizeDB();
+        const now = new Date();
+        const timeStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        db.pointLogs.unshift({ id: Date.now() + Math.random(), studentId, amount: Number(amount), reason, time: timeStr });
+    }
+
+    function switchRole(role) {
+        document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+        if (role === 'student') {
+            document.querySelectorAll('.role-btn')[0].classList.add('active');
+            document.getElementById('student-view').classList.remove('hidden');
+            document.getElementById('teacher-view').classList.add('hidden');
+        } else {
+            document.querySelectorAll('.role-btn')[1].classList.add('active');
+            document.getElementById('student-view').classList.add('hidden');
+            document.getElementById('teacher-view').classList.remove('hidden');
+        }
+    }
+
+    function checkHasFullGroup(studentId, groupName) {
+        if (groupName === 'special' || groupName === 'station' || groupName === 'utility') return false;
+        const groupTiles = defaultBoard40.filter(t => t.group === groupName);
+        return groupTiles.every(t => String(db.boardState[t.id].ownerId) === String(studentId));
+    }
+
+    function calculateRent(tileId, diceRoll) {
+        const tileDef = defaultBoard40[tileId];
+        const tileState = db.boardState[tileId];
+        const ownerId = tileState.ownerId;
+
+        if (!ownerId) return 0;
+
+        if (tileDef.group === 'station') {
+            const ownedStations = defaultBoard40.filter(t => t.group === 'station' && String(db.boardState[t.id].ownerId) === String(ownerId)).length;
+            return tileDef.price * Math.pow(2, ownedStations - 1);
+        }
+
+        if (tileDef.group === 'utility') {
+            const ownedUtils = defaultBoard40.filter(t => t.group === 'utility' && String(db.boardState[t.id].ownerId) === String(ownerId)).length;
+            const multiplier = ownedUtils === 2 ? 10 : 4;
+            return (diceRoll || 3) * multiplier;
+        }
+
+        const houses = tileState.houses || 0;
+        let baseRent = tileDef.rent[houses];
+
+        if (houses === 0 && checkHasFullGroup(ownerId, tileDef.group)) {
+            baseRent *= 2;
+        }
+        return baseRent;
+    }
+
+    // 切換指定學生的無限擲骰權限
+    function toggleUnlimitedRolls(studentId) {
+        sanitizeDB();
+        const student = db.students.find(s => String(s.id) === String(studentId));
+        if (!student) return;
+
+        student.unlimitedRolls = !student.unlimitedRolls;
+        saveData();
+        alert(`已${student.unlimitedRolls ? '開啟' : '關閉'} 【${student.seat}號 ${student.name}】 的無限制擲骰權限！`);
+    }
+
+    // 🎁 同學之間點數贈與/轉帳申請功能（需老師審核）
+    function transferPoints() {
+        if (!currentStudentId) return;
+        sanitizeDB();
+
+        const sender = db.students.find(s => String(s.id) === String(currentStudentId));
+        if (!sender) return;
+
+        const targetSelect = document.getElementById('transfer-target-student');
+        const amountInput = document.getElementById('transfer-amount');
+        const noteInput = document.getElementById('transfer-note');
+
+        const receiverId = targetSelect.value;
+        const amount = parseInt(amountInput.value);
+        const note = noteInput.value.trim();
+
+        if (!receiverId) return alert("⚠️ 請選擇要贈送點數的同學！");
+        if (String(receiverId) === String(currentStudentId)) return alert("⚠️ 不能轉帳或贈送點數給自己！");
+        if (isNaN(amount) || amount <= 0) return alert("⚠️ 請輸入有效的贈送點數金額 (需為大於 0 的整數)！");
+        if (sender.points < amount) return alert(`⚠️ 您的美食基金點數不足！目前剩餘 ${sender.points} 點。`);
+
+        const receiver = db.students.find(s => String(s.id) === String(receiverId));
+        if (!receiver) return alert("⚠️ 找不到該位同學！");
+
+        const now = new Date();
+        const timeStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        db.transferRequests.unshift({
+            id: Date.now(),
+            senderId: sender.id,
+            receiverId: receiver.id,
+            amount: amount,
+            note: note,
+            status: "待審核",
+            time: timeStr
+        });
+
+        // 清空輸入欄位
+        amountInput.value = '';
+        noteInput.value = '';
+
+        saveData();
+        alert(`🎉 已送出贈送 ${amount} 點給 ${receiver.seat}號 ${receiver.name} 同學的申請，請等待老師審核！`);
+    }
+
+    // 👩‍🏫 老師審核點數贈與申請
+    function handleTransferRequest(requestId, status) {
+        sanitizeDB();
+        const req = db.transferRequests.find(r => r.id === requestId);
+        if (!req) return;
+
+        if (status === '已核准') {
+            const sender = db.students.find(s => String(s.id) === String(req.senderId));
+            const receiver = db.students.find(s => String(s.id) === String(req.receiverId));
+
+            if (!sender || !receiver) {
+                return alert("⚠️ 找不到轉出或轉入的學生資料！");
+
+            }
+
+            if (sender.points < req.amount) {
+                return alert(`⚠️ 贈送者（${sender.seat}號 ${sender.name}）目前的點數剩餘 ${sender.points} 點，不足以支付 ${req.amount} 點，無法核准！`);
+            }
+
+            const reasonNote = req.note ? ` (${req.note})` : '';
+
+            // 扣除贈送者點數並記錄
+            sender.points -= req.amount;
+            logPointChange(sender.id, -req.amount, `贈送點數給 ${receiver.seat}號 ${receiver.name}${reasonNote}`);
+
+            // 增加接收者點數並記錄
+            receiver.points += req.amount;
+            logPointChange(receiver.id, req.amount, `收到 ${sender.seat}號 ${sender.name} 贈與的點數${reasonNote}`);
+
+            req.status = '已核准';
+            alert(`🎉 已核准贈與申請！成功從 ${sender.name} 轉帳 ${req.amount} 點給 ${receiver.name}。`);
+        } else if (status === '已退回') {
+            req.status = '已退回';
+            alert("已退回該筆贈與申請。");
+        }
+
+        saveData();
+    }
+
+    function deleteTransferRequest(requestId) {
+        sanitizeDB();
+        if (confirm("確定要刪除這筆贈與申請紀錄嗎？")) {
+            db.transferRequests = db.transferRequests.filter(r => r.id !== requestId);
+            saveData();
+        }
+    }
+
+    // 🗑️ 批次刪除勾選的點數贈與紀錄
+    function toggleSelectAllTransfers(masterChk) {
+        const chks = document.querySelectorAll('.transfer-select-chk');
+        chks.forEach(c => c.checked = masterChk.checked);
+    }
+
+    function batchDeleteTransferRequests() {
+        sanitizeDB();
+        const selectedChks = document.querySelectorAll('.transfer-select-chk:checked');
+        if (selectedChks.length === 0) return alert("⚠️ 請先勾選要刪除的贈與紀錄！");
+
+        if (confirm(`確定要批次刪除選取的 ${selectedChks.length} 筆贈與紀錄嗎？`)) {
+            const selectedIds = Array.from(selectedChks).map(c => Number(c.value));
+            db.transferRequests = db.transferRequests.filter(r => !selectedIds.includes(Number(r.id)));
+
+            const masterChk = document.getElementById('select-all-transfers');
+            if (masterChk) masterChk.checked = false;
+
+            saveData();
+            alert(`🗑️ 成功批次刪除 ${selectedChks.length} 筆贈與紀錄！`);
+        }
+    }
+
+    // 🎲 學生擲骰子與買地功能
+    function rollDice() {
+        if (!currentStudentId) return;
+        sanitizeDB();
+        const student = db.students.find(s => String(s.id) === String(currentStudentId));
+        if (!student) return;
+
+        const today = getTodayString();
+        const isUnlimited = !!student.unlimitedRolls;
+
+        // 若非無限權限，檢查今日是否已擲過
+        if (!isUnlimited && student.lastRollDate === today) {
+            alert("⚠️ 您今天已經擲過骰子囉！每天限擲一次，明天再來試試手氣吧！");
+            return;
+        }
+
+        const DICE_COST = 20;
+
+        // 若非無限權限，檢查點數是否足夠
+        if (!isUnlimited && student.points < DICE_COST) {
+            alert(`⚠️ 點數不足！每次擲骰子需花費 ${DICE_COST} 點美食基金。`);
+            return;
+        }
+
+        // 扣除點數（若點數不夠但為無限模式，則不強扣）
+        if (student.points >= DICE_COST) {
+            student.points -= DICE_COST;
+            logPointChange(student.id, -DICE_COST, "品嚐美食旅程機票費用");
+        }
+        
+        student.lastRollDate = today;
+
+        const totalDice = Math.floor(Math.random() * 6) + 1;
+        document.getElementById('dice-result-icon').innerText = `🎲 ${totalDice}`;
+
+        let oldPos = student.position || 0;
+        let newPos = (oldPos + totalDice) % 40;
+
+        if (newPos < oldPos) {
+            student.points += 50;
+            logPointChange(student.id, 50, "完成環球美食一圈獎勵");
+            alert("🎉 環球美食巡禮一圈！領取 50 點美食贊助金！");
+        }
+
+        student.position = newPos;
+        const tileDef = defaultBoard40[newPos];
+        const tileState = db.boardState[newPos];
+        let logMsg = `支出 ${DICE_COST} 點擲出 ${totalDice} 點，來到【${tileDef.name}】。`;
+
+        if (tileDef.type === 'property' || tileDef.type === 'station' || tileDef.type === 'utility') {
+            const isUnowned = !tileState.ownerId;
+            const isOwner = String(tileState.ownerId) === String(student.id);
+
+            if (isUnowned) {
+                if (student.points >= tileDef.price) {
+                    if (confirm(`【${tileDef.name}】尚未有主！是否花費 ${tileDef.price} 點買下經營權？`)) {
+                        student.points -= tileDef.price;
+                        tileState.ownerId = student.id;
+                        tileState.houses = 0;
+                        logPointChange(student.id, -tileDef.price, `加盟名店：${tileDef.name}`);
+                        logMsg += ` 成功加盟該美食名店！`;
+                    } else {
+                        logMsg += ` 選擇暫不加盟。`;
+                    }
+                } else {
+                    logMsg += ` 點數不足以加盟此名店 (需 ${tileDef.price} 點)。`;
+                }
+            } else if (!isOwner) {
+                const owner = db.students.find(s => String(s.id) === String(tileState.ownerId));
+                const ownerName = owner ? owner.name : "其他主廚";
+                const rentCost = calculateRent(newPos, totalDice);
+
+                student.points -= rentCost;
+                if (owner) owner.points += rentCost;
+
+                logPointChange(student.id, -rentCost, `支付 ${ownerName} 餐飲消費`);
+                if (owner) logPointChange(owner.id, rentCost, `收取 ${student.name} 餐飲消費`);
+                logMsg += ` 品嚐了 ${ownerName} 的名菜，支付餐費 ${rentCost} 點！`;
+            } else {
+                if (tileDef.type === 'property') {
+                    if (tileState.houses >= 5) {
+                        logMsg += ` 回到自己的旗艦大飯店巡視！ (已達最高等級)`;
+                    } else {
+                        const nextLevel = (tileState.houses || 0) + 1;
+                        const nextName = nextLevel === 5 ? "米其林頂級大飯店 🏨" : `${nextLevel} 星級分店 🏠`;
+                        
+                        if (student.points >= tileDef.houseCost) {
+                            if (confirm(`再次來到您經營的【${tileDef.name}】！\n是否要花費 ${tileDef.houseCost} 點升級為【${nextName}】？`)) {
+                                student.points -= tileDef.houseCost;
+                                tileState.houses = nextLevel;
+                                logPointChange(student.id, -tileDef.houseCost, `升級【${tileDef.name}】為 ${nextName}`);
+                                logMsg += ` 成功將店面升級為 ${nextName}！`;
+                            } else {
+                                logMsg += ` 選擇暫不升級店面。`;
+                            }
+                        } else {
+                            logMsg += ` 再次巡視自己的店面，但點數不足無法升級 (需要 ${tileDef.houseCost} 點)。`;
+                        }
+                    }
+                } else {
+                    logMsg += ` 回到自己的設施巡視。`;
+                }
+            }
+        } else if (tileDef.type === 'tax') {
+            student.points -= tileDef.cost;
+            logPointChange(student.id, -tileDef.cost, `繳納稅費：${tileDef.name}`);
+            logMsg += ` 繳納稅費 ${tileDef.cost} 點。`;
+        } else if (tileDef.type === 'go-to-jail') {
+            student.position = 10;
+            logMsg += ` 🚨 吃太多暴飲暴食！強制送醫休息，移至 10 號格。`;
+        } else if (tileDef.type === 'chance' || tileDef.type === 'community') {
+            const events = [
+                { msg: "榮獲米其林星級推薦！獲得獎金 30 點", pts: 30 },
+                { msg: "擔任美食比賽評審獲酬勞 20 點", pts: 20 },
+                { msg: "購買昂貴進口食材，支出 25 點", pts: -25 },
+                { msg: "獲得美食節目採訪報導！獲得獎金 15 點", pts: 15 }
+            ];
+            const ev = events[Math.floor(Math.random() * events.length)];
+            student.points += ev.pts;
+            logPointChange(student.id, ev.pts, `美食事件：${ev.msg}`);
+            logMsg += ` 【${tileDef.name}】${ev.msg}`;
+        }
+
+        document.getElementById('game-log-box').innerText = logMsg;
+        saveData();
+    }
+
+    // 👩‍🏫 老師直接指派/設定土地給學生
+    function assignPropertyByTeacher() {
+        sanitizeDB();
+        const tileSelect = document.getElementById('teacher-assign-tile');
+        const studentSelect = document.getElementById('teacher-assign-student');
+        const housesSelect = document.getElementById('teacher-assign-houses');
+
+        const tileId = parseInt(tileSelect.value);
+        const studentIdVal = studentSelect.value;
+        const housesVal = parseInt(housesSelect.value);
+
+        if (isNaN(tileId)) {
+            return alert("⚠️ 請選擇要設定的土地或名店！");
+        }
+
+        const tileDef = defaultBoard40[tileId];
+        const tileState = db.boardState[tileId];
+
+        if (studentIdVal === "none") {
+            tileState.ownerId = null;
+            tileState.houses = 0;
+            saveData();
+            alert(`🗑️ 已將【${tileDef.name}】收回為自由土地！`);
+        } else {
+            const student = db.students.find(s => String(s.id) === String(studentIdVal));
+            if (!student) return alert("⚠️ 找不到該位學生！");
+
+            tileState.ownerId = student.id;
+            tileState.houses = housesVal;
+            saveData();
+            
+            const levelName = housesVal === 5 ? "米其林頂級大飯店 🏨" : (housesVal > 0 ? `${housesVal} 星級分店` : "標準店面");
+            alert(`🎉 已成功將【${tileDef.name}】指派給 ${student.seat}號 ${student.name} (${levelName})！`);
+        }
+    }
+
+    function populateTeacherPropertySelects() {
+        const tileSelect = document.getElementById('teacher-assign-tile');
+        const studentSelect = document.getElementById('teacher-assign-student');
+
+        if (!tileSelect || !studentSelect) return;
+
+        const currentTileVal = tileSelect.value;
+        const currentStudentVal = studentSelect.value;
+
+        tileSelect.innerHTML = '<option value="">-- 請選擇土地 / 美食名店 --</option>';
+        defaultBoard40.forEach(t => {
+            if (t.type === 'property' || t.type === 'station' || t.type === 'utility') {
+                const st = db.boardState[t.id];
+                let ownerName = "無所有人";
+                if (st && st.ownerId) {
+                    const owner = db.students.find(s => String(s.id) === String(st.ownerId));
+                    if (owner) ownerName = `${owner.seat}號 ${owner.name}`;
+                }
+                tileSelect.innerHTML += `<option value="${t.id}">${t.name} (目前: ${ownerName})</option>`;
+            }
+        });
+
+        studentSelect.innerHTML = '<option value="none">❌ 無所有人 (收回土地)</option>';
+        db.students.forEach(s => {
+            studentSelect.innerHTML += `<option value="${s.id}">👨‍🎓 ${s.seat}號 ${s.name}</option>`;
+        });
+
+        if (currentTileVal) tileSelect.value = currentTileVal;
+        if (currentStudentVal) studentSelect.value = currentStudentVal;
+    }
+
+    function renderBoard40() {
+        sanitizeDB();
+        const boardGrid = document.getElementById('monopoly-board-grid');
+        const oldTiles = boardGrid.querySelectorAll('.tile');
+        oldTiles.forEach(t => t.remove());
+
+        const getGridCoords = (index) => {
+            if (index >= 0 && index <= 10) return { r: 11, c: 11 - index };
+            if (index >= 11 && index <= 20) return { r: 11 - (index - 10), c: 1 };
+            if (index >= 21 && index <= 30) return { r: 1, c: 1 + (index - 20) };
+            if (index >= 31 && index <= 39) return { r: 1 + (index - 30), c: 11 };
+        };
+
+        defaultBoard40.forEach((tile, idx) => {
+            const coords = getGridCoords(idx);
+            const state = db.boardState[idx];
+            const tileDiv = document.createElement('div');
+            tileDiv.className = 'tile';
+            tileDiv.style.gridRow = coords.r;
+            tileDiv.style.gridColumn = coords.c;
+
+            let colorBar = '';
+            if (tile.group && tile.group !== 'special' && tile.group !== 'station' && tile.group !== 'utility') {
+                colorBar = `<div class="color-bar color-${tile.group}"></div>`;
+            }
+
+            let ownerTag = '';
+            if (state && state.ownerId) {
+                const owner = db.students.find(s => String(s.id) === String(state.ownerId));
+                ownerTag = `<div class="tile-owner-tag">${owner ? owner.name : '已售出'}</div>`;
+            }
+
+            let houseText = '';
+            if (state && state.houses > 0) {
+                houseText = `<div class="house-indicator">${state.houses === 5 ? '⭐️米其林' : '🏠' + state.houses + '星'}</div>`;
+            }
+
+            const playersOnTile = db.students.filter(s => (s.position || 0) === idx);
+            const chipsHtml = playersOnTile.map(p => `<div class="player-chip" title="${p.name}">${p.seat}</div>`).join('');
+
+            tileDiv.innerHTML = `
+                ${colorBar}
+                <div class="tile-title">${tile.name}</div>
+                ${tile.price ? `<div class="tile-info">${tile.price}點</div>` : ''}
+                ${houseText}
+                ${ownerTag}
+                <div class="tile-players">${chipsHtml}</div>
+            `;
+            boardGrid.appendChild(tileDiv);
+        });
+    }
+
+    function changeStudentPassword() {
+        if (!currentStudentId) return;
+        sanitizeDB();
+        const student = db.students.find(s => String(s.id) === String(currentStudentId));
+        const oldPass = document.getElementById('student-old-pass').value.trim();
+        const newPass = document.getElementById('student-new-pass').value.trim();
+        const confirmPass = document.getElementById('student-confirm-pass').value.trim();
+
+        if (oldPass !== student.pass) return alert("舊密碼輸入錯誤！");
+        if (!newPass) return alert("新密碼不能為空！");
+        if (newPass !== confirmPass) return alert("兩次輸入的新密碼不一致！");
+
+        student.pass = newPass;
+        saveData();
+        alert("🔑 密碼修改成功！");
+        document.getElementById('student-old-pass').value = '';
+        document.getElementById('student-new-pass').value = '';
+        document.getElementById('student-confirm-pass').value = '';
+    }
+
+    function studentLogin() {
+        sanitizeDB();
+        const seatInput = parseInt(document.getElementById('student-seat-input').value);
+        const passInput = document.getElementById('student-pass-input').value.trim();
+
+        const student = db.students.find(s => s.seat === seatInput);
+        if (student && student.pass === passInput) {
+            currentStudentId = student.id;
+            document.getElementById('student-login-box').classList.add('hidden');
+            document.getElementById('student-dashboard').classList.remove('hidden');
+            renderAll();
+        } else {
+            alert("❌ 座號或密碼錯誤！");
+        }
+    }
+
+    function studentLogout() {
+        currentStudentId = null;
+        document.getElementById('student-seat-input').value = '';
+        document.getElementById('student-pass-input').value = '';
+        document.getElementById('student-login-box').classList.remove('hidden');
+        document.getElementById('student-dashboard').classList.add('hidden');
+    }
+
+    function teacherLogin() {
+        const acc = document.getElementById('teacher-account').value.trim();
+        const pass = document.getElementById('teacher-pass').value.trim();
+        if (acc === 'walan52' && pass === 'source88') {
+            isTeacherLoggedIn = true;
+            document.getElementById('teacher-login-box').classList.add('hidden');
+            document.getElementById('teacher-dashboard').classList.remove('hidden');
+            renderAll();
+        } else {
+            alert("❌ 帳號或密碼錯誤！");
+        }
+    }
+
+    function teacherLogout() {
+        isTeacherLoggedIn = false;
+        document.getElementById('teacher-account').value = '';
+        document.getElementById('teacher-pass').value = '';
+        document.getElementById('teacher-login-box').classList.remove('hidden');
+        document.getElementById('teacher-dashboard').classList.add('hidden');
+    }
+
+    function deleteStudent(studentId) {
+        sanitizeDB();
+        const student = db.students.find(s => String(s.id) === String(studentId));
+        if (!student) return;
+
+        if (confirm(`⚠ 確定要刪除學生【${student.seat}號 ${student.name}】嗎？此操作無法復原。`)) {
+            db.students = db.students.filter(s => String(s.id) !== String(studentId));
+
+            db.boardState.forEach(tile => {
+                if (String(tile.ownerId) === String(studentId)) {
+                    tile.ownerId = null;
+                    tile.houses = 0;
+                }
+            });
+
+            saveData();
+            alert(`🗑️ 已成功刪除 ${student.name} 同學的資料！`);
+        }
+    }
+
+    function redeemPrize(prizeId) {
+        if (!currentStudentId) return;
+        sanitizeDB();
+        const student = db.students.find(s => String(s.id) === String(currentStudentId));
+        const prize = db.prizes.find(p => p.id === prizeId);
+
+        if (!student || !prize) return;
+        
+        // 防呆：無法兌換自己發布的商品
+        if (prize.creatorId && String(prize.creatorId) === String(currentStudentId)) {
+            return alert("⚠️ 不能申請兌換自己上架的商品/服務！");
+        }
+
+        if (student.points < prize.cost) return alert("⚠ 點數不足，無法兌換此獎品！");
+
+        student.points -= prize.cost;
+        logPointChange(student.id, -prize.cost, `兌換商品/服務：${prize.name}`);
+
+        const now = new Date();
+        const timeStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        db.orders.unshift({
+            id: Date.now(),
+            studentId: student.id,
+            prizeName: prize.name,
+            cost: prize.cost,
+            creatorId: prize.creatorId || null,
+            status: "待審核",
+            time: timeStr
+        });
+
+        saveData();
+        alert(`🎉 已送出【${prize.name}】兌換申請，請等待老師審核！`);
+    }
+
+    // 🏪 學生自行上架商品/服務
+    function addStudentPrize() {
+        if (!currentStudentId) return;
+        sanitizeDB();
+        const nameInput = document.getElementById('student-new-prize-name');
+        const costInput = document.getElementById('student-new-prize-cost');
+        const name = nameInput.value.trim();
+        const cost = parseInt(costInput.value);
+
+        if (!name || isNaN(cost) || cost <= 0) {
+            return alert("⚠️ 請輸入正確的商品/服務名稱與所需點數！");
+        }
+
+        db.prizes.push({ 
+            id: Date.now(), 
+            name: name, 
+            cost: cost,
+            creatorId: currentStudentId
+        });
+
+        nameInput.value = '';
+        costInput.value = '';
+        saveData();
+        alert(`🎉 成功上架商品：【${name}】 (${cost} 點)！`);
+    }
+
+    // 🗑️ 學生下架自己發布的商品
+    function deleteStudentPrize(prizeId) {
+        sanitizeDB();
+        const prize = db.prizes.find(p => p.id === prizeId);
+        if (!prize) return;
+
+        if (confirm(`確定要下架自己上架的商品【${prize.name}】嗎？`)) {
+            db.prizes = db.prizes.filter(p => p.id !== prizeId);
+            saveData();
+            alert(`🗑️ 已成功下架【${prize.name}】！`);
+        }
+    }
+
+    function modifyPoints(studentId, amount, reason) {
+        sanitizeDB();
+        const student = db.students.find(s => String(s.id) === String(studentId));
+        if (!student) return;
+        student.points += amount;
+        logPointChange(student.id, amount, reason || "教師手動調整");
+        saveData();
+    }
+
+    function modifyPointsCustom(studentId) {
+        const ptsInput = document.getElementById(`pts-input-${studentId}`);
+        const reasonInput = document.getElementById(`reason-input-${studentId}`);
+        const val = parseInt(ptsInput.value);
+        const reason = reasonInput.value.trim() || "教師手動變更";
+
+        if (isNaN(val) || val === 0) return alert("請輸入有效的異動點數！");
+        modifyPoints(studentId, val, reason);
+    }
+
+    function toggleSelectAllStudents(masterChk) {
+        const chks = document.querySelectorAll('.student-select-chk');
+        chks.forEach(c => c.checked = masterChk.checked);
+    }
+
+    function batchModifyPoints() {
+        sanitizeDB();
+        const selectedChks = document.querySelectorAll('.student-select-chk:checked');
+        if (selectedChks.length === 0) return alert("⚠️ 請先勾選要加/扣點數的學生！");
+
+        const ptsInput = document.getElementById('batch-pts-input');
+        const reasonInput = document.getElementById('batch-reason-input');
+        const val = parseInt(ptsInput.value);
+        const reason = reasonInput.value.trim() || "教師批次調整";
+
+        if (isNaN(val) || val === 0) return alert("⚠️ 請輸入有效的點數金額！");
+
+        let count = 0;
+        selectedChks.forEach(chk => {
+            const sid = chk.value;
+            const student = db.students.find(s => String(s.id) === String(sid));
+            if (student) {
+                student.points += val;
+                logPointChange(student.id, val, reason);
+                count++;
+            }
+        });
+
+        ptsInput.value = '';
+        reasonInput.value = '';
+        document.getElementById('select-all-students').checked = false;
+
+        saveData();
+        alert(`🎉 成功為 ${count} 位學生調整點數 (${val > 0 ? '+' : ''}${val} 點)！`);
+    }
+
+    function addPrize() {
+        sanitizeDB();
+        const nameInput = document.getElementById('new-prize-name');
+        const costInput = document.getElementById('new-prize-cost');
+        const name = nameInput.value.trim();
+        const cost = parseInt(costInput.value);
+
+        if (!name || isNaN(cost) || cost <= 0) {
+            return alert("⚠️ 請輸入正確的獎品名稱與所需點數！");
+        }
+
+        db.prizes.push({ 
+            id: Date.now(), 
+            name: name, 
+            cost: cost,
+            creatorId: null
+        });
+
+        nameInput.value = '';
+        costInput.value = '';
+        saveData();
+        alert(`🎉 成功新增官方獎品：【${name}】 (${cost} 點)！`);
+    }
+
+    function deletePrize(prizeId) {
+        sanitizeDB();
+        const prize = db.prizes.find(p => p.id === prizeId);
+        const prizeName = prize ? prize.name : '此獎品';
+
+        if (confirm(`確定要下架【${prizeName}】嗎？`)) {
+            db.prizes = db.prizes.filter(p => p.id !== prizeId);
+            saveData();
+        }
+    }
+
+    // 👩‍🏫 審核學生兌換申請（若是同學提供商品，核准時收益將自動發放給賣家）
+    function handleOrder(orderId, status) {
+        sanitizeDB();
+        const order = db.orders.find(o => o.id === orderId);
+        if (!order) return;
+
+        if (status === '已發放' || status === '已核准') {
+            // 若為同學上架之商品/服務，核准時將點數撥給提供者（賣家）
+            if (order.creatorId) {
+                const seller = db.students.find(s => String(s.id) === String(order.creatorId));
+                if (seller) {
+                    seller.points += order.cost;
+                    logPointChange(seller.id, order.cost, `賣出商品/服務收益：${order.prizeName}`);
+                }
+            }
+            order.status = '已發放';
+        } else if (status === '已退回') {
+            const student = db.students.find(s => String(s.id) === String(order.studentId));
+            if (student) {
+                student.points += order.cost;
+                logPointChange(student.id, order.cost, `退回審核：${order.prizeName}`);
+            }
+            order.status = '已退回';
+        }
+
+        saveData();
+    }
+
+    function deleteOrder(orderId) {
+        sanitizeDB();
+        if (confirm("確定要刪除這筆兌換紀錄嗎？")) {
+            db.orders = db.orders.filter(o => o.id !== orderId);
+            saveData();
+        }
+    }
+
+    // 🗑️ 批次刪除勾選的兌換申請紀錄
+    function toggleSelectAllOrders(masterChk) {
+        const chks = document.querySelectorAll('.order-select-chk');
+        chks.forEach(c => c.checked = masterChk.checked);
+    }
+
+    function batchDeleteOrders() {
+        sanitizeDB();
+        const selectedChks = document.querySelectorAll('.order-select-chk:checked');
+        if (selectedChks.length === 0) return alert("⚠️ 請先勾選要刪除的兌換紀錄！");
+
+        if (confirm(`確定要批次刪除選取的 ${selectedChks.length} 筆兌換紀錄嗎？`)) {
+            const selectedIds = Array.from(selectedChks).map(c => Number(c.value));
+            db.orders = db.orders.filter(o => !selectedIds.includes(Number(o.id)));
+
+            const masterChk = document.getElementById('select-all-orders');
+            if (masterChk) masterChk.checked = false;
+
+            saveData();
+            alert(`🗑️ 成功批次刪除 ${selectedChks.length} 筆兌換紀錄！`);
+        }
+    }
+
+    function openTycoonModal() {
+        renderTycoonStatusTable();
+        document.getElementById('tycoon-modal').classList.remove('hidden');
+    }
+
+    function closeTycoonModal() {
+        document.getElementById('tycoon-modal').classList.add('hidden');
+    }
+
+    function renderTycoonStatusTable() {
+        sanitizeDB();
+        const tbody = document.getElementById('tycoon-status-tbody');
+        tbody.innerHTML = '';
+
+        const today = getTodayString();
+
+        db.students.forEach(s => {
+            const tr = document.createElement('tr');
+            
+            const currentPosTile = defaultBoard40[s.position || 0];
+            const posName = `[${s.position || 0}] ${currentPosTile ? currentPosTile.name : '美食出發'}`;
+
+            const ownedTiles = defaultBoard40.filter(t => db.boardState[t.id] && String(db.boardState[t.id].ownerId) === String(s.id));
+            let propertiesSummary = '';
+            if (ownedTiles.length === 0) {
+                propertiesSummary = '<span style="color:#888;">無房產</span>';
+            } else {
+                propertiesSummary = ownedTiles.map(t => {
+                    const st = db.boardState[t.id];
+                    let star = st.houses === 5 ? '⭐️米其林' : (st.houses > 0 ? `${st.houses}星` : '標準');
+                    return `${t.name} (${star})`;
+                }).join('、');
+            }
+
+            const hasRolledToday = (s.lastRollDate === today);
+            let rollStatusHtml = '';
+            if (s.unlimitedRolls) {
+                rollStatusHtml = '<span style="color:#7b1fa2; font-weight:bold;">♾️ 無限擲骰</span>';
+            } else if (hasRolledToday) {
+                rollStatusHtml = '<span style="color:#2e7d32; font-weight:bold;">✅ 今日已擲</span>';
+            } else {
+                rollStatusHtml = '<span style="color:#d32f2f; font-weight:bold;">⏳ 今日未擲</span>';
+            }
+
+            tr.innerHTML = `
+                <td><b>${s.seat}</b></td>
+                <td><b>${s.name}</b></td>
+                <td style="color:#e65100; font-weight:bold;">${s.points} 點</td>
+                <td>${posName}</td>
+                <td style="text-align:left; font-size:12px;">${propertiesSummary}</td>
+                <td>${rollStatusHtml}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderStudentView() {
+        if (!currentStudentId) return;
+        sanitizeDB();
+        const student = db.students.find(s => String(s.id) === String(currentStudentId));
+        if (!student) return studentLogout();
+
+        const pts = Number(student.points) || 0;
+        document.getElementById('student-name-display').innerText = `${student.seat}號 ${student.name}`;
+        document.getElementById('my-points').innerText = pts;
+
+        // 渲染轉帳/點數贈與的同學選單（排除目前登入者自己）
+        const transferTargetSelect = document.getElementById('transfer-target-student');
+        if (transferTargetSelect) {
+            const currentSelected = transferTargetSelect.value;
+            transferTargetSelect.innerHTML = '<option value="">-- 請選擇同學 --</option>';
+            db.students.forEach(s => {
+                if (String(s.id) !== String(currentStudentId)) {
+                    transferTargetSelect.innerHTML += `<option value="${s.id}">👨‍🎓 ${s.seat}號 ${s.name}</option>`;
+                }
+            });
+            if (currentSelected) transferTargetSelect.value = currentSelected;
+        }
+
+        // 渲染學生的贈與申請紀錄表
+        const studentTransferTb = document.getElementById('student-transfer-requests-list');
+        if (studentTransferTb) {
+            studentTransferTb.innerHTML = '';
+            const myTransfers = db.transferRequests.filter(r => String(r.senderId) === String(currentStudentId));
+            if (myTransfers.length === 0) {
+                studentTransferTb.innerHTML = '<tr><td colspan="5" style="color:#888;">目前尚無贈與申請紀錄</td></tr>';
+            } else {
+                myTransfers.forEach(r => {
+                    const receiver = db.students.find(s => String(s.id) === String(r.receiverId));
+                    const tr = document.createElement('tr');
+                    let statusColor = '#ff9800';
+                    if (r.status === '已核准') statusColor = '#2e7d32';
+                    if (r.status === '已退回' || r.status === '已拒絕') statusColor = '#d32f2f';
+
+                    tr.innerHTML = `
+                        <td>${r.time}</td>
+                        <td>${receiver ? `${receiver.seat}號 ${receiver.name}` : '未知學生'}</td>
+                        <td style="color:#e65100; font-weight:bold;">${r.amount} 點</td>
+                        <td>${r.note || '-'}</td>
+                        <td><b style="color:${statusColor}">${r.status}</b></td>
+                    `;
+                    studentTransferTb.appendChild(tr);
+                });
+            }
+        }
+
+        const rollBtn = document.getElementById('roll-dice-btn');
+        if (rollBtn) {
+            if (student.unlimitedRolls) {
+                rollBtn.innerText = "🎲 擲骰子！ (已開啟無限擲骰特權)";
+                rollBtn.style.backgroundColor = "#7b1fa2";
+            } else {
+                rollBtn.innerText = "🎲 擲骰子！ (每日乙次，消耗 20 點)";
+                rollBtn.style.backgroundColor = "#ff9800";
+            }
+        }
+
+        renderBoard40();
+
+        const propListEl = document.getElementById('my-properties-list');
+        propListEl.innerHTML = '';
+        const myProperties = defaultBoard40.filter(t => db.boardState[t.id] && String(db.boardState[t.id].ownerId) === String(currentStudentId));
+
+        if (myProperties.length === 0) {
+            propListEl.innerText = "目前尚未加盟任何美食名店。在地圖上踩中無人名店即可購買經營權！";
+        } else {
+            myProperties.forEach(t => {
+                const state = db.boardState[t.id];
+                const item = document.createElement('div');
+                item.className = 'prop-item';
+                
+                let houseDesc = state.houses === 0 ? "標準店面" : (state.houses === 5 ? "⭐️米其林大飯店" : `${state.houses} 星級分店`);
+                let upgradeCostText = state.houses < 5 ? ` (下次踩中升級費: ${t.houseCost}點)` : '';
+                
+                item.innerHTML = `
+                    <span><b>${t.name}</b> - ${houseDesc}${upgradeCostText}</span>
+                    <span style="color:#666; font-size:12px;">再次踩中此格即可觸發升級</span>
+                `;
+                propListEl.appendChild(item);
+            });
+        }
+
+        const historyTb = document.getElementById('student-point-history');
+        historyTb.innerHTML = '';
+        const myLogs = db.pointLogs.filter(l => String(l.studentId) === String(currentStudentId));
+        myLogs.forEach(l => {
+            const tr = document.createElement('tr');
+            const ptsClass = l.amount >= 0 ? 'pts-plus' : 'pts-minus';
+            tr.innerHTML = `<td>${l.time}</td><td class="${ptsClass}">${l.amount > 0 ? '+' : ''}${l.amount}</td><td>${l.reason}</td>`;
+            historyTb.appendChild(tr);
+        });
+
+        // 渲染學生端獎品列表（區分官方與同學提供）
+        const prizeListEl = document.getElementById('student-prize-list');
+        prizeListEl.innerHTML = '';
+        db.prizes.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'prize-card';
+
+            let creatorTag = '';
+            let actionBtn = '';
+
+            if (p.creatorId) {
+                const creator = db.students.find(s => String(s.id) === String(p.creatorId));
+                const creatorName = creator ? `${creator.seat}號 ${creator.name}` : '同學';
+                creatorTag = `<div style="font-size:11px; color:#7b1fa2; font-weight:bold; margin-bottom:4px;">👤 由 ${creatorName} 提供</div>`;
+
+                if (String(p.creatorId) === String(currentStudentId)) {
+                    actionBtn = `<button class="danger-btn" onclick="deleteStudentPrize(${p.id})">🗑️ 下架我的商品</button>`;
+                } else {
+                    actionBtn = `<button class="action-btn" onclick="redeemPrize(${p.id})">申請兌換</button>`;
+                }
+            } else {
+                creatorTag = `<div style="font-size:11px; color:#666; margin-bottom:4px;">👩‍🏫 班級官方獎品</div>`;
+                actionBtn = `<button class="action-btn" onclick="redeemPrize(${p.id})">申請兌換</button>`;
+            }
+
+            card.innerHTML = `
+                <h3>${p.name}</h3>
+                ${creatorTag}
+                <div class="prize-points">${p.cost} 點</div>
+                ${actionBtn}
+            `;
+            prizeListEl.appendChild(card);
+        });
+
+        const orderTb = document.getElementById('student-history');
+        orderTb.innerHTML = '';
+        const myOrders = db.orders.filter(o => String(o.studentId) === String(currentStudentId));
+        myOrders.forEach(o => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${o.time || '-'}</td><td>${o.prizeName}</td><td>${o.cost}</td><td><b>${o.status}</b></td>`;
+            orderTb.appendChild(tr);
+        });
+    }
+
+    function renderTeacherView() {
+        if (!isTeacherLoggedIn) return;
+        sanitizeDB();
+
+        populateTeacherPropertySelects();
+
+        const cardsEl = document.getElementById('teacher-student-cards');
+        cardsEl.innerHTML = '';
+        
+        if (db.students.length === 0) {
+            cardsEl.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #888; padding: 20px;">目前尚無學生資料，請利用上方欄位匯入 Excel/CSV 或貼上文字名單。</div>';
+        } else {
+            db.students.forEach(s => {
+                const card = document.createElement('div');
+                card.className = 'student-card';
+                card.innerHTML = `
+                    <div class="student-card-header">
+                        <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                            <input type="checkbox" class="student-select-chk" value="${s.id}">
+                            <span class="student-seat">${s.seat}號</span>
+                            <span class="student-name">${s.name}</span>
+                        </div>
+                        <div>
+                            <button class="${s.unlimitedRolls ? 'purple-btn' : 'action-btn'}" style="padding: 2px 6px; font-size: 11px; margin: 0 2px;" onclick="toggleUnlimitedRolls(${s.id})">${s.unlimitedRolls ? '🎲 無限: ON' : '🎲 無限: OFF'}</button>
+                            <button class="danger-btn" style="padding: 2px 6px; font-size: 11px; margin: 0;" onclick="deleteStudent(${s.id})">刪除</button>
+                        </div>
+                    </div>
+                    <div class="student-pts ${s.points < 0 ? 'negative' : ''}">${s.points} 點</div>
+                    <div class="quick-action-box">
+                        <div class="quick-btn-group">
+                            <button class="success-btn" onclick="modifyPoints(${s.id}, 10, '表現優良')">+10</button>
+                            <button class="success-btn" onclick="modifyPoints(${s.id}, 50, '表現優良')">+50</button>
+                            <button class="danger-btn" onclick="modifyPoints(${s.id}, -10, '作業未交')">-10</button>
+                            <button class="danger-btn" onclick="modifyPoints(${s.id}, -50, '常規欠佳')">-50</button>
+                        </div>
+                        <div class="custom-pts-group">
+                            <input type="number" id="pts-input-${s.id}" class="pts-input" placeholder="點數">
+                            <input type="text" id="reason-input-${s.id}" class="reason-input" placeholder="事由">
+                            <button class="action-btn" onclick="modifyPointsCustom(${s.id})">送出</button>
+                        </div>
+                    </div>
+                `;
+                cardsEl.appendChild(card);
+            });
+        }
+
+        // 渲染老師端：學生點數贈與審核與歷史紀錄
+        const transferTb = document.getElementById('teacher-transfer-history');
+        if (transferTb) {
+            transferTb.innerHTML = '';
+            if (!db.transferRequests || db.transferRequests.length === 0) {
+                transferTb.innerHTML = '<tr><td colspan="7" style="color:#888;">目前尚無學生點數贈與申請紀錄</td></tr>';
+            } else {
+                db.transferRequests.forEach(r => {
+                    const sender = db.students.find(s => String(s.id) === String(r.senderId));
+                    const receiver = db.students.find(s => String(s.id) === String(r.receiverId));
+                    const tr = document.createElement('tr');
+
+                    let actionBtns = '';
+                    if (r.status === '待審核') {
+                        actionBtns = `
+                            <button class="success-btn" onclick="handleTransferRequest(${r.id}, '已核准')">核准</button>
+                            <button class="danger-btn" onclick="handleTransferRequest(${r.id}, '已退回')">退回</button>
+                            <button class="danger-btn" style="background-color: #757575;" onclick="deleteTransferRequest(${r.id})">刪除</button>
+                        `;
+                    } else {
+                        let statusColor = r.status === '已核准' ? '#2e7d32' : '#d32f2f';
+                        actionBtns = `
+                            <span style="font-weight:bold; color:${statusColor};">${r.status}</span>
+                            <button class="danger-btn" style="background-color: #757575; padding: 3px 8px; font-size: 12px; margin-left: 5px;" onclick="deleteTransferRequest(${r.id})">刪除</button>
+                        `;
+                    }
+
+                    tr.innerHTML = `
+                        <td><input type="checkbox" class="transfer-select-chk" value="${r.id}"></td>
+                        <td>${r.time}</td>
+                        <td><b>${sender ? `${sender.seat}號 ${sender.name}` : '未知學生'}</b></td>
+                        <td><b>${receiver ? `${receiver.seat}號 ${receiver.name}` : '未知學生'}</b></td>
+                        <td style="color:#e65100; font-weight:bold;">${r.amount} 點</td>
+                        <td style="text-align:left;">${r.note || '-'}</td>
+                        <td>${actionBtns}</td>
+                    `;
+                    transferTb.appendChild(tr);
+                });
+            }
+        }
+
+        // 渲染老師端獎品清單（包含標記提供者）
+        const prizeListEl = document.getElementById('teacher-prize-list');
+        prizeListEl.innerHTML = '';
+        db.prizes.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'prize-card';
+
+            let creatorTag = '';
+            if (p.creatorId) {
+                const creator = db.students.find(s => String(s.id) === String(p.creatorId));
+                creatorTag = `<div style="font-size:11px; color:#7b1fa2; font-weight:bold; margin-bottom:4px;">(由 ${creator ? `${creator.seat}號 ${creator.name}` : '同學'} 上架)</div>`;
+            } else {
+                creatorTag = `<div style="font-size:11px; color:#666; margin-bottom:4px;">(官方獎品)</div>`;
+            }
+
+            card.innerHTML = `
+                <h3>${p.name}</h3>
+                ${creatorTag}
+                <div class="prize-points">${p.cost} 點</div>
+                <button class="danger-btn" onclick="deletePrize(${p.id})">下架</button>
+            `;
+            prizeListEl.appendChild(card);
+        });
+
+        // 渲染老師端兌換審核列表
+        const pendingTb = document.getElementById('teacher-pending-list');
+        pendingTb.innerHTML = '';
+        if (!db.orders || db.orders.length === 0) {
+            pendingTb.innerHTML = '<tr><td colspan="6" style="color:#888;">目前尚無學生兌換申請紀錄</td></tr>';
+        } else {
+            db.orders.forEach(o => {
+                const student = db.students.find(s => String(s.id) === String(o.studentId));
+                const creator = o.creatorId ? db.students.find(s => String(s.id) === String(o.creatorId)) : null;
+                const creatorText = creator ? `<br><small style="color:#7b1fa2; font-weight:bold;">(提供者: ${creator.seat}號 ${creator.name})</small>` : '';
+
+                const tr = document.createElement('tr');
+                let actionBtns = '';
+                if (o.status === '待審核') {
+                    actionBtns = `
+                        <button class="success-btn" onclick="handleOrder(${o.id}, '已發放')">核准</button>
+                        <button class="danger-btn" onclick="handleOrder(${o.id}, '已退回')">退回</button>
+                        <button class="danger-btn" style="background-color: #757575;" onclick="deleteOrder(${o.id})">刪除</button>
+                    `;
+                } else {
+                    actionBtns = `
+                        <span>${o.status}</span>
+                        <button class="danger-btn" style="background-color: #757575; padding: 3px 8px; font-size: 12px; margin-left: 5px;" onclick="deleteOrder(${o.id})">刪除</button>
+                    `;
+                }
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="order-select-chk" value="${o.id}"></td>
+                    <td>${o.time || '-'}</td>
+                    <td>${student ? `${student.seat}號 ${student.name}` : '未知學生'}</td>
+                    <td><b>${o.prizeName}</b>${creatorText}</td>
+                    <td>${o.cost}</td>
+                    <td>${actionBtns}</td>
+                `;
+                pendingTb.appendChild(tr);
+            });
+        }
+
+        if (!document.getElementById('tycoon-modal').classList.contains('hidden')) {
+            renderTycoonStatusTable();
+        }
+    }
+
+    function renderAll() {
+        sanitizeDB();
+        renderStudentView();
+        renderTeacherView();
+    }
+
+    renderAll();
+</script>
+</body>
+</html>
