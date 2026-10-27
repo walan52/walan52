@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安靜！別吵醒睡覺的可愛浣熊 🦝💤</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', 'Fredoka', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* 房間主題背景動畫 */
+        .room-night {
+            background: radial-gradient(circle at 50% 30%, #1e1b4b 0%, #0f172a 70%, #020617 100%);
+            transition: background 0.8s ease;
+        }
+        .room-lamp {
+            background: radial-gradient(circle at 50% 30%, #312e81 0%, #1e1b4b 50%, #0f172a 100%);
+        }
+        .room-warm {
+            background: radial-gradient(circle at 50% 40%, #451a03 0%, #1c1917 60%, #0c0a09 100%);
+        }
+
+        /* 浣熊呼吸動畫 */
+        @keyframes raccoonBreathe {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-4px) scale(1.015); }
+        }
+        .animate-breathe {
+            animation: raccoonBreathe 3.5s ease-in-out infinite;
+            transform-origin: bottom center;
+        }
+
+        /* 尾巴搖擺動畫 */
+        @keyframes tailSway {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(-6deg); }
+        }
+        .animate-tail {
+            animation: tailSway 4s ease-in-out infinite;
+            transform-origin: 85% 85%;
+        }
+
+        /* 耳朵微微抽動 */
+        @keyframes earTwitch {
+            0%, 92%, 100% { transform: rotate(0deg); }
+            94% { transform: rotate(-5deg); }
+            96% { transform: rotate(3deg); }
+            98% { transform: rotate(-2deg); }
+        }
+        .animate-ear-left {
+            animation: earTwitch 6s ease-in-out infinite;
+            transform-origin: bottom right;
+        }
+        .animate-ear-right {
+            animation: earTwitch 6s ease-in-out infinite 0.5s;
+            transform-origin: bottom left;
+        }
+
+        /* Floating Zzz Animation */
+        @keyframes floatZ1 {
+            0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+            30% { opacity: 0.9; }
+            100% { transform: translate(-30px, -70px) scale(1.2); opacity: 0; }
+        }
+        @keyframes floatZ2 {
+            0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+            40% { opacity: 1; }
+            100% { transform: translate(-45px, -110px) scale(1.5); opacity: 0; }
+        }
+        @keyframes floatZ3 {
+            0% { transform: translate(0, 0) scale(0.4); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: translate(-60px, -150px) scale(1.8); opacity: 0; }
+        }
+        .zzz-1 { animation: floatZ1 3.2s ease-out infinite; }
+        .zzz-2 { animation: floatZ2 3.2s ease-out infinite 1.1s; }
+        .zzz-3 { animation: floatZ3 3.2s ease-out infinite 2.2s; }
+
+        /* 驚醒彈跳震動 */
+        @keyframes startleJump {
+            0% { transform: translateY(0) scale(1) rotate(0deg); }
+            15% { transform: translateY(-35px) scale(1.1) rotate(-4deg); }
+            30% { transform: translateY(5px) scale(0.95) rotate(4deg); }
+            45% { transform: translateY(-15px) scale(1.05) rotate(-2deg); }
+            60% { transform: translateY(0) scale(1) rotate(1deg); }
+            100% { transform: translateY(0) scale(1) rotate(0deg); }
+        }
+        .animate-startle {
+            animation: startleJump 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+
+        /* 警告紅光閃爍 */
+        @keyframes alertFlash {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 0.35; }
+        }
+        .bg-alert-flash {
+            animation: alertFlash 0.5s ease-in-out 3;
+        }
+
+        /* 玻璃擬物風格 */
+        .glass-card {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* 自訂音量條滑塊樣式 */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #f59e0b;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+
+        /* 全螢幕模式控制：隱藏選單與控制列，大幅放大浣熊圖案並滿版居中 */
+        body.fullscreen-mode header,
+        body.fullscreen-mode footer,
+        body.fullscreen-mode main > :not(#raccoon-stage) {
+            display: none !important;
+        }
+
+        body.fullscreen-mode main {
+            max-width: 100vw !important;
+            height: 100vh !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+        }
+
+        body.fullscreen-mode #raccoon-stage {
+            max-width: 98vw !important;
+            max-height: 95vh !important;
+            width: 100% !important;
+            height: 100% !important;
+            aspect-ratio: auto !important;
+        }
+
+        body.fullscreen-mode #raccoon-svg {
+            width: min(88vw, 82vh, 960px) !important;
+            max-width: 100% !important;
+        }
+
+        body.fullscreen-mode #speech-bubble {
+            font-size: 1.5rem !important;
+            padding: 1rem 1.5rem !important;
+            max-width: 32rem !important;
+            top: 6% !important;
+        }
+
+        body.fullscreen-mode #zzz-group {
+            top: 12% !important;
+            transform: scale(1.6) translateX(-30%) !important;
+        }
+    </style>
+</head>
+<body id="room-body" class="room-night min-h-screen text-slate-100 flex flex-col justify-between overflow-x-hidden select-none transition-colors duration-700">
+
+    <!-- 頂部全螢幕與環境開關列 -->
+    <header class="w-full px-4 sm:px-8 py-4 flex justify-between items-center z-20">
+        <div class="flex items-center gap-3">
+            <span class="text-3xl animate-bounce">🦝</span>
+            <div>
+                <h1 class="text-xl sm:text-2xl font-black tracking-wide bg-gradient-to-r from-amber-200 via-orange-300 to-amber-400 bg-clip-text text-transparent">
+                    安靜！別吵醒睡覺的可愛浣熊
+                </h1>
+                <p class="text-xs text-slate-400 hidden sm:block">智慧聲音偵測與多樣語音警報系統</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+            <!-- 房間燈光切換 -->
+            <button id="btn-theme" onclick="toggleTheme()" class="glass-card px-3 py-2 rounded-xl text-xs sm:text-sm font-medium hover:bg-slate-700/60 transition flex items-center gap-1.5 cursor-pointer">
+                <span id="theme-icon">🌙</span>
+                <span id="theme-text" class="hidden md:inline">月光模式</span>
+            </button>
+
+            <!-- 全螢幕切換 -->
+            <button onclick="toggleFullscreen()" class="glass-card px-3 py-2 rounded-xl text-xs sm:text-sm font-medium hover:bg-slate-700/60 transition flex items-center gap-1.5 cursor-pointer">
+                <span id="fs-icon">⛶</span>
+                <span id="fs-text" class="hidden md:inline">全螢幕</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 警示紅光遮罩 (驚醒時閃爍) -->
+    <div id="alert-overlay" class="pointer-events-none fixed inset-0 bg-red-600/0 z-10 transition-colors duration-200"></div>
+
+    <!-- 主要內容區域 -->
+    <main class="flex-1 flex flex-col items-center justify-center px-4 py-2 max-w-6xl mx-auto w-full z-20 gap-4">
+
+        <!-- 浣熊舞台區 (全螢幕時唯一保留呈現並大幅放大的區域) -->
+        <div id="raccoon-stage" class="relative w-full max-w-2xl aspect-[4/3] sm:aspect-[16/10] flex items-center justify-center">
+
+            <!-- 月亮與星空裝飾背景 -->
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                <svg class="w-full h-full" viewBox="0 0 500 350">
+                    <path d="M 390,50 A 35,35 0 1,1 355,95 A 30,30 0 1,0 390,50 Z" fill="#fde047" opacity="0.85" filter="drop-shadow(0 0 12px rgba(253,224,71,0.6))"/>
+                    <circle cx="80" cy="60" r="2" fill="#fff" opacity="0.8"/>
+                    <circle cx="140" cy="90" r="1.5" fill="#fff" opacity="0.6"/>
+                    <circle cx="280" cy="40" r="2.5" fill="#fff" opacity="0.9"/>
+                    <circle cx="430" cy="130" r="1.5" fill="#fff" opacity="0.5"/>
+                    <circle cx="60" cy="160" r="2" fill="#fff" opacity="0.7"/>
+                </svg>
+            </div>
+
+            <!-- 對話框 Bubble -->
+            <div id="speech-bubble" class="absolute top-2 sm:top-6 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-6 bg-amber-100 text-slate-900 px-4 py-3 rounded-2xl shadow-2xl border-2 border-amber-300 max-w-xs sm:max-w-sm text-center font-bold text-sm sm:text-base transition-all duration-300 transform scale-0 opacity-0 z-30 pointer-events-none">
+                <span id="speech-text">（驚醒！）吵醒我，讓你抬餐桶唷！</span>
+                <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 sm:left-8 w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-amber-100"></div>
+            </div>
+
+            <!-- 浮動 Zzz 符號 (睡覺時顯示) -->
+            <div id="zzz-group" class="absolute top-16 left-1/2 -translate-x-16 pointer-events-none z-20">
+                <span class="zzz-1 absolute text-amber-200 font-bold text-2xl font-mono">Z</span>
+                <span class="zzz-2 absolute text-amber-300 font-bold text-3xl font-mono">z</span>
+                <span class="zzz-3 absolute text-amber-100 font-bold text-4xl font-mono">z</span>
+            </div>
+
+            <!-- 浣熊角色 SVG -->
+            <div id="raccoon-container" onclick="pokeRaccoon()" class="cursor-pointer relative transition-transform duration-300 hover:scale-[1.02] active:scale-95 group" title="點擊戳戳浣熊">
+                
+                <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 text-xs px-2.5 py-1 rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md">
+                    👈 點擊戳一下！
+                </div>
+
+                <svg id="raccoon-svg" class="w-[280px] sm:w-[380px] md:w-[440px] h-auto drop-shadow-[0_20px_35px_rgba(0,0,0,0.6)]" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <radialGradient id="rugGrad" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#334155"/>
+                            <stop offset="100%" stop-color="#1e293b"/>
+                        </radialGradient>
+                        <linearGradient id="raccoonFur" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#94a3b8"/>
+                            <stop offset="100%" stop-color="#64748b"/>
+                        </linearGradient>
+                        <linearGradient id="blanketGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#f59e0b"/>
+                            <stop offset="100%" stop-color="#d97706"/>
+                        </linearGradient>
+                        <linearGradient id="capGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#6366f1"/>
+                            <stop offset="100%" stop-color="#4338ca"/>
+                        </linearGradient>
+                    </defs>
+
+                    <!-- 地毯 -->
+                    <ellipse cx="200" cy="275" rx="160" ry="35" fill="url(#rugGrad)" stroke="#475569" stroke-width="3"/>
+                    <ellipse cx="200" cy="275" rx="145" ry="25" fill="none" stroke="#64748b" stroke-dasharray="6,6" stroke-width="2"/>
+
+                    <!-- 尾巴 -->
+                    <g id="raccoon-tail" class="animate-tail">
+                        <path d="M 270,230 Q 350,210 340,260 Q 320,290 260,265 Z" fill="#64748b"/>
+                        <path d="M 285,225 Q 295,245 282,260" stroke="#1e293b" stroke-width="12" fill="none" stroke-linecap="round"/>
+                        <path d="M 310,222 Q 320,242 308,268" stroke="#1e293b" stroke-width="12" fill="none" stroke-linecap="round"/>
+                        <path d="M 330,235 Q 338,252 325,268" stroke="#1e293b" stroke-width="10" fill="none" stroke-linecap="round"/>
+                    </g>
+
+                    <!-- 身體 -->
+                    <g id="raccoon-body" class="animate-breathe">
+                        <ellipse cx="200" cy="230" rx="85" ry="55" fill="url(#raccoonFur)"/>
+
+                        <!-- 陪伴小熊 -->
+                        <g transform="translate(100, 220)">
+                            <ellipse cx="15" cy="20" rx="14" ry="18" fill="#d97706"/>
+                            <circle cx="15" cy="2" r="12" fill="#f59e0b"/>
+                            <circle cx="7" cy="-7" r="4" fill="#d97706"/>
+                            <circle cx="23" cy="-7" r="4" fill="#d97706"/>
+                            <circle cx="12" cy="0" r="1.5" fill="#451a03"/>
+                            <circle cx="18" cy="0" r="1.5" fill="#451a03"/>
+                            <ellipse cx="15" cy="4" rx="2" ry="1.5" fill="#451a03"/>
+                        </g>
+
+                        <!-- 毯子 -->
+                        <path d="M 125,210 Q 200,185 275,215 Q 285,265 200,270 Q 115,265 125,210 Z" fill="url(#blanketGrad)"/>
+                        <circle cx="160" cy="235" r="4" fill="#fef08a" opacity="0.8"/>
+                        <circle cx="210" cy="225" r="5" fill="#fef08a" opacity="0.8"/>
+                        <circle cx="245" cy="240" r="3.5" fill="#fef08a" opacity="0.8"/>
+                        <circle cx="185" cy="250" r="4" fill="#fef08a" opacity="0.8"/>
+                        <path d="M 125,210 Q 200,185 275,215" fill="none" stroke="#fef08a" stroke-width="4" stroke-linecap="round"/>
+
+                        <!-- 頭部 -->
+                        <g transform="translate(180, 165)">
+                            <g class="animate-ear-left">
+                                <path d="M -45,-25 Q -65,-60 -25,-50 Z" fill="#64748b"/>
+                                <path d="M -40,-28 Q -55,-52 -27,-46 Z" fill="#f43f5e" opacity="0.6"/>
+                            </g>
+                            <g class="animate-ear-right">
+                                <path d="M 45,-25 Q 65,-60 25,-50 Z" fill="#64748b"/>
+                                <path d="M 40,-28 Q 55,-52 27,-46 Z" fill="#f43f5e" opacity="0.6"/>
+                            </g>
+
+                            <ellipse cx="0" cy="0" rx="55" ry="42" fill="url(#raccoonFur)"/>
+                            <path d="M -50,10 Q -65,20 -40,30 Q -20,25 -30,10 Z" fill="#f8fafc"/>
+                            <path d="M 50,10 Q 65,20 40,30 Q 20,25 30,10 Z" fill="#f8fafc"/>
+                            <path d="M -48,-5 Q -25,-18 0,-8 Q 25,-18 48,-5 Q 40,25 0,22 Q -40,25 -48,-5 Z" fill="#1e293b"/>
+                            <ellipse cx="0" cy="15" rx="22" ry="16" fill="#f8fafc"/>
+                            <polygon points="0,5 -7,12 7,12" fill="#0f172a"/>
+                            <circle cx="-2" cy="7" r="1.5" fill="#fff" opacity="0.7"/>
+
+                            <path id="mouth-sleeping" d="M -4,18 Q 0,22 4,18" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+                            <ellipse id="mouth-awake" class="hidden" cx="0" cy="20" rx="5" ry="7" fill="#0f172a"/>
+
+                            <g id="eyes-sleeping">
+                                <path d="M -28,-2 Q -20,-10 -12,-2" fill="none" stroke="#f8fafc" stroke-width="3.5" stroke-linecap="round"/>
+                                <path d="M 12,-2 Q 20,-10 28,-2" fill="none" stroke="#f8fafc" stroke-width="3.5" stroke-linecap="round"/>
+                                <circle cx="-30" cy="12" r="7" fill="#fda4af" opacity="0.5"/>
+                                <circle cx="30" cy="12" r="7" fill="#fda4af" opacity="0.5"/>
+                            </g>
+
+                            <g id="eyes-awake" class="hidden">
+                                <circle cx="-20" cy="-3" r="13" fill="#ffffff"/>
+                                <circle cx="-20" cy="-3" r="8" fill="#0f172a"/>
+                                <circle cx="-23" cy="-6" r="3" fill="#ffffff"/>
+                                <circle cx="-17" cy="-1" r="1.5" fill="#ffffff"/>
+                                <circle cx="20" cy="-3" r="13" fill="#ffffff"/>
+                                <circle cx="20" cy="-3" r="8" fill="#0f172a"/>
+                                <circle cx="17" cy="-6" r="3" fill="#ffffff"/>
+                                <circle cx="23" cy="-1" r="1.5" fill="#ffffff"/>
+                                <circle cx="-32" cy="12" r="8" fill="#f43f5e" opacity="0.7"/>
+                                <circle cx="32" cy="12" r="8" fill="#f43f5e" opacity="0.7"/>
+                            </g>
+
+                            <g transform="translate(0, -38)">
+                                <path d="M -35,5 Q 0,-30 45,-5 Q 35,15 -35,5 Z" fill="url(#capGrad)"/>
+                                <path d="M 30,-8 Q 65,5 55,30" fill="none" stroke="#4338ca" stroke-width="14" stroke-linecap="round"/>
+                                <circle cx="56" cy="34" r="10" fill="#f8fafc"/>
+                                <path d="M -36,6 Q 0,-6 36,6" fill="none" stroke="#f8fafc" stroke-width="6" stroke-linecap="round"/>
+                            </g>
+
+                        </g>
+                    </g>
+                </svg>
+            </div>
+        </div>
+
+        <!-- 麥克風音量監測儀 Panel -->
+        <div class="w-full glass-card rounded-2xl p-4 sm:p-5 shadow-2xl flex flex-col gap-3 border-amber-500/20">
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <div class="flex items-center gap-2">
+                    <span id="mic-status-dot" class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
+                    <span class="font-bold text-sm sm:text-base text-slate-200">🎤 即時環境音量監測</span>
+                    <span id="mic-status-text" class="text-xs text-amber-400 font-medium">(開頁自動監測中...)</span>
+                </div>
+
+                <!-- 快捷靈敏度按鈕 -->
+                <div class="flex items-center gap-1.5 text-xs">
+                    <span class="text-slate-400 hidden md:inline">靈敏度預設：</span>
+                    <button onclick="setThreshold(15)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 transition cursor-pointer">高 (15%)</button>
+                    <button onclick="setThreshold(35)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 transition cursor-pointer">標準 (35%)</button>
+                    <button onclick="setThreshold(60)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-slate-700 transition cursor-pointer">遲鈍 (60%)</button>
+                </div>
+            </div>
+
+            <!-- 動態音量條 Visualizer -->
+            <div class="relative w-full h-7 bg-slate-950/80 rounded-xl overflow-hidden border border-slate-800 flex items-center px-1">
+                <div id="volume-bar" class="h-5 bg-gradient-to-r from-emerald-500 via-yellow-400 to-red-500 rounded-lg transition-all duration-75 w-0"></div>
+                <div id="threshold-line" class="absolute top-0 bottom-0 w-1 bg-red-500 shadow-[0_0_8px_#ef4444] z-10 transition-all duration-150" style="left: 35%;">
+                    <div class="absolute -top-1 -translate-x-1/2 bg-red-600 text-[10px] font-bold px-1 rounded text-white">紅線</div>
+                </div>
+            </div>
+
+            <!-- 門檻滑動條與音量數值 -->
+            <div class="flex items-center justify-between gap-4 text-xs sm:text-sm text-slate-300">
+                <div class="flex items-center gap-2 flex-1">
+                    <label for="threshold-slider" class="shrink-0 font-medium text-slate-400">觸發門檻 (紅線):</label>
+                    <input type="range" id="threshold-slider" min="5" max="90" value="35" oninput="updateThresholdFromSlider(this.value)" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                    <span id="threshold-val-text" class="font-mono font-bold text-amber-400 w-10 text-right">35%</span>
+                </div>
+                <div class="shrink-0 font-mono text-slate-400">
+                    目前音量: <span id="current-vol-text" class="text-emerald-400 font-bold">0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 語音與警示訊息設定區 -->
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            <!-- 左卡片：預設警語與自訂警語 -->
+            <div class="glass-card rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+                <h3 class="font-bold text-sm sm:text-base text-amber-300 flex items-center gap-2">
+                    <span>📢</span> 警報對話內容
+                </h3>
+
+                <!-- 快速選單 -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">選擇預設警語：</label>
+                    <select id="presetSelect" onchange="applyPresetMessage(this.value)" class="w-full bg-slate-900/90 border border-slate-700 text-slate-200 text-xs sm:text-sm rounded-xl p-2.5 focus:outline-none focus:border-amber-400">
+                        <option value="吵醒我，讓你抬餐桶唷！">🍱 吵醒我，讓你抬餐桶唷！</option>
+                        <option value="太吵了！明天午餐你負責抬餐桶！">🍱 太吵了！明天午餐你負責抬餐桶！</option>
+                        <option value="安靜一點！午餐餐桶很重捏！">🍱 安靜一點！午餐餐桶很重捏！</option>
+                        <option value="噓！浣熊需要充足的睡眠，請保持安靜！">🤫 噓！浣熊需要充足的睡眠，請保持安靜！</option>
+                        <option value="抓到了！是誰在講話？扣好感度五分！">⚠️ 抓到了！是誰在講話？扣好感度五分！</option>
+                        <option value="custom">✏️ 自訂警語（自行輸入）</option>
+                    </select>
+                </div>
+
+                <!-- 自訂輸入框 -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">警告文字內容：</label>
+                    <input type="text" id="alert-message-input" value="吵醒我，讓你抬餐桶唷！" placeholder="輸入自訂警語..." class="w-full bg-slate-900/90 border border-slate-700 text-slate-100 text-xs sm:text-sm rounded-xl p-2.5 focus:outline-none focus:border-amber-400 transition font-medium">
+                </div>
+            </div>
+
+            <!-- 右卡片：多樣化中文語音 TTS 選擇與風格快捷按鈕 -->
+            <div class="glass-card rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+                <h3 class="font-bold text-sm sm:text-base text-amber-300 flex items-center gap-2">
+                    <span>🗣️</span> 中文語音聲調設定 (TTS)
+                </h3>
+
+                <!-- 中文語音下拉選單 -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs text-slate-400">選擇中文發音人：</label>
+                        <button onclick="loadVoices()" class="text-[10px] text-amber-400 hover:underline">↻ 重新整理語音</button>
+                    </div>
+                    <select id="voiceSelect" class="w-full bg-slate-900/90 border border-slate-700 text-slate-200 text-xs sm:text-sm rounded-xl p-2.5 focus:outline-none focus:border-amber-400">
+                        <option value="">載入中文語音中...</option>
+                    </select>
+                </div>
+
+                <!-- 快捷風格風格按鈕 -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">語音風格快捷預設：</label>
+                    <div class="grid grid-cols-4 gap-1.5 text-[11px]">
+                        <button onclick="applyStyle('cute')" class="bg-slate-800 hover:bg-pink-500/20 text-pink-300 border border-slate-700 py-1 rounded-lg transition">🦝 童聲</button>
+                        <button onclick="applyStyle('serious')" class="bg-slate-800 hover:bg-blue-500/20 text-blue-300 border border-slate-700 py-1 rounded-lg transition">📢 嚴肅</button>
+                        <button onclick="applyStyle('fast')" class="bg-slate-800 hover:bg-amber-500/20 text-amber-300 border border-slate-700 py-1 rounded-lg transition">⚡ 急促</button>
+                        <button onclick="applyStyle('sleepy')" class="bg-slate-800 hover:bg-purple-500/20 text-purple-300 border border-slate-700 py-1 rounded-lg transition">😴 睏倦</button>
+                    </div>
+                </div>
+
+                <!-- 音調 Pitch & 語速 Rate 滑塊 -->
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <div class="flex justify-between text-slate-400 mb-1">
+                            <span>音調 (Pitch):</span>
+                            <span id="pitch-val" class="font-mono text-amber-300">1.3</span>
+                        </div>
+                        <input type="range" id="pitch-slider" min="0.5" max="2.0" step="0.1" value="1.3" oninput="document.getElementById('pitch-val').innerText = this.value" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-slate-400 mb-1">
+                            <span>語速 (Rate):</span>
+                            <span id="rate-val" class="font-mono text-amber-300">1.0</span>
+                        </div>
+                        <input type="range" id="rate-slider" min="0.5" max="1.8" step="0.1" value="1.0" oninput="document.getElementById('rate-val').innerText = this.value" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- 試聽按鈕 -->
+                <button onclick="testVoice()" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-amber-300 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer">
+                    <span>🔊 試聽選擇的語音</span>
+                </button>
+            </div>
+
+        </div>
+
+        <!-- 底部互動與測試按鈕組 -->
+        <div class="w-full flex flex-wrap sm:flex-nowrap gap-3 justify-center">
+            <button id="btn-start-mic" onclick="initMicrophone()" class="flex-1 min-w-[160px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 text-sm cursor-pointer">
+                <span>🎙️ 開啟/關閉麥克風監測</span>
+            </button>
+
+            <button onclick="simulateNoise()" class="flex-1 min-w-[140px] bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold py-3 px-4 rounded-xl border border-slate-700 shadow-md transition transform active:scale-95 flex items-center justify-center gap-2 text-sm cursor-pointer">
+                <span>👏 模擬爆音/拍手</span>
+            </button>
+
+            <button onclick="pokeRaccoon()" class="flex-1 min-w-[140px] bg-slate-800 hover:bg-slate-700 text-pink-300 font-bold py-3 px-4 rounded-xl border border-slate-700 shadow-md transition transform active:scale-95 flex items-center justify-center gap-2 text-sm cursor-pointer">
+                <span>🦝 戳一下浣熊</span>
+            </button>
+        </div>
+
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="w-full py-3 text-center text-xs text-slate-500 z-20">
+        安靜！別吵醒睡覺的可愛浣熊 🦝💤 &copy; 2026 班級秩序輔助工具
+    </footer>
+
+    <!-- JavaScript 邏輯程式碼 -->
+    <script>
+        let isAwake = false;
+        let isMicActive = false;
+        let audioCtx = null;
+        let analyser = null;
+        let micStream = null;
+        let threshold = 35;
+        let quietTimer = null;
+        let voicesList = [];
+        let synth = window.speechSynthesis;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initSpeechSynthesis();
+            initMicrophone();
+
+            const gestureTrigger = () => {
+                ensureAudioContext();
+                if (!isMicActive) initMicrophone();
+                document.removeEventListener('click', gestureTrigger);
+                document.removeEventListener('touchstart', gestureTrigger);
+            };
+            document.addEventListener('click', gestureTrigger);
+            document.addEventListener('touchstart', gestureTrigger);
+        });
+
+        function ensureAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } else if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function initSpeechSynthesis() {
+            if (!synth) return;
+            loadVoices();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = loadVoices;
+            }
+        }
+
+        function loadVoices() {
+            if (!synth) return;
+            const allVoices = synth.getVoices();
+            const voiceSelect = document.getElementById('voiceSelect');
+            if (!voiceSelect) return;
+
+            voiceSelect.innerHTML = '';
+
+            voicesList = allVoices.filter(v => v.lang.startsWith('zh') || v.lang.includes('ZH') || v.lang.includes('Chinese'));
+
+            if (voicesList.length === 0) {
+                voicesList = allVoices;
+            }
+
+            voicesList.sort((a, b) => {
+                const aTw = a.lang.includes('TW') || a.lang.includes('zh-TW');
+                const bTw = b.lang.includes('TW') || b.lang.includes('zh-TW');
+                if (aTw && !bTw) return -1;
+                if (!aTw && bTw) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            voicesList.forEach((voice) => {
+                const option = document.createElement('option');
+                option.value = voice.name;
+                let label = voice.name;
+
+                if (voice.lang.includes('TW')) label += ' (台灣中文)';
+                else if (voice.lang.includes('HK')) label += ' (香港粵語)';
+                else if (voice.lang.includes('CN')) label += ' (普通話/簡體)';
+                else label += ` (${voice.lang})`;
+
+                option.innerText = label;
+
+                if (voice.lang.includes('TW') || voice.lang === 'zh-TW') {
+                    option.selected = true;
+                }
+                voiceSelect.appendChild(option);
+            });
+        }
+
+        function applyStyle(style) {
+            const pitchSlider = document.getElementById('pitch-slider');
+            const rateSlider = document.getElementById('rate-slider');
+
+            if (style === 'cute') {
+                pitchSlider.value = 1.6;
+                rateSlider.value = 1.1;
+            } else if (style === 'serious') {
+                pitchSlider.value = 0.8;
+                rateSlider.value = 0.9;
+            } else if (style === 'fast') {
+                pitchSlider.value = 1.2;
+                rateSlider.value = 1.5;
+            } else if (style === 'sleepy') {
+                pitchSlider.value = 0.9;
+                rateSlider.value = 0.7;
+            }
+
+            document.getElementById('pitch-val').innerText = pitchSlider.value;
+            document.getElementById('rate-val').innerText = rateSlider.value;
+            testVoice();
+        }
+
+        function speakText(text) {
+            if (!synth) return;
+            synth.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            const selectedVoiceName = document.getElementById('voiceSelect').value;
+            const selectedVoice = voicesList.find(v => v.name === selectedVoiceName);
+
+            if (selectedVoice) {
+                utterance.voice = selectedVoice;
+            }
+
+            utterance.pitch = parseFloat(document.getElementById('pitch-slider').value) || 1.3;
+            utterance.rate = parseFloat(document.getElementById('rate-slider').value) || 1.0;
+            utterance.volume = 1.0;
+
+            synth.speak(utterance);
+        }
+
+        function testVoice() {
+            ensureAudioContext();
+            const msg = document.getElementById('alert-message-input').value || "吵醒我，讓你抬餐桶唷！";
+            speakText(msg);
+        }
+
+        function applyPresetMessage(val) {
+            if (val === 'custom') {
+                document.getElementById('alert-message-input').focus();
+            } else if (val) {
+                document.getElementById('alert-message-input').value = val;
+            }
+        }
+
+        function playStartleSound() {
+            ensureAudioContext();
+            if (!audioCtx) return;
+
+            try {
+                const now = audioCtx.currentTime;
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.25);
+
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.3);
+
+                const sub = audioCtx.createOscillator();
+                const subGain = audioCtx.createGain();
+                sub.type = 'sine';
+                sub.frequency.setValueAtTime(120, now);
+                sub.frequency.exponentialRampToValueAtTime(40, now + 0.35);
+
+                subGain.gain.setValueAtTime(0.5, now);
+                subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+                sub.connect(subGain);
+                subGain.connect(audioCtx.destination);
+
+                sub.start(now);
+                sub.stop(now + 0.35);
+            } catch (e) {
+                console.error("Audio Sound Error", e);
+            }
+        }
+
+        function playYawnSound() {
+            ensureAudioContext();
+            if (!audioCtx) return;
+
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(250, now + 0.4);
+                osc.frequency.exponentialRampToValueAtTime(180, now + 0.9);
+
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.15, now + 0.3);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 1.0);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function playPokeSqueak() {
+            ensureAudioContext();
+            if (!audioCtx) return;
+
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1400, now + 0.12);
+
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function initMicrophone() {
+            ensureAudioContext();
+
+            if (isMicActive) {
+                stopMicrophone();
+                return;
+            }
+
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                const source = audioCtx.createMediaStreamSource(micStream);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+
+                isMicActive = true;
+
+                document.getElementById('mic-status-dot').className = "w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]";
+                document.getElementById('mic-status-text').innerText = "(監測中...)";
+                document.getElementById('mic-status-text').className = "text-xs text-emerald-400 font-bold";
+                document.getElementById('btn-start-mic').className = "flex-1 min-w-[160px] bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 text-sm cursor-pointer";
+                document.getElementById('btn-start-mic').innerText = "🛑 關閉麥克風監測";
+
+                processAudioVolume();
+
+            } catch (err) {
+                console.error("無法取得麥克風權限：", err);
+                document.getElementById('mic-status-text').innerText = "(需要允許麥克風權限)";
+                document.getElementById('mic-status-text').className = "text-xs text-rose-400 font-bold";
+            }
+        }
+
+        function stopMicrophone() {
+            isMicActive = false;
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+                micStream = null;
+            }
+            document.getElementById('mic-status-dot').className = "w-3 h-3 rounded-full bg-red-500 animate-pulse";
+            document.getElementById('mic-status-text').innerText = "(已暫停)";
+            document.getElementById('mic-status-text').className = "text-xs text-slate-400 font-medium";
+            document.getElementById('btn-start-mic').className = "flex-1 min-w-[160px] bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2 text-sm cursor-pointer";
+            document.getElementById('btn-start-mic').innerText = "🎙️ 開啟麥克風監測";
+
+            const volBar = document.getElementById('volume-bar');
+            const volText = document.getElementById('current-vol-text');
+            if (volBar) volBar.style.width = `0%`;
+            if (volText) volText.innerText = `0%`;
+        }
+
+        function processAudioVolume() {
+            if (!analyser || !isMicActive) return;
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            let average = sum / dataArray.length;
+            let volumePercent = Math.min(100, Math.round((average / 128) * 100));
+
+            const volBar = document.getElementById('volume-bar');
+            const volText = document.getElementById('current-vol-text');
+            if (volBar) volBar.style.width = `${volumePercent}%`;
+            if (volText) volText.innerText = `${volumePercent}%`;
+
+            if (volumePercent >= threshold) {
+                triggerStartle(`吵鬧音量 (${volumePercent}%)`);
+            }
+
+            requestAnimationFrame(processAudioVolume);
+        }
+
+        function setThreshold(val) {
+            threshold = val;
+            document.getElementById('threshold-slider').value = val;
+            updateThresholdUI(val);
+        }
+
+        function updateThresholdFromSlider(val) {
+            threshold = parseInt(val, 10);
+            updateThresholdUI(threshold);
+        }
+
+        function updateThresholdUI(val) {
+            document.getElementById('threshold-val-text').innerText = `${val}%`;
+            document.getElementById('threshold-line').style.left = `${val}%`;
+        }
+
+        function simulateNoise() {
+            const simulatedVol = Math.max(threshold + 15, 75);
+            const volBar = document.getElementById('volume-bar');
+            const volText = document.getElementById('current-vol-text');
+            if (volBar) volBar.style.width = `${simulatedVol}%`;
+            if (volText) volText.innerText = `${simulatedVol}%`;
+
+            setTimeout(() => {
+                if (volBar && !isMicActive) volBar.style.width = `0%`;
+            }, 300);
+
+            triggerStartle("爆音/拍手測試");
+        }
+
+        function pokeRaccoon() {
+            playPokeSqueak();
+            triggerStartle("手動戳戳浣熊");
+        }
+
+        function triggerStartle(reason) {
+            if (isAwake) return;
+
+            isAwake = true;
+
+            playStartleSound();
+
+            const alertOverlay = document.getElementById('alert-overlay');
+            alertOverlay.className = "pointer-events-none fixed inset-0 bg-red-600/30 z-10 bg-alert-flash";
+
+            const container = document.getElementById('raccoon-container');
+            container.classList.add('animate-startle');
+
+            document.getElementById('zzz-group').classList.add('opacity-0');
+
+            document.getElementById('eyes-sleeping').classList.add('hidden');
+            document.getElementById('eyes-awake').classList.remove('hidden');
+            document.getElementById('mouth-sleeping').classList.add('hidden');
+            document.getElementById('mouth-awake').classList.remove('hidden');
+
+            const currentMsg = document.getElementById('alert-message-input').value || "吵醒我，讓你抬餐桶唷！";
+            document.getElementById('speech-text').innerText = currentMsg;
+
+            const bubble = document.getElementById('speech-bubble');
+            bubble.classList.remove('scale-0', 'opacity-0');
+            bubble.classList.add('scale-100', 'opacity-100');
+
+            speakText(currentMsg);
+
+            if (quietTimer) clearTimeout(quietTimer);
+            quietTimer = setTimeout(() => {
+                goToSleep();
+            }, 5500);
+        }
+
+        function goToSleep() {
+            if (!isAwake) return;
+
+            playYawnSound();
+            isAwake = false;
+
+            const container = document.getElementById('raccoon-container');
+            container.classList.remove('animate-startle');
+
+            const alertOverlay = document.getElementById('alert-overlay');
+            alertOverlay.className = "pointer-events-none fixed inset-0 bg-red-600/0 z-10 transition-colors duration-200";
+
+            document.getElementById('eyes-sleeping').classList.remove('hidden');
+            document.getElementById('eyes-awake').classList.add('hidden');
+            document.getElementById('mouth-sleeping').classList.remove('hidden');
+            document.getElementById('mouth-awake').classList.add('hidden');
+
+            document.getElementById('zzz-group').classList.remove('opacity-0');
+
+            const bubble = document.getElementById('speech-bubble');
+            bubble.classList.add('scale-0', 'opacity-0');
+            bubble.classList.remove('scale-100', 'opacity-100');
+        }
+
+        let currentTheme = 'night';
+
+        function toggleTheme() {
+            const body = document.getElementById('room-body');
+            const icon = document.getElementById('theme-icon');
+            const text = document.getElementById('theme-text');
+
+            if (currentTheme === 'night') {
+                currentTheme = 'lamp';
+                body.className = "room-lamp min-h-screen text-slate-100 flex flex-col justify-between overflow-x-hidden select-none transition-colors duration-700";
+                icon.innerText = "💡";
+                text.innerText = "檯燈模式";
+            } else if (currentTheme === 'lamp') {
+                currentTheme = 'warm';
+                body.className = "room-warm min-h-screen text-slate-100 flex flex-col justify-between overflow-x-hidden select-none transition-colors duration-700";
+                icon.innerText = "🕯️";
+                text.innerText = "溫馨模式";
+            } else {
+                currentTheme = 'night';
+                body.className = "room-night min-h-screen text-slate-100 flex flex-col justify-between overflow-x-hidden select-none transition-colors duration-700";
+                icon.innerText = "🌙";
+                text.innerText = "月光模式";
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`無法進入全螢幕: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        /* 監聽全螢幕切換，自動套用切換樣式類別 */
+        function handleFullscreenChange() {
+            const fsIcon = document.getElementById('fs-icon');
+            const fsText = document.getElementById('fs-text');
+            const isFS = !!document.fullscreenElement || !!document.webkitFullscreenElement;
+
+            if (isFS) {
+                if (fsIcon) fsIcon.innerText = "🗗";
+                if (fsText) fsText.innerText = "退出全螢幕";
+                document.body.classList.add('fullscreen-mode');
+            } else {
+                if (fsIcon) fsIcon.innerText = "⛶";
+                if (fsText) fsText.innerText = "全螢幕";
+                document.body.classList.remove('fullscreen-mode');
+            }
+        }
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    </script>
+</body>
+</html>
