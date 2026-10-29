@@ -1,0 +1,2454 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>手寫改錯字大富翁 (9x9版) - 學生自訂開房與AI對戰版 (Firebase雲端同步版)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- SheetJS (xlsx) for Excel Import/Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- React & Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase SDK (Compat Version) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700;900&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #0b0f19 0%, #17153b 50%, #0d1117 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .touch-none {
+            touch-action: none;
+        }
+
+        .glow-box {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.35);
+        }
+
+        .glow-gold {
+            box-shadow: 0 0 22px rgba(251, 191, 36, 0.5);
+        }
+
+        /* Dice Roll Animation */
+        @keyframes diceSpin {
+            0% { transform: rotateX(0deg) rotateY(0deg) scale(1); }
+            50% { transform: rotateX(360deg) rotateY(180deg) scale(1.15); }
+            100% { transform: rotateX(720deg) rotateY(360deg) scale(1); }
+        }
+
+        .dice-rolling {
+            animation: diceSpin 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #6366f1;
+            border-radius: 4px;
+        }
+
+        @keyframes tokenBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        .token-anim {
+            animation: tokenBounce 1.2s infinite ease-in-out;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.85; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.02); }
+        }
+        .pulse-glow {
+            animation: pulseGlow 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="p-1 sm:p-2">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ==========================================
+        // 0. FIREBASE INITIALIZATION
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCScLI83U7cqj2YYN6nuwi4jePXx81KERE",
+            authDomain: "rich-b1729.firebaseapp.com",
+            projectId: "rich-b1729",
+            storageBucket: "rich-b1729.firebasestorage.app",
+            messagingSenderId: "370456644957",
+            appId: "1:370456644957:web:5bfe7cc10cba5cb0d1acb4",
+            measurementId: "G-T84E6FMRFJ"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        // ==========================================
+        // 1. SOUND SYNTHESIZER (Web Audio API)
+        // ==========================================
+        const playAudioFx = (type, enabled = true) => {
+            if (!enabled) return;
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+
+                if (type === 'dice') {
+                    const bufferSize = ctx.sampleRate * 0.12;
+                    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                    const noise = ctx.createBufferSource();
+                    noise.buffer = buffer;
+                    const filter = ctx.createBiquadFilter();
+                    filter.type = 'bandpass';
+                    filter.frequency.value = 900;
+                    const gain = ctx.createGain();
+                    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+                    noise.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(ctx.destination);
+                    noise.start();
+                } else if (type === 'step') {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(360, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.07);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.07);
+                } else if (type === 'correct') {
+                    const freqs = [523.25, 659.25, 783.99, 1046.50];
+                    freqs.forEach((f, i) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(f, ctx.currentTime + i * 0.07);
+                        gain.gain.setValueAtTime(0.2, ctx.currentTime + i * 0.07);
+                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.07 + 0.22);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(ctx.currentTime + i * 0.07);
+                        osc.stop(ctx.currentTime + i * 0.07 + 0.22);
+                    });
+                } else if (type === 'wrong') {
+                    const freqs = [260, 200, 160];
+                    freqs.forEach((f, i) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(f, ctx.currentTime + i * 0.09);
+                        gain.gain.setValueAtTime(0.2, ctx.currentTime + i * 0.09);
+                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.09 + 0.16);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(ctx.currentTime + i * 0.09);
+                        osc.stop(ctx.currentTime + i * 0.09 + 0.16);
+                    });
+                } else if (type === 'stroke') {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(420, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(280, ctx.currentTime + 0.04);
+                    gain.gain.setValueAtTime(0.04, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.04);
+                } else if (type === 'coin') {
+                    const freqs = [987.77, 1318.51];
+                    freqs.forEach((f, i) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(f, ctx.currentTime + i * 0.08);
+                        gain.gain.setValueAtTime(0.18, ctx.currentTime + i * 0.08);
+                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.08 + 0.18);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(ctx.currentTime + i * 0.08);
+                        osc.stop(ctx.currentTime + i * 0.08 + 0.18);
+                    });
+                } else if (type === 'upgrade') {
+                    const freqs = [440, 554.37, 659.25, 880];
+                    freqs.forEach((f, i) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(f, ctx.currentTime + i * 0.06);
+                        gain.gain.setValueAtTime(0.12, ctx.currentTime + i * 0.06);
+                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.06 + 0.15);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(ctx.currentTime + i * 0.06);
+                        osc.stop(ctx.currentTime + i * 0.06 + 0.15);
+                    });
+                } else if (type === 'fanfare') {
+                    if (window.confetti) {
+                        window.confetti({ particleCount: 130, spread: 85, origin: { y: 0.6 } });
+                    }
+                }
+            } catch (e) {
+                console.error("Audio error:", e);
+            }
+        };
+
+        // ==========================================
+        // 2. DATASETS & AVATARS
+        // ==========================================
+        const INITIAL_HANDWRITING_QUESTIONS = [];
+
+        const CLASSMATE_POOL = [
+            "張小明", "林小華", "陳大同", "許品妍", "黃志豪", 
+            "蔡佳穎", "劉宇軒", "鄭婷婷", "楊宗翰", "吳佩姍",
+            "郭威廷", "趙沛晴", "謝哲瑋", "曾子晴", "彭家豪"
+        ];
+
+        const AVATARS = [
+            { name: "手寫貓", color: "bg-blue-500", border: "border-blue-400", icon: "fa-cat" },
+            { name: "墨水狗", color: "bg-rose-500", border: "border-rose-400", icon: "fa-dog" },
+            { name: "妙筆兔", color: "bg-emerald-500", border: "border-emerald-400", icon: "fa-rabbit" },
+            { name: "漢字狐", color: "bg-amber-500", border: "border-amber-400", icon: "fa-shield-cat" },
+            { name: "文藝熊", color: "bg-purple-500", border: "border-purple-400", icon: "fa-shield-dog" }
+        ];
+
+        // ==========================================
+        // 3. 9x9 BOARD GRID LAYOUT (32 Outer Tiles)
+        // ==========================================
+        const BOARD_9X9_LAYOUT = [
+            // Top Row (0 to 8)
+            { id: 0, gridPos: [0, 0], name: "起點 GO", type: "GO", color: "bg-emerald-600", icon: "fa-flag-checkered", desc: "經過或停留領獎金 $200" },
+            { id: 1, gridPos: [0, 1], name: "字形檢定館", type: "PROPERTY", category: "常用錯別字", price: 120, rent: 40, color: "bg-blue-600", icon: "fa-pen-clip" },
+            { id: 2, gridPos: [0, 2], name: "機會卡", type: "CHANCE", color: "bg-purple-600", icon: "fa-bolt", desc: "隨機幸運或懲罰" },
+            { id: 3, gridPos: [0, 3], name: "成語改錯阁", type: "PROPERTY", category: "成語錯別字", price: 140, rent: 50, color: "bg-blue-600", icon: "fa-book" },
+            { id: 4, gridPos: [0, 4], name: "幸運寶箱", type: "TREASURE", color: "bg-amber-500", icon: "fa-box-open", desc: "獲得金幣與道具" },
+            { id: 5, gridPos: [0, 5], name: "筆劃修練場", type: "PROPERTY", category: "常用錯別字", price: 160, rent: 60, color: "bg-blue-600", icon: "fa-feather-pointed" },
+            { id: 6, gridPos: [0, 6], name: "命運卡", type: "FATE", color: "bg-pink-600", icon: "fa-question-circle", desc: "接受命運考驗" },
+            { id: 7, gridPos: [0, 7], name: "音義對照堂", type: "PROPERTY", category: "語文注音辨析", price: 180, rent: 70, color: "bg-blue-600", icon: "fa-volume-high" },
+            { id: 8, gridPos: [0, 8], name: "關押禁言區", type: "JAIL", color: "bg-slate-700", icon: "fa-lock", desc: "暫停一輪" },
+
+            // Right Column (9 to 16)
+            { id: 9, gridPos: [1, 8], name: "名著文法坊", type: "PROPERTY", category: "成語錯別字", price: 200, rent: 80, color: "bg-indigo-600", icon: "fa-scroll" },
+            { id: 10, gridPos: [2, 8], name: "國學獎學金", type: "BONUS", color: "bg-yellow-500", icon: "fa-award", bonus: 160, desc: "領取獎學金 $160" },
+            { id: 11, gridPos: [3, 8], name: "詞彙辨析堂", type: "PROPERTY", category: "常用錯別字", price: 220, rent: 90, color: "bg-indigo-600", icon: "fa-spell-check" },
+            { id: 12, gridPos: [4, 8], name: "文字健檢所", type: "CLINIC", color: "bg-rose-600", icon: "fa-briefcase-medical", desc: "支付健檢費 $80" },
+            { id: 13, gridPos: [5, 8], name: "典故考據閣", type: "PROPERTY", category: "常用錯別字", price: 240, rent: 100, color: "bg-indigo-600", icon: "fa-landmark" },
+            { id: 14, gridPos: [6, 8], name: "機會卡", type: "CHANCE", color: "bg-purple-600", icon: "fa-bolt", desc: "抽取隨機事件" },
+            { id: 15, gridPos: [7, 8], name: "高階成語塔", type: "PROPERTY", category: "成語錯別字", price: 260, rent: 110, color: "bg-indigo-600", icon: "fa-monument" },
+            { id: 16, gridPos: [8, 8], name: "品茶休閒角", type: "PARK", color: "bg-teal-600", icon: "fa-mug-hot", desc: "無事發生" },
+
+            // Bottom Row (17 to 24)
+            { id: 17, gridPos: [8, 7], name: "字海尋珍館", type: "PROPERTY", category: "成語錯別字", price: 280, rent: 120, color: "bg-amber-600", icon: "fa-magnifying-glass" },
+            { id: 18, gridPos: [8, 6], name: "命運卡", type: "FATE", color: "bg-pink-600", icon: "fa-question-circle", desc: "命運降臨" },
+            { id: 19, gridPos: [8, 5], name: "國學大師殿", type: "PROPERTY", category: "常用錯別字", price: 300, rent: 130, color: "bg-amber-600", icon: "fa-graduation-cap" },
+            { id: 20, gridPos: [8, 4], name: "幸運寶箱", type: "TREASURE", color: "bg-amber-500", icon: "fa-box-open", desc: "獲得豐富獎賞" },
+            { id: 21, gridPos: [8, 3], name: "古籍文字樓", type: "PROPERTY", category: "成語錯別字", price: 320, rent: 140, color: "bg-amber-600", icon: "fa-book-journal-whills" },
+            { id: 22, gridPos: [8, 2], name: "著作贊助金", type: "BONUS", color: "bg-yellow-500", icon: "fa-coins", bonus: 200, desc: "獲得贊助 $200" },
+            { id: 23, gridPos: [8, 1], name: "翰林院研討堂", type: "PROPERTY", category: "常用錯別字", price: 340, rent: 150, color: "bg-amber-600", icon: "fa-building-columns" },
+            { id: 24, gridPos: [8, 0], name: "違規考場", type: "JAIL", color: "bg-slate-700", icon: "fa-handcuffs", desc: "違規扣押一輪" },
+
+            // Left Column (25 to 31)
+            { id: 25, gridPos: [7, 0], name: "狀元及第府", type: "PROPERTY", category: "成語錯別字", price: 360, rent: 165, color: "bg-rose-700", icon: "fa-crown" },
+            { id: 26, gridPos: [6, 0], name: "機會卡", type: "CHANCE", color: "bg-purple-600", icon: "fa-bolt", desc: "抽取隨機事件" },
+            { id: 27, gridPos: [5, 0], name: "文心雕龍閣", type: "PROPERTY", category: "成語錯別字", price: 380, rent: 180, color: "bg-rose-700", icon: "fa-dragon" },
+            { id: 28, gridPos: [4, 0], name: "典籍維護費", type: "TAX", color: "bg-red-600", icon: "fa-receipt", tax: 100, desc: "繳納維護費 $100" },
+            { id: 29, gridPos: [3, 0], name: "史記勘誤樓", type: "PROPERTY", category: "常用錯別字", price: 400, rent: 195, color: "bg-rose-700", icon: "fa-feather" },
+            { id: 30, gridPos: [2, 0], name: "命運卡", type: "FATE", color: "bg-pink-600", icon: "fa-question-circle", desc: "接受命運考驗" },
+            { id: 31, gridPos: [1, 0], name: "詩詞對仗殿", type: "PROPERTY", category: "語文注音辨析", price: 420, rent: 210, color: "bg-rose-700", icon: "fa-quote-left" }
+        ];
+
+        // ==========================================
+        // 4. HANDWRITING CANVAS COMPONENT
+        // ==========================================
+        function HandwritingBoard({ onSelectCandidate, correctChar, soundEnabled, isAi, onAiSimulate }) {
+            const canvasRef = useRef(null);
+            const [isDrawing, setIsDrawing] = useState(false);
+            const [strokes, setStrokes] = useState([]);
+            const [currentStroke, setCurrentStroke] = useState(null);
+            const [candidates, setCandidates] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [manualInput, setManualInput] = useState("");
+
+            const clearCanvas = () => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawGrid(ctx, canvas.width, canvas.height);
+                setStrokes([]);
+                setCandidates([]);
+            };
+
+            const undoStroke = () => {
+                if (strokes.length === 0) return;
+                const newStrokes = strokes.slice(0, -1);
+                setStrokes(newStrokes);
+                redrawAllStrokes(newStrokes);
+                if (newStrokes.length > 0) {
+                    recognizeHandwriting(newStrokes);
+                } else {
+                    setCandidates([]);
+                }
+            };
+
+            const drawGrid = (ctx, w, h) => {
+                ctx.strokeStyle = "rgba(99, 102, 241, 0.2)";
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+
+                ctx.beginPath();
+                ctx.moveTo(0, 0); ctx.lineTo(w, h);
+                ctx.moveTo(w, 0); ctx.lineTo(0, h);
+                ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h);
+                ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
+                ctx.stroke();
+
+                ctx.setLineDash([]);
+                ctx.strokeStyle = "rgba(99, 102, 241, 0.4)";
+                ctx.strokeRect(0, 0, w, h);
+            };
+
+            const redrawAllStrokes = (strokeArray) => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawGrid(ctx, canvas.width, canvas.height);
+
+                ctx.strokeStyle = "#818cf8";
+                ctx.lineWidth = 7;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                strokeArray.forEach(st => {
+                    const xs = st[0];
+                    const ys = st[1];
+                    if (xs.length === 0) return;
+                    ctx.beginPath();
+                    ctx.moveTo(xs[0], ys[0]);
+                    for (let i = 1; i < xs.length; i++) {
+                        ctx.lineTo(xs[i], ys[i]);
+                    }
+                    ctx.stroke();
+                });
+            };
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                canvas.width = 260;
+                canvas.height = 260;
+                drawGrid(ctx, 260, 260);
+                setStrokes([]);
+                setCandidates([]);
+            }, []);
+
+            const recognizeHandwriting = async (strokeData) => {
+                if (!strokeData || strokeData.length === 0) {
+                    setCandidates([]);
+                    return;
+                }
+                setIsLoading(true);
+
+                try {
+                    const payload = {
+                        options: "enable_homophone_dict",
+                        requests: [{
+                            writing_guide: { writing_area_width: 260, writing_area_height: 260 },
+                            ink: strokeData,
+                            language: "zh-Hant"
+                        }]
+                    };
+
+                    const res = await fetch("https://inputtools.google.com/request?itc=zh-hant-t-i0-und&num=6", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data[0] === "SUCCESS" && data[1] && data[1][0] && data[1][0][1]) {
+                            const parsedCandidates = data[1][0][1];
+                            setCandidates(parsedCandidates);
+                        } else {
+                            fallbackCandidates();
+                        }
+                    } else {
+                        fallbackCandidates();
+                    }
+                } catch (err) {
+                    fallbackCandidates();
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const fallbackCandidates = () => {
+                const options = [correctChar, "可", "厲", "部", "掉", "鶩", "成", "諱"].sort(() => 0.5 - Math.random());
+                setCandidates(options.slice(0, 5));
+            };
+
+            const getCanvasPos = (e) => {
+                const canvas = canvasRef.current;
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: Math.round(clientX - rect.left),
+                    y: Math.round(clientY - rect.top)
+                };
+            };
+
+            const startDrawing = (e) => {
+                if (isAi) return;
+                e.preventDefault();
+                const pos = getCanvasPos(e);
+                setIsDrawing(true);
+                setCurrentStroke([[pos.x], [pos.y]]);
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+
+                ctx.strokeStyle = "#818cf8";
+                ctx.lineWidth = 7;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(pos.x, pos.y);
+                playAudioFx('stroke', soundEnabled);
+            };
+
+            const drawMove = (e) => {
+                if (!isDrawing || isAi) return;
+                e.preventDefault();
+                const pos = getCanvasPos(e);
+                
+                setCurrentStroke(prev => {
+                    if (!prev) return null;
+                    return [[...prev[0], pos.x], [...prev[1], pos.y]];
+                });
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.lineTo(pos.x, pos.y);
+                ctx.stroke();
+            };
+
+            const stopDrawing = (e) => {
+                if (!isDrawing || isAi) return;
+                setIsDrawing(false);
+                if (currentStroke && currentStroke[0].length > 0) {
+                    const updated = [...strokes, currentStroke];
+                    setStrokes(updated);
+                    setCurrentStroke(null);
+                    recognizeHandwriting(updated);
+                }
+            };
+
+            useEffect(() => {
+                if (isAi && onAiSimulate) {
+                    const timer = setTimeout(() => {
+                        onAiSimulate();
+                    }, 1500);
+                    return () => clearTimeout(timer);
+                }
+            }, [isAi]);
+
+            return (
+                <div className="flex flex-col items-center gap-2.5">
+                    
+                    {/* Canvas Area */}
+                    <div className="relative p-2 bg-slate-950 border-2 border-indigo-500/60 rounded-2xl shadow-xl">
+                        <canvas
+                            ref={canvasRef}
+                            onMouseDown={startDrawing}
+                            onMouseMove={drawMove}
+                            onMouseUp={stopDrawing}
+                            onMouseLeave={stopDrawing}
+                            onTouchStart={startDrawing}
+                            onTouchMove={drawMove}
+                            onTouchEnd={stopDrawing}
+                            className="touch-none cursor-crosshair bg-slate-900 rounded-xl block"
+                        />
+
+                        {isLoading && (
+                            <div className="absolute top-3 right-3 bg-indigo-600/90 text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                                <i className="fa-solid fa-spinner fa-spin"></i> 辨識中...
+                            </div>
+                        )}
+
+                        {isAi && (
+                            <div className="absolute inset-0 bg-slate-950/80 rounded-xl flex flex-col items-center justify-center text-indigo-300 font-bold text-sm">
+                                <i className="fa-solid fa-robot text-3xl mb-2 animate-bounce text-indigo-400"></i>
+                                同學 (AI) 正揮毫手寫解答中...
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Canvas Action Controls */}
+                    {!isAi && (
+                        <div className="flex items-center gap-2 w-full max-w-[260px]">
+                            <button
+                                onClick={undoStroke}
+                                disabled={strokes.length === 0}
+                                className="flex-1 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 text-xs font-bold border border-slate-700 transition flex items-center justify-center gap-1">
+                                <i className="fa-solid fa-rotate-left"></i> 復原一筆
+                            </button>
+                            <button
+                                onClick={clearCanvas}
+                                disabled={strokes.length === 0}
+                                className="flex-1 py-1.5 rounded-xl bg-rose-900/60 hover:bg-rose-800 border border-rose-700/60 disabled:opacity-40 text-rose-200 text-xs font-bold transition flex items-center justify-center gap-1">
+                                <i className="fa-solid fa-trash"></i> 清空重寫
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Candidates Selector */}
+                    <div className="w-full max-w-[300px] bg-slate-950 p-2.5 rounded-2xl border border-indigo-500/40">
+                        <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                            <span><i className="fa-solid fa-hand-pointer mr-1"></i> 請點擊辨識字詞送出答案：</span>
+                            {candidates.length > 0 && <span className="text-emerald-400">辨識成功</span>}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 min-h-[44px]">
+                            {candidates.length === 0 ? (
+                                <div className="text-xs text-slate-500 text-center w-full py-2">
+                                    {isAi ? "同組同學思考中..." : "✍️ 請先在上方畫布開始手寫正字..."}
+                                </div>
+                            ) : (
+                                candidates.map((char, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => onSelectCandidate(char)}
+                                        className="w-9 h-9 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 text-white font-extrabold text-lg shadow-lg border border-indigo-300/40 transform active:scale-95 transition shrink-0 flex items-center justify-center">
+                                        {char}
+                                    </button>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Keyboard Input Fallback */}
+                        {!isAi && (
+                            <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center gap-1.5">
+                                <input
+                                    type="text"
+                                    maxLength={1}
+                                    placeholder="備用打字..."
+                                    value={manualInput}
+                                    onChange={(e) => setManualInput(e.target.value)}
+                                    className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white text-center"
+                                />
+                                <button
+                                    onClick={() => {
+                                        if (manualInput.trim()) {
+                                            onSelectCandidate(manualInput.trim());
+                                            setManualInput("");
+                                        }
+                                    }}
+                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 rounded-lg border border-slate-700">
+                                    送出
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                </div>
+            );
+        }
+
+        // ==========================================
+        // 5. MAIN APP COMPONENT
+        // ==========================================
+        function App() {
+            const [soundEnabled, setSoundEnabled] = useState(true);
+            const [studentNickname, setStudentNickname] = useState("");
+            const [selectedAvatarIdx, setSelectedAvatarIdx] = useState(0);
+            
+            // App state: 'LOGIN', 'ROOM_LOBBY', 'WAITING_ROOM', 'GAME', 'GAME_OVER'
+            const [appState, setAppState] = useState('LOGIN');
+
+            // Rooms system state - Real-time synced with Firebase
+            const [rooms, setRooms] = useState([]);
+
+            const [currentRoom, setCurrentRoom] = useState(null);
+            const [newRoomName, setNewRoomName] = useState("");
+            const [newRoomCapacity, setNewRoomCapacity] = useState(3);
+            const [countdown, setCountdown] = useState(null);
+
+            // Admin Settings
+            const [showAdminModal, setShowAdminModal] = useState(false);
+
+            const [questions, setQuestions] = useState(INITIAL_HANDWRITING_QUESTIONS);
+            const [board, setBoard] = useState(BOARD_9X9_LAYOUT);
+            const [players, setPlayers] = useState([]);
+            const [currentPlayerIdx, setCurrentPlayerIdx] = useState(0);
+
+            // Property Levels: { [tileId]: { ownerId: number, level: number } }
+            const [propertyState, setPropertyState] = useState({});
+
+            const [phase, setPhase] = useState('IDLE'); // IDLE, ROLLING, MOVING, QUIZ, CHANCE, GAME_OVER
+            const [diceValue, setDiceValue] = useState(1);
+            const [isRolling, setIsRolling] = useState(false);
+            const [logs, setLogs] = useState([]);
+
+            // Modals
+            const [activeQuiz, setActiveQuiz] = useState(null);
+            const [activeChance, setActiveChance] = useState(null);
+            const [quizResult, setQuizResult] = useState(null);
+
+            const currentRoomRef = useRef(currentRoom);
+            useEffect(() => { currentRoomRef.current = currentRoom; }, [currentRoom]);
+
+            const appStateRef = useRef(appState);
+            useEffect(() => { appStateRef.current = appState; }, [appState]);
+
+            const isStartingRef = useRef(false);
+
+            // Sync Rooms Realtime from Firebase & Handle Sync Game Launch
+            useEffect(() => {
+                const roomsRef = db.ref('rooms');
+                const handleSnapshot = (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        const roomList = Object.values(data);
+                        setRooms(roomList);
+
+                        const activeRoomId = currentRoomRef.current?.id;
+                        if (activeRoomId) {
+                            const updatedCurrent = roomList.find(r => r.id === activeRoomId);
+                            if (updatedCurrent) {
+                                setCurrentRoom(updatedCurrent);
+
+                                // 雲端同步啟動：當房間狀態更新為 PLAYING 時，所有該房間內的成員同步啟動倒數並進入遊戲
+                                if (appStateRef.current === 'WAITING_ROOM' && updatedCurrent.status === 'PLAYING' && !isStartingRef.current) {
+                                    isStartingRef.current = true;
+                                    triggerRoomStartCountdown(updatedCurrent);
+                                }
+                            } else if (appStateRef.current === 'WAITING_ROOM' || appStateRef.current === 'GAME') {
+                                setCurrentRoom(null);
+                                if (appStateRef.current === 'WAITING_ROOM') {
+                                    setAppState('ROOM_LOBBY');
+                                    alert('您所在的房間已被教師或房主解散！');
+                                }
+                            }
+                        }
+                    } else {
+                        setRooms([]);
+                        if (appStateRef.current === 'WAITING_ROOM') {
+                            setCurrentRoom(null);
+                            setAppState('ROOM_LOBBY');
+                            alert('所有線上房間已被解散或清空！');
+                        }
+                    }
+                };
+
+                roomsRef.on('value', handleSnapshot);
+                return () => roomsRef.off('value', handleSnapshot);
+            }, []);
+
+            // Sync Question Bank Realtime from Firebase
+            useEffect(() => {
+                const qRef = db.ref('questions');
+                qRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data && Array.isArray(data)) {
+                        setQuestions(data);
+                    } else {
+                        setQuestions([]);
+                    }
+                });
+                return () => qRef.off('value');
+            }, []);
+
+            const addLog = (msg, type = 'info') => {
+                const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                setLogs(prev => [{ id: Date.now() + Math.random(), time, msg, type }, ...prev.slice(0, 49)]);
+            };
+
+            // 1. Student Login -> Go to Room Lobby
+            const handleStudentLogin = (e) => {
+                e.preventDefault();
+                if (!studentNickname.trim()) return;
+                setAppState('ROOM_LOBBY');
+                playAudioFx('coin', soundEnabled);
+            };
+
+            // 2. Student Create Custom Room
+            const handleCreateRoom = (e) => {
+                e.preventDefault();
+                const roomTitle = newRoomName.trim() || `${studentNickname} 的改錯字對戰房`;
+                const roomId = `ROOM_${Math.floor(100 + Math.random() * 900)}`;
+                const roomObj = {
+                    id: roomId,
+                    name: roomTitle,
+                    capacity: newRoomCapacity,
+                    host: studentNickname,
+                    status: 'WAITING',
+                    members: [
+                        { name: studentNickname, avatar: AVATARS[selectedAvatarIdx], isAi: false }
+                    ]
+                };
+
+                isStartingRef.current = false;
+                db.ref(`rooms/${roomId}`).set(roomObj);
+                setCurrentRoom(roomObj);
+                setAppState('WAITING_ROOM');
+                setNewRoomName("");
+                playAudioFx('coin', soundEnabled);
+            };
+
+            // 3. Student Join Existing Room (雲端同步加入)
+            const handleJoinRoom = (targetRoom) => {
+                if (targetRoom.members.length >= targetRoom.capacity) {
+                    alert("該房間人數已滿！");
+                    return;
+                }
+
+                const isFull = (targetRoom.members.length + 1) >= targetRoom.capacity;
+                const updatedMembers = [
+                    ...targetRoom.members,
+                    { name: studentNickname, avatar: AVATARS[selectedAvatarIdx], isAi: false }
+                ];
+
+                const updatedRoom = { 
+                    ...targetRoom, 
+                    members: updatedMembers,
+                    status: isFull ? 'PLAYING' : (targetRoom.status || 'WAITING')
+                };
+
+                isStartingRef.current = false;
+                db.ref(`rooms/${targetRoom.id}`).set(updatedRoom);
+                setCurrentRoom(updatedRoom);
+                setAppState('WAITING_ROOM');
+                playAudioFx('coin', soundEnabled);
+            };
+
+            // 4. Simulate a classmate joining current room (雲端同步加入)
+            const handleSimulateClassmateJoin = () => {
+                if (!currentRoom || currentRoom.members.length >= currentRoom.capacity) return;
+
+                const shuffled = [...CLASSMATE_POOL].sort(() => 0.5 - Math.random());
+                const isFull = (currentRoom.members.length + 1) >= currentRoom.capacity;
+                const newMember = {
+                    name: `${shuffled[0]} (同學)`,
+                    avatar: AVATARS[(currentRoom.members.length + 1) % AVATARS.length],
+                    isAi: true
+                };
+
+                const updatedRoom = {
+                    ...currentRoom,
+                    members: [...currentRoom.members, newMember],
+                    status: isFull ? 'PLAYING' : (currentRoom.status || 'WAITING')
+                };
+
+                db.ref(`rooms/${currentRoom.id}`).set(updatedRoom);
+                setCurrentRoom(updatedRoom);
+                playAudioFx('coin', soundEnabled);
+            };
+
+            // 5. Fill remaining room slots with AI players and launch immediately (雲端同步開局)
+            const handleFillAiAndLaunch = () => {
+                if (!currentRoom) return;
+
+                const neededCount = currentRoom.capacity - currentRoom.members.length;
+                const shuffled = [...CLASSMATE_POOL].sort(() => 0.5 - Math.random());
+                const newMembers = [...currentRoom.members];
+
+                for (let i = 0; i < neededCount; i++) {
+                    newMembers.push({
+                        name: `${shuffled[i % shuffled.length]} (AI同學)`,
+                        avatar: AVATARS[(newMembers.length) % AVATARS.length],
+                        isAi: true
+                    });
+                }
+
+                const updatedRoom = { 
+                    ...currentRoom, 
+                    members: newMembers,
+                    status: 'PLAYING'
+                };
+                
+                db.ref(`rooms/${currentRoom.id}`).set(updatedRoom);
+                setCurrentRoom(updatedRoom);
+                playAudioFx('fanfare', soundEnabled);
+            };
+
+            // 6. Admin Delete Room / Clear All Rooms Handlers
+            const handleDeleteRoom = (roomId) => {
+                db.ref(`rooms/${roomId}`).remove();
+                if (currentRoom && currentRoom.id === roomId) {
+                    setCurrentRoom(null);
+                    if (appState === 'WAITING_ROOM') {
+                        setAppState('ROOM_LOBBY');
+                    }
+                }
+            };
+
+            const handleClearAllRooms = () => {
+                if (window.confirm("確定要清空所有線上房間嗎？")) {
+                    db.ref('rooms').remove();
+                    if (appState === 'WAITING_ROOM') {
+                        setCurrentRoom(null);
+                        setAppState('ROOM_LOBBY');
+                    }
+                }
+            };
+
+            // Trigger Launch Countdown when full / synced from Firebase
+            const triggerRoomStartCountdown = (roomObj) => {
+                setCountdown(3);
+                playAudioFx('correct', soundEnabled);
+
+                const interval = setInterval(() => {
+                    setCountdown(prev => {
+                        if (prev <= 1) {
+                            clearInterval(interval);
+                            launchMonopolyGame(roomObj);
+                            return null;
+                        }
+                        return prev - 1;
+                    });
+                }, 1000);
+            };
+
+            // Launch Monopoly Game Engine
+            const launchMonopolyGame = (roomObj) => {
+                const newPlayers = roomObj.members.map((m, idx) => ({
+                    id: idx,
+                    name: m.name,
+                    isAi: m.isAi,
+                    avatar: m.avatar,
+                    coins: 1200,
+                    position: 0,
+                    skipTurns: 0,
+                    items: { hint: 1 },
+                    stats: { correct: 0, total: 0 }
+                }));
+
+                setPlayers(newPlayers);
+                setPropertyState({});
+                setCurrentPlayerIdx(0);
+                setPhase('IDLE');
+                setAppState('GAME');
+                setCountdown(null);
+                addLog(`【${roomObj.name}】成員集結完成！成員：${roomObj.members.map(m => m.name).join('、')}。`, 'system');
+                addLog(`9x9 手寫改錯字大富翁遊戲開局！由 ${newPlayers[0].name} 先攻。`, 'action');
+                playAudioFx('fanfare', soundEnabled);
+            };
+
+            const rollDice = () => {
+                if (phase !== 'IDLE' || isRolling) return;
+
+                const currPlayer = players[currentPlayerIdx];
+                if (currPlayer.skipTurns > 0) {
+                    addLog(`${currPlayer.name} 處於禁言休息狀態，暫停乙輪！`, 'warning');
+                    setPlayers(prev => prev.map((p, idx) => idx === currentPlayerIdx ? { ...p, skipTurns: p.skipTurns - 1 } : p));
+                    nextTurn();
+                    return;
+                }
+
+                setIsRolling(true);
+                setPhase('ROLLING');
+                playAudioFx('dice', soundEnabled);
+
+                let rollCount = 0;
+                const interval = setInterval(() => {
+                    const tempVal = Math.floor(Math.random() * 6) + 1;
+                    setDiceValue(tempVal);
+                    rollCount++;
+                    if (rollCount > 10) {
+                        clearInterval(interval);
+                        const finalVal = Math.floor(Math.random() * 6) + 1;
+                        setDiceValue(finalVal);
+                        setIsRolling(false);
+                        addLog(`${currPlayer.name} 擲出了 ${finalVal} 點！`, 'action');
+                        movePlayerSteps(currPlayer.id, finalVal);
+                    }
+                }, 50);
+            };
+
+            const movePlayerSteps = (playerId, steps) => {
+                setPhase('MOVING');
+                let stepRemaining = steps;
+
+                const stepInterval = setInterval(() => {
+                    setPlayers(prev => prev.map(p => {
+                        if (p.id === playerId) {
+                            const nextPos = (p.position + 1) % board.length;
+                            let newCoins = p.coins;
+                            if (nextPos === 0) {
+                                newCoins += 200;
+                                addLog(`${p.name} 順利繞行棋盤起點，領取津貼 $200！`, 'success');
+                                playAudioFx('coin', soundEnabled);
+                            }
+                            return { ...p, position: nextPos, coins: newCoins };
+                        }
+                        return p;
+                    }));
+
+                    playAudioFx('step', soundEnabled);
+                    stepRemaining--;
+
+                    if (stepRemaining <= 0) {
+                        clearInterval(stepInterval);
+                        setTimeout(() => {
+                            handleTileLanding(playerId);
+                        }, 280);
+                    }
+                }, 200);
+            };
+
+            const handleTileLanding = (playerId) => {
+                const player = players.find(p => p.id === playerId);
+                const tile = board[player.position];
+
+                addLog(`${player.name} 踏上了【${tile.name}】`, 'info');
+
+                if (tile.type === 'GO') {
+                    playAudioFx('coin', soundEnabled);
+                    nextTurn();
+                } else if (tile.type === 'BONUS') {
+                    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, coins: p.coins + tile.bonus } : p));
+                    addLog(`${player.name} 獲得獎勵金 $${tile.bonus}！`, 'success');
+                    playAudioFx('coin', soundEnabled);
+                    nextTurn();
+                } else if (tile.type === 'JAIL') {
+                    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, skipTurns: 1 } : p));
+                    addLog(`${player.name} 進入禁言區，下一輪暫停處罰！`, 'warning');
+                    nextTurn();
+                } else if (tile.type === 'CLINIC') {
+                    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, coins: Math.max(0, p.coins - 80) } : p));
+                    addLog(`${player.name} 支付文字健檢費 $80。`, 'danger');
+                    nextTurn();
+                } else if (tile.type === 'TAX') {
+                    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, coins: Math.max(0, p.coins - tile.tax) } : p));
+                    addLog(`${player.name} 繳納典籍維護稅款 $${tile.tax}。`, 'danger');
+                    nextTurn();
+                } else if (tile.type === 'PARK') {
+                    addLog(`${player.name} 悠閒品茶休養生息。`, 'info');
+                    nextTurn();
+                } else if (tile.type === 'CHANCE' || tile.type === 'FATE') {
+                    triggerChanceOrFate(player, tile.type);
+                } else if (tile.type === 'TREASURE') {
+                    const coinBonus = 150;
+                    setPlayers(prev => prev.map(p => p.id === playerId ? { 
+                        ...p, 
+                        coins: p.coins + coinBonus,
+                        items: { ...p.items, hint: p.items.hint + 1 }
+                    } : p));
+                    addLog(`${player.name} 開啟幸運寶箱！獲得 $${coinBonus} 及 1 張提示卡！`, 'success');
+                    playAudioFx('coin', soundEnabled);
+                    nextTurn();
+                } else if (tile.type === 'PROPERTY') {
+                    triggerQuizChallenge(player, tile);
+                }
+            };
+
+            const triggerChanceOrFate = (player, cardType) => {
+                const events = [
+                    { title: "書法特優獲獎", text: "手寫筆跡端正獲選國學佳作，獲頒獎金 $200", effect: p => ({ ...p, coins: p.coins + 200 }) },
+                    { title: "出版改錯手冊", text: "編纂《繁體錯別字辭典》大賣，獲版稅收入 $160", effect: p => ({ ...p, coins: p.coins + 160 }) },
+                    { title: "公文錯字罰款", text: "手寫公文出現繁體錯字，罰扣研習費 $90", effect: p => ({ ...p, coins: Math.max(0, p.coins - 90) }) },
+                    { title: "名師親自指點", text: "獲得國學大師贈與 1 張解答提示卡！", effect: p => ({ ...p, items: { ...p.items, hint: p.items.hint + 1 } }) }
+                ];
+                const evt = events[Math.floor(Math.random() * events.length)];
+                setActiveChance({ player, event: evt, type: cardType });
+                setPhase('CHANCE');
+                setPlayers(prev => prev.map(p => p.id === player.id ? evt.effect(p) : p));
+                addLog(`【${cardType}】${player.name}：${evt.title}（${evt.text}）`, 'action');
+            };
+
+            const triggerQuizChallenge = (player, tile) => {
+                const categoryQuestions = questions.filter(q => q.category === tile.category);
+                const pool = categoryQuestions.length > 0 ? categoryQuestions : questions;
+
+                if (!pool || pool.length === 0) {
+                    addLog(`【${tile.name}】目前題庫尚無可用題目，請至教師後台匯入題目！`, 'warning');
+                    nextTurn();
+                    return;
+                }
+
+                const randomQ = pool[Math.floor(Math.random() * pool.length)];
+
+                const currentProp = propertyState[tile.id] || null;
+                const owner = currentProp ? players.find(p => p.id === currentProp.ownerId) : null;
+
+                setActiveQuiz({
+                    tile,
+                    question: randomQ,
+                    propData: currentProp,
+                    owner
+                });
+                setQuizResult(null);
+                setPhase('QUIZ');
+            };
+
+            useEffect(() => {
+                if (appState === 'GAME' && phase === 'IDLE' && players[currentPlayerIdx]?.isAi) {
+                    const timer = setTimeout(() => rollDice(), 1000);
+                    return () => clearTimeout(timer);
+                }
+            }, [appState, phase, currentPlayerIdx]);
+
+            const calculateRent = (baseRent, level = 1) => {
+                if (level === 2) return Math.round(baseRent * 1.8);
+                if (level === 3) return Math.round(baseRent * 2.8);
+                return baseRent;
+            };
+
+            const handleHandwritingSubmit = (writtenChar) => {
+                if (quizResult !== null) return;
+
+                const currPlayer = players[currentPlayerIdx];
+                const isCorrect = writtenChar === activeQuiz.question.correctChar;
+
+                setPlayers(prev => prev.map(p => p.id === currPlayer.id ? {
+                    ...p,
+                    stats: {
+                        correct: p.stats.correct + (isCorrect ? 1 : 0),
+                        total: p.stats.total + 1
+                    }
+                } : p));
+
+                if (isCorrect) {
+                    playAudioFx('correct', soundEnabled);
+                    const rewardMoney = activeQuiz.question.reward || 120;
+                    let extraMsg = "";
+
+                    if (!activeQuiz.owner) {
+                        extraMsg = `手寫正確！獲得研習獎賞 $${rewardMoney}！`;
+                    } else if (activeQuiz.owner.id === currPlayer.id) {
+                        extraMsg = `手寫答對！過關獲得獎勵 $${rewardMoney}！`;
+                    } else {
+                        extraMsg = `手寫正字成功！豁免過路費，並獲得獎賞 $${rewardMoney}！`;
+                    }
+
+                    setQuizResult({
+                        correct: true,
+                        writtenChar,
+                        message: `手寫正字【${writtenChar}】正確！ ${extraMsg}`,
+                        explanation: activeQuiz.question.explanation
+                    });
+
+                    setPlayers(prev => prev.map(p => p.id === currPlayer.id ? { ...p, coins: p.coins + rewardMoney } : p));
+                    addLog(`${currPlayer.name} 手寫正字【${writtenChar}】過關！${extraMsg}`, 'success');
+
+                } else {
+                    playAudioFx('wrong', soundEnabled);
+                    let fineMsg = "";
+                    const currentLevel = activeQuiz.propData?.level || 1;
+                    const calculatedRent = calculateRent(activeQuiz.tile.rent, currentLevel);
+
+                    if (activeQuiz.owner && activeQuiz.owner.id !== currPlayer.id) {
+                        fineMsg = `手寫【${writtenChar}】錯誤 (正字為「${activeQuiz.question.correctChar}」)！支付過路費 $${calculatedRent} 給 ${activeQuiz.owner.name}。`;
+                        setPlayers(prev => prev.map(p => {
+                            if (p.id === currPlayer.id) return { ...p, coins: Math.max(0, p.coins - calculatedRent) };
+                            if (p.id === activeQuiz.owner.id) return { ...p, coins: p.coins + calculatedRent };
+                            return p;
+                        }));
+                    } else {
+                        const penalty = 50;
+                        fineMsg = `手寫【${writtenChar}】錯誤 (正字為「${activeQuiz.question.correctChar}」)！扣除研習罰金 $${penalty}。`;
+                        setPlayers(prev => prev.map(p => p.id === currPlayer.id ? { ...p, coins: Math.max(0, p.coins - penalty) } : p));
+                    }
+
+                    setQuizResult({
+                        correct: false,
+                        writtenChar,
+                        message: fineMsg,
+                        explanation: activeQuiz.question.explanation
+                    });
+                    addLog(`${currPlayer.name} 手寫解答不正確。${fineMsg}`, 'danger');
+                }
+            };
+
+            const handleAiSimulateHandwriting = () => {
+                if (!activeQuiz) return;
+                const isCorrect = Math.random() < 0.80;
+                let choice = activeQuiz.question.correctChar;
+                if (!isCorrect) {
+                    choice = activeQuiz.question.wrongChar;
+                }
+                handleHandwritingSubmit(choice);
+            };
+
+            const handleBuyProperty = () => {
+                const currPlayer = players[currentPlayerIdx];
+                const tile = activeQuiz.tile;
+
+                if (currPlayer.coins < tile.price) return;
+
+                setPropertyState(prev => ({
+                    ...prev,
+                    [tile.id]: { ownerId: currPlayer.id, level: 1 }
+                }));
+
+                setPlayers(prev => prev.map(p => p.id === currPlayer.id ? {
+                    ...p,
+                    coins: p.coins - tile.price
+                } : p));
+
+                addLog(`${currPlayer.name} 花費 $${tile.price} 購入地產【${tile.name}】(LV1)！`, 'success');
+                playAudioFx('coin', soundEnabled);
+                closeQuizModal();
+            };
+
+            const handleUpgradeProperty = () => {
+                const currPlayer = players[currentPlayerIdx];
+                const tile = activeQuiz.tile;
+                const currentLevel = activeQuiz.propData?.level || 1;
+                if (currentLevel >= 3) return;
+
+                const upgradeCost = Math.round(tile.price * 0.6);
+                if (currPlayer.coins < upgradeCost) return;
+
+                setPropertyState(prev => ({
+                    ...prev,
+                    [tile.id]: { ownerId: currPlayer.id, level: currentLevel + 1 }
+                }));
+
+                setPlayers(prev => prev.map(p => p.id === currPlayer.id ? {
+                    ...p,
+                    coins: p.coins - upgradeCost
+                } : p));
+
+                addLog(`${currPlayer.name} 花費 $${upgradeCost} 升級【${tile.name}】至 LV${currentLevel + 1}！`, 'success');
+                playAudioFx('upgrade', soundEnabled);
+                closeQuizModal();
+            };
+
+            const closeQuizModal = () => {
+                setActiveQuiz(null);
+                setQuizResult(null);
+                nextTurn();
+            };
+
+            const nextTurn = () => {
+                const alive = players.filter(p => p.coins > 0);
+
+                if (alive.length <= 1 && players.length > 1) {
+                    setAppState('GAME_OVER');
+                    playAudioFx('fanfare', soundEnabled);
+                    addLog(`遊戲結束！誕生最終大富翁！`, 'success');
+                    return;
+                }
+                setCurrentPlayerIdx((currentPlayerIdx + 1) % players.length);
+                setPhase('IDLE');
+            };
+
+            const resetToLogin = () => {
+                isStartingRef.current = false;
+                setAppState('LOGIN');
+                setPhase('IDLE');
+                setPlayers([]);
+                setPropertyState({});
+                setLogs([]);
+                setCurrentRoom(null);
+            };
+
+            const updateQuestionsBank = (newQuestions) => {
+                setQuestions(newQuestions);
+                db.ref('questions').set(newQuestions);
+            };
+
+            return (
+                <div className="max-w-7xl mx-auto flex flex-col min-h-screen">
+                    
+                    {/* Header Bar */}
+                    <header className="bg-slate-900/80 backdrop-blur border border-slate-700/60 rounded-2xl p-2 sm:p-3 mb-2 flex flex-wrap items-center justify-between gap-2 shadow-xl">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-base sm:text-lg font-black shadow-lg">
+                                <i className="fa-solid fa-pen-nib"></i>
+                            </div>
+                            <div>
+                                <h1 className="text-base sm:text-xl font-extrabold bg-gradient-to-r from-indigo-300 via-purple-300 to-amber-300 bg-clip-text text-transparent">
+                                    手寫改錯字大富翁 <span className="text-xs text-indigo-400 font-mono">(Firebase 雲端連線版)</span>
+                                </h1>
+                                <p className="text-[10px] sm:text-xs text-slate-400">9x9 Chinese Monopoly with Firebase Realtime Lobby & AI Battle</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setShowAdminModal(true)}
+                                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 transition shadow-lg glow-gold">
+                                <i className="fa-solid fa-key"></i> 教師管理後台
+                            </button>
+                            <button
+                                onClick={() => setSoundEnabled(!soundEnabled)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition border ${
+                                    soundEnabled ? 'bg-emerald-600/80 border-emerald-400/30 text-white' : 'bg-slate-700 border-slate-600 text-slate-400'
+                                }`}>
+                                <i className={`fa-solid ${soundEnabled ? 'fa-volume-high' : 'fa-volume-xmark'}`}></i> 音效
+                            </button>
+                            {appState !== 'LOGIN' && (
+                                <button
+                                    onClick={resetToLogin}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold flex items-center gap-1 transition border border-rose-400/30">
+                                    <i className="fa-solid fa-arrow-right-from-bracket"></i> 登出/大廳
+                                </button>
+                            )}
+                        </div>
+                    </header>
+
+                    {/* 1. STUDENT LOGIN SCREEN */}
+                    {appState === 'LOGIN' && (
+                        <div className="flex-1 flex items-center justify-center p-3">
+                            <div className="bg-slate-900/90 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl backdrop-blur-md">
+                                <div className="text-center mb-6">
+                                    <div className="inline-block p-3.5 rounded-2xl bg-indigo-500/10 text-indigo-400 text-4xl mb-3 border border-indigo-500/20">
+                                        <i className="fa-solid fa-graduation-cap"></i>
+                                    </div>
+                                    <h2 className="text-2xl font-black text-white">學生登入大廳</h2>
+                                    <p className="text-xs text-slate-400 mt-1">請輸入姓名暱稱，進入大廳自訂創建房間或加入同學的對戰房</p>
+                                </div>
+
+                                <form onSubmit={handleStudentLogin} className="space-y-5">
+                                    <div>
+                                        <label className="block text-xs font-bold text-indigo-300 uppercase mb-1.5">
+                                            <i className="fa-solid fa-user mr-1"></i> 請輸入學生暱稱/姓名
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="例如：王小明..."
+                                            value={studentNickname}
+                                            onChange={(e) => setStudentNickname(e.target.value)}
+                                            className="w-full bg-slate-950 border-2 border-indigo-500/50 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-400 transition"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-indigo-300 uppercase mb-2">
+                                            <i className="fa-solid fa-icons mr-1"></i> 選擇個人角色頭像
+                                        </label>
+                                        <div className="grid grid-cols-5 gap-1.5">
+                                            {AVATARS.map((av, idx) => (
+                                                <button
+                                                    type="button"
+                                                    key={idx}
+                                                    onClick={() => setSelectedAvatarIdx(idx)}
+                                                    className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition ${
+                                                        selectedAvatarIdx === idx 
+                                                            ? `${av.color} border-white shadow-lg scale-105` 
+                                                            : 'bg-slate-800 border-slate-700 text-slate-400'
+                                                    }`}>
+                                                    <i className={`fa-solid ${av.icon} text-lg text-white`}></i>
+                                                    <span className="text-[9px] font-bold text-white truncate w-full text-center">{av.name}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:to-pink-600 text-white font-extrabold text-sm shadow-xl transition transform active:scale-95 flex items-center justify-center gap-2">
+                                        <i className="fa-solid fa-door-open"></i> 進入雲端對戰房間大廳
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 2. ROOM LOBBY SCREEN */}
+                    {appState === 'ROOM_LOBBY' && (
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-3 p-1">
+                            
+                            {/* Create Room Panel */}
+                            <div className="md:col-span-5 bg-slate-900/90 border border-slate-700 rounded-3xl p-5 shadow-2xl flex flex-col justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-xl">
+                                            <i className="fa-solid fa-plus"></i>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-black text-white">創建自訂對戰房間</h3>
+                                            <p className="text-[10px] text-slate-400">設定房間名稱與對戰人數，發起大富翁對局</p>
+                                        </div>
+                                    </div>
+
+                                    <form onSubmit={handleCreateRoom} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-indigo-300 mb-1">房間名稱</label>
+                                            <input
+                                                type="text"
+                                                placeholder={`${studentNickname} 的對戰房`}
+                                                value={newRoomName}
+                                                onChange={(e) => setNewRoomName(e.target.value)}
+                                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-400"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-indigo-300 mb-1">對戰總人數上限</label>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {[2, 3, 4, 5].map(n => (
+                                                    <button
+                                                        type="button"
+                                                        key={n}
+                                                        onClick={() => setNewRoomCapacity(n)}
+                                                        className={`py-2 rounded-xl font-bold text-xs border transition ${
+                                                            newRoomCapacity === n
+                                                                ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg'
+                                                                : 'bg-slate-950 border-slate-800 text-slate-400'
+                                                        }`}>
+                                                        {n} 人房
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs shadow-xl transition flex items-center justify-center gap-2">
+                                            <i className="fa-solid fa-house-medical"></i> 立即創建房間
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 mt-4">
+                                    <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                                        <div className={`w-6 h-6 rounded-lg ${AVATARS[selectedAvatarIdx].color} flex items-center justify-center text-white text-[10px]`}>
+                                            <i className={`fa-solid ${AVATARS[selectedAvatarIdx].icon}`}></i>
+                                        </div>
+                                        <span>目前身分：<strong className="text-white">{studentNickname}</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Active Rooms List */}
+                            <div className="md:col-span-7 bg-slate-900/90 border border-slate-700 rounded-3xl p-5 shadow-2xl flex flex-col">
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
+                                    <h3 className="text-sm font-black text-white flex items-center gap-2">
+                                        <i className="fa-solid fa-list-check text-amber-400"></i> 線上開放房間大廳
+                                    </h3>
+                                    <span className="text-[10px] font-mono text-indigo-400">{rooms.length} 個進行中房間</span>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[380px]">
+                                    {rooms.length === 0 ? (
+                                        <div className="text-xs text-slate-500 text-center py-12 bg-slate-950/60 rounded-2xl border border-dashed border-slate-800">
+                                            目前無開放房間，歡迎左側創建第一間對戰房！
+                                        </div>
+                                    ) : (
+                                        rooms.map(room => {
+                                            const isFull = room.members.length >= room.capacity;
+                                            return (
+                                                <div key={room.id} className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between hover:border-indigo-500/50 transition">
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-black text-white">{room.name}</span>
+                                                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                                                                {room.id}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
+                                                            <span>房主：<strong className="text-indigo-300">{room.host}</strong></span>
+                                                            <span>已加入：{room.members.map(m => m.name).join('、')}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="text-right">
+                                                            <div className={`text-xs font-black font-mono ${isFull ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                                                {room.members.length} / {room.capacity} 人
+                                                            </div>
+                                                            <div className="text-[8px] text-slate-500">{isFull ? '已滿員' : '開放中'}</div>
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => handleJoinRoom(room)}
+                                                            disabled={isFull}
+                                                            className={`px-3 py-1.5 rounded-xl font-extrabold text-xs transition ${
+                                                                isFull
+                                                                    ? 'bg-slate-800 text-slate-600 border border-slate-700 cursor-not-allowed'
+                                                                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md'
+                                                            }`}>
+                                                            {isFull ? '滿員' : '加入房間'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+
+                        </div>
+                    )}
+
+                    {/* 3. ROOM WAITING LOBBY (Auto-Start & AI Battle Option) */}
+                    {appState === 'WAITING_ROOM' && currentRoom && (
+                        <div className="flex-1 flex items-center justify-center p-3">
+                            <div className="bg-slate-900/90 border border-indigo-500/50 rounded-3xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl backdrop-blur-md relative overflow-hidden">
+                                
+                                {countdown !== null && (
+                                    <div className="absolute inset-0 bg-slate-950/95 z-30 flex flex-col items-center justify-center animate-fade-in">
+                                        <div className="text-6xl font-black text-amber-400 animate-bounce mb-2">{countdown}</div>
+                                        <div className="text-sm font-extrabold text-white">人數已滿員！遊戲即將啟動...</div>
+                                    </div>
+                                )}
+
+                                <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 mb-5 pulse-glow">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-400/30">
+                                            {currentRoom.id}
+                                        </span>
+                                        <span className="text-xs font-black text-emerald-400 font-mono">
+                                            {currentRoom.members.length} / {currentRoom.capacity} 人滿員自動啟動
+                                        </span>
+                                    </div>
+                                    <h2 className="text-xl font-black text-white">{currentRoom.name}</h2>
+                                    <p className="text-xs text-indigo-300 font-medium mt-1">
+                                        等待同學加入中，滿員將自動開局，或可直接選擇 AI 對戰！
+                                    </p>
+                                </div>
+
+                                {/* Room Members List */}
+                                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-left mb-5 space-y-2">
+                                    <div className="text-xs font-bold text-slate-400 uppercase border-b border-slate-800 pb-2 flex items-center justify-between">
+                                        <span>已加入房間成員 ({currentRoom.members.length})</span>
+                                        <span className="text-[10px] text-amber-300 font-normal">房主: {currentRoom.host}</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-h-[180px] overflow-y-auto">
+                                        {currentRoom.members.map((m, idx) => (
+                                            <div key={idx} className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-900 border border-slate-800">
+                                                <div className={`w-8 h-8 rounded-lg ${m.avatar.color} flex items-center justify-center text-white text-xs`}>
+                                                    <i className={`fa-solid ${m.avatar.icon}`}></i>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs font-bold text-white flex items-center gap-1">
+                                                        {m.name}
+                                                        {m.isAi && <span className="px-1 bg-purple-500/30 text-purple-300 text-[8px] rounded">AI</span>}
+                                                    </div>
+                                                    <div className="text-[9px] text-emerald-400">已就緒</div>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Empty Waiting Slots */}
+                                        {Array.from({ length: currentRoom.capacity - currentRoom.members.length }).map((_, idx) => (
+                                            <div key={idx} className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-950 border border-dashed border-slate-800 text-slate-600">
+                                                <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-xs">
+                                                    <i className="fa-solid fa-user-plus"></i>
+                                                </div>
+                                                <span className="text-xs font-medium">等待同學加入...</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="space-y-2">
+                                    <button
+                                        onClick={handleFillAiAndLaunch}
+                                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-extrabold text-xs shadow-xl transition transform active:scale-95 flex items-center justify-center gap-2 glow-box">
+                                        <i className="fa-solid fa-robot text-sm"></i> 🤖 選擇 AI 對戰（補滿人數即刻開局）
+                                    </button>
+
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleSimulateClassmateJoin}
+                                            disabled={currentRoom.members.length >= currentRoom.capacity}
+                                            className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold text-xs transition border border-slate-700 flex items-center justify-center gap-1">
+                                            <i className="fa-solid fa-user-check"></i> 模擬同學加入
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                if (currentRoom) {
+                                                    const newMembers = currentRoom.members.filter(m => m.name !== studentNickname);
+                                                    if (newMembers.length === 0) {
+                                                        db.ref(`rooms/${currentRoom.id}`).remove();
+                                                    } else {
+                                                        db.ref(`rooms/${currentRoom.id}`).set({ ...currentRoom, members: newMembers });
+                                                    }
+                                                }
+                                                setAppState('ROOM_LOBBY');
+                                            }}
+                                            className="flex-1 py-2.5 rounded-xl bg-rose-900/60 hover:bg-rose-800 text-rose-200 font-bold text-xs transition border border-rose-700/60">
+                                            退出房間
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 4. GAME INTERFACE */}
+                    {appState === 'GAME' && (
+                        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-2 items-start">
+                            
+                            {/* 9x9 BOARD GRID */}
+                            <div className="lg:col-span-8 bg-slate-900/80 border border-slate-800 rounded-2xl p-1.5 sm:p-2 shadow-2xl relative overflow-hidden">
+                                <div className="grid grid-cols-9 grid-rows-9 gap-0.5 sm:gap-1 aspect-square max-w-[680px] mx-auto">
+                                    
+                                    {board.map((tile) => {
+                                        const [r, c] = tile.gridPos;
+                                        const tilePlayers = players.filter(p => p.position === tile.id);
+                                        const propInfo = propertyState[tile.id];
+                                        const owner = propInfo ? players.find(p => p.id === propInfo.ownerId) : null;
+
+                                        return (
+                                            <div
+                                                key={tile.id}
+                                                style={{ gridRowStart: r + 1, gridColumnStart: c + 1 }}
+                                                className={`relative rounded-lg sm:rounded-xl border flex flex-col justify-between p-0.5 sm:p-1 transition-all overflow-hidden ${
+                                                    owner ? 'border-amber-400/90 shadow-md' : 'border-slate-700/60'
+                                                } bg-slate-800/90`}>
+                                                
+                                                <div className={`h-1 w-full rounded-full ${tile.color} opacity-90`}></div>
+
+                                                {owner && (
+                                                    <div className={`absolute top-0 right-0 w-2.5 h-2.5 rounded-bl ${owner.avatar.color} flex items-center justify-center text-[7px] text-white font-bold`} title={`所有者: ${owner.name}`}>
+                                                        {propInfo.level}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex-1 flex flex-col justify-between my-0.5">
+                                                    <div className="flex items-center gap-0.5 overflow-hidden">
+                                                        <i className={`fa-solid ${tile.icon} text-[8px] sm:text-[10px] text-slate-300 shrink-0`}></i>
+                                                        <span className="text-[7px] sm:text-[9px] font-bold leading-tight truncate text-slate-200">{tile.name}</span>
+                                                    </div>
+
+                                                    {tile.type === 'PROPERTY' && (
+                                                        <div className="text-[7px] sm:text-[9px] text-amber-300 font-semibold flex items-center justify-between">
+                                                            <span>${tile.price}</span>
+                                                            {propInfo && <span className="text-[7px] text-indigo-300 font-mono">LV{propInfo.level}</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-0.5 flex-wrap min-h-[12px]">
+                                                    {tilePlayers.map(p => (
+                                                        <div
+                                                            key={p.id}
+                                                            className={`w-3.5 h-3.5 rounded-full ${p.avatar.color} border border-white flex items-center justify-center text-[7px] text-white shadow token-anim`}
+                                                            title={p.name}>
+                                                            <i className={`fa-solid ${p.avatar.icon}`}></i>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Center Dashboard (Spans cols 2..8, rows 2..8) */}
+                                    <div 
+                                        style={{ gridColumn: '2 / 9', gridRow: '2 / 9' }}
+                                        className="bg-slate-950/90 border border-slate-800 rounded-2xl p-2 sm:p-4 flex flex-col justify-between shadow-inner z-10 my-0.5 mx-0.5">
+                                        
+                                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-7 h-7 rounded-lg ${players[currentPlayerIdx]?.avatar.color} flex items-center justify-center text-white text-xs shadow`}>
+                                                    <i className={`fa-solid ${players[currentPlayerIdx]?.avatar.icon}`}></i>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[9px] text-slate-400 font-semibold uppercase">當前玩家回合</div>
+                                                    <div className="text-xs font-extrabold text-white flex items-center gap-1">
+                                                        {players[currentPlayerIdx]?.name}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="text-right">
+                                                <div className="text-[9px] text-slate-400 font-semibold uppercase">資產餘額</div>
+                                                <div className="text-sm font-black text-amber-400">
+                                                    ${players[currentPlayerIdx]?.coins}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="my-auto text-center flex flex-col items-center justify-center py-2">
+
+                                            <div className="relative mb-2">
+                                                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 border-2 border-indigo-400 flex items-center justify-center text-2xl sm:text-3xl font-black text-white shadow-2xl ${isRolling ? 'dice-rolling' : ''}`}>
+                                                    {diceValue}
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                onClick={rollDice}
+                                                disabled={phase !== 'IDLE' || players[currentPlayerIdx]?.isAi}
+                                                className={`px-5 py-2 rounded-xl font-extrabold text-xs shadow-xl transition transform active:scale-95 flex items-center gap-1.5 ${
+                                                    phase === 'IDLE' && !players[currentPlayerIdx]?.isAi
+                                                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 glow-gold cursor-pointer'
+                                                        : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                                                }`}>
+                                                <i className="fa-solid fa-dice text-sm"></i>
+                                                {players[currentPlayerIdx]?.isAi ? '同組同學思考擲骰中...' : '點擊擲骰子'}
+                                            </button>
+                                        </div>
+
+                                        <div className="bg-slate-900/80 rounded-xl p-1.5 border border-slate-800 text-center text-[10px] sm:text-xs text-slate-300">
+                                            {phase === 'IDLE' && `輪到 ${players[currentPlayerIdx]?.name} 擲骰進攻！`}
+                                            {phase === 'QUIZ' && '請在手寫面板繪製正字！'}
+                                            {phase === 'MOVING' && '棋子移動中...'}
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            {/* Sidebar Info & Stats */}
+                            <div className="lg:col-span-4 flex flex-col gap-2">
+                                
+                                <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 shadow-xl">
+                                    <h3 className="text-xs font-extrabold text-slate-300 uppercase mb-2 flex items-center gap-1.5">
+                                        <i className="fa-solid fa-users text-indigo-400"></i> 本組隊員 ({players.length} 人組)
+                                    </h3>
+
+                                    <div className="space-y-1.5">
+                                        {players.map((p, idx) => (
+                                            <div
+                                                key={p.id}
+                                                className={`p-2 rounded-xl border transition ${
+                                                    idx === currentPlayerIdx ? 'bg-indigo-950/60 border-indigo-500/80' : 'bg-slate-800/50 border-slate-700/50'
+                                                }`}>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-6 h-6 rounded-lg ${p.avatar.color} flex items-center justify-center text-white text-[10px]`}>
+                                                            <i className={`fa-solid ${p.avatar.icon}`}></i>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-xs font-bold text-white flex items-center gap-1">
+                                                                {p.name}
+                                                                {p.name === studentNickname && <span className="px-1 bg-indigo-500/30 text-indigo-300 text-[8px] rounded">自己</span>}
+                                                            </div>
+                                                            <div className="text-[9px] text-slate-400">
+                                                                手寫正確率: {p.stats.total > 0 ? Math.round((p.stats.correct / p.stats.total) * 100) : 0}%
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-right">
+                                                        <div className="text-xs font-black text-amber-400">${p.coins}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Event Log Stream */}
+                                <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 shadow-xl flex-1 flex flex-col min-h-[220px]">
+                                    <h3 className="text-xs font-extrabold text-slate-300 uppercase mb-2 flex items-center gap-1.5">
+                                        <i className="fa-solid fa-list-ul text-purple-400"></i> 對戰歷程記錄
+                                    </h3>
+
+                                    <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[220px]">
+                                        {logs.map(log => (
+                                            <div key={log.id} className="text-[10px] p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/60 flex items-start gap-1.5">
+                                                <span className="text-[9px] text-slate-500 font-mono">{log.time}</span>
+                                                <span className={`flex-1 ${
+                                                    log.type === 'success' ? 'text-emerald-300 font-medium' :
+                                                    log.type === 'danger' ? 'text-rose-300 font-medium' :
+                                                    log.type === 'warning' ? 'text-amber-300 font-medium' :
+                                                    log.type === 'action' ? 'text-purple-300 font-medium' : 'text-slate-300'
+                                                }`}>
+                                                    {log.msg}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ========================================== */}
+                    {/* MODALS                                     */}
+                    {/* ========================================== */}
+
+                    {/* HANDWRITING QUIZ MODAL */}
+                    {activeQuiz && (
+                        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 z-50 overflow-y-auto">
+                            <div className="bg-slate-900 border border-slate-700 rounded-3xl p-4 sm:p-5 max-w-lg w-full shadow-2xl relative my-auto">
+                                
+                                <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+                                    <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[11px] font-bold">
+                                        {activeQuiz.question.category}
+                                    </span>
+                                    <span className="text-xs font-bold text-amber-400">
+                                        答對獎勵: ${activeQuiz.question.reward}
+                                    </span>
+                                </div>
+
+                                {/* Question Sentence */}
+                                <div className="mb-3 text-center">
+                                    <h3 className="text-xs font-bold text-slate-400 mb-1">請在手寫面板繪製句中錯字的「正字」：</h3>
+                                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs sm:text-sm font-semibold text-slate-200 leading-relaxed">
+                                        {activeQuiz.question.sentence.split(activeQuiz.question.wrongChar).map((part, idx, arr) => (
+                                            <React.Fragment key={idx}>
+                                                {part}
+                                                {idx < arr.length - 1 && (
+                                                    <span className="inline-block px-1.5 py-0.5 mx-0.5 rounded bg-rose-500/30 text-rose-300 border border-rose-400/60 font-black animate-pulse">
+                                                        {activeQuiz.question.wrongChar}
+                                                    </span>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Handwriting Canvas */}
+                                {quizResult === null ? (
+                                    <HandwritingBoard
+                                        correctChar={activeQuiz.question.correctChar}
+                                        onSelectCandidate={handleHandwritingSubmit}
+                                        soundEnabled={soundEnabled}
+                                        isAi={players[currentPlayerIdx]?.isAi}
+                                        onAiSimulate={handleAiSimulateHandwriting}
+                                    />
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className={`p-3 rounded-2xl border text-xs sm:text-sm ${
+                                            quizResult.correct ? 'bg-emerald-950/60 border-emerald-500/80 text-emerald-200' : 'bg-rose-950/60 border-rose-500/80 text-rose-200'
+                                        }`}>
+                                            <div className="font-extrabold flex items-center gap-1.5 mb-1">
+                                                <i className={`fa-solid ${quizResult.correct ? 'fa-circle-check text-emerald-400' : 'fa-circle-xmark text-rose-400'}`}></i>
+                                                {quizResult.message}
+                                            </div>
+                                            <div className="text-xs opacity-90 leading-relaxed mt-1">
+                                                <strong>【解析】：</strong> {quizResult.explanation}
+                                            </div>
+                                        </div>
+
+                                        {/* Property Buying / Upgrading Action Card */}
+                                        {quizResult.correct && (
+                                            <div>
+                                                {!activeQuiz.owner && (
+                                                    <div className="bg-slate-950 p-3 rounded-2xl border border-amber-500/50 flex items-center justify-between gap-2">
+                                                        <div>
+                                                            <div className="text-xs font-bold text-white">購入地產【{activeQuiz.tile.name}】</div>
+                                                            <div className="text-[10px] text-slate-400">價格: ${activeQuiz.tile.price} | 起始過路費: ${activeQuiz.tile.rent}</div>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleBuyProperty}
+                                                            disabled={players[currentPlayerIdx]?.coins < activeQuiz.tile.price}
+                                                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 transition disabled:opacity-40">
+                                                            購入 (LV1)
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {activeQuiz.owner && activeQuiz.owner.id === players[currentPlayerIdx].id && (activeQuiz.propData?.level || 1) < 3 && (
+                                                    <div className="bg-slate-950 p-3 rounded-2xl border border-indigo-500/50 flex items-center justify-between gap-2">
+                                                        <div>
+                                                            <div className="text-xs font-bold text-white">升級【{activeQuiz.tile.name}】建築</div>
+                                                            <div className="text-[10px] text-slate-400">升級費: ${Math.round(activeQuiz.tile.price * 0.6)} | 當前等級: LV{activeQuiz.propData?.level || 1}</div>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleUpgradeProperty}
+                                                            disabled={players[currentPlayerIdx]?.coins < Math.round(activeQuiz.tile.price * 0.6)}
+                                                            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-40">
+                                                            升級至 LV{(activeQuiz.propData?.level || 1) + 1}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={closeQuizModal}
+                                            className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition border border-slate-700">
+                                            結束回合
+                                        </button>
+                                    </div>
+                                )}
+
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Chance / Fate Modal */}
+                    {activeChance && (
+                        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-slate-900 border border-purple-500/50 rounded-3xl p-5 max-w-md w-full text-center shadow-2xl">
+                                <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-400/30 flex items-center justify-center text-2xl mx-auto mb-2">
+                                    <i className="fa-solid fa-bolt"></i>
+                                </div>
+                                <h3 className="text-lg font-black text-white mb-1">{activeChance.event.title}</h3>
+                                <p className="text-xs text-slate-300 my-3 leading-relaxed bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                    {activeChance.event.text}
+                                </p>
+                                <button
+                                    onClick={() => { setActiveChance(null); nextTurn(); }}
+                                    className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition">
+                                    確認並繼續
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ADMIN SETTINGS & QUESTION BANK MODAL */}
+                    {showAdminModal && (
+                        <AdminModal
+                            rooms={rooms}
+                            onDeleteRoom={handleDeleteRoom}
+                            onClearAllRooms={handleClearAllRooms}
+                            onLaunchGame={(r) => {
+                                const updatedRoom = { ...r, status: 'PLAYING' };
+                                db.ref(`rooms/${r.id}`).set(updatedRoom);
+                            }}
+                            questions={questions}
+                            setQuestions={updateQuestionsBank}
+                            onClose={() => setShowAdminModal(false)}
+                        />
+                    )}
+
+                    {/* End Game Modal */}
+                    {appState === 'GAME_OVER' && (
+                        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
+                            <div className="bg-slate-900 border border-amber-500/60 rounded-3xl p-6 max-w-md w-full text-center shadow-2xl">
+                                <div className="w-16 h-16 rounded-full bg-amber-500/20 border border-amber-400 text-amber-400 flex items-center justify-center text-3xl mx-auto mb-3 glow-gold">
+                                    <i className="fa-solid fa-trophy"></i>
+                                </div>
+                                <h2 className="text-xl font-black text-white mb-1">9x9 改錯字大富翁結算</h2>
+                                <p className="text-xs text-slate-400 mb-4">最終國學手寫戰力與資產結算</p>
+
+                                <div className="space-y-2 mb-5">
+                                    {([...players].sort((a, b) => b.coins - a.coins)).map((p, rank) => (
+                                        <div key={p.id} className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center">
+                                                    {rank + 1}
+                                                </span>
+                                                <span className="font-bold text-xs text-white">{p.name}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-xs font-black text-amber-400">${p.coins}</div>
+                                                <div className="text-[9px] text-slate-400">
+                                                    手寫正確率: {p.stats.total > 0 ? Math.round((p.stats.correct / p.stats.total) * 100) : 0}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <button
+                                    onClick={resetToLogin}
+                                    className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-extrabold text-xs shadow-xl transition">
+                                    返回登入頁面
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            );
+        }
+
+        // ==========================================
+        // 6. ADMIN MODAL COMPONENT (Password: source88)
+        // ==========================================
+        function AdminModal({ rooms, onDeleteRoom, onClearAllRooms, onLaunchGame, questions, setQuestions, onClose }) {
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [passwordInput, setPasswordInput] = useState("");
+            const [passwordError, setPasswordError] = useState(false);
+
+            const [activeTab, setActiveTab] = useState("rooms"); // 'rooms', 'excel_io', 'csv_import', 'json_import', 'list'
+            const [csvText, setCsvText] = useState("");
+            const [jsonText, setJsonText] = useState("");
+
+            // State for Editing Single Question
+            const [editingQuestion, setEditingQuestion] = useState(null);
+
+            const handleLoginAdmin = (e) => {
+                e.preventDefault();
+                if (passwordInput === "source88") {
+                    setIsAuthenticated(true);
+                    setPasswordError(false);
+                } else {
+                    setPasswordError(true);
+                }
+            };
+
+            // Save Question Edit Handler
+            const handleSaveEditQuestion = (e) => {
+                e.preventDefault();
+                if (!editingQuestion) return;
+                const updatedQuestions = questions.map(q => q.id === editingQuestion.id ? editingQuestion : q);
+                setQuestions(updatedQuestions);
+                setEditingQuestion(null);
+                alert("題目修改成功並已即時同步至雲端！");
+            };
+
+            // Excel Import Handler
+            const handleExcelFileSelect = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const bstr = evt.target.result;
+                        const workbook = XLSX.read(bstr, { type: 'binary' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                        if (!jsonData || jsonData.length === 0) {
+                            alert("檔案內容為空！");
+                            return;
+                        }
+
+                        let startRow = 0;
+                        const firstRowStr = JSON.stringify(jsonData[0]);
+                        if (firstRowStr.includes("類別") || firstRowStr.includes("句子") || firstRowStr.includes("錯字") || firstRowStr.includes("正字")) {
+                            startRow = 1;
+                        }
+
+                        const newParsed = [];
+                        for (let i = startRow; i < jsonData.length; i++) {
+                            const row = jsonData[i];
+                            if (!row || row.length < 2) continue;
+
+                            const category = row[0] ? String(row[0]).trim() : "常用錯別字";
+                            const sentence = row[1] ? String(row[1]).trim() : "";
+                            const wrongChar = row[2] ? String(row[2]).trim() : "";
+                            const correctChar = row[3] ? String(row[3]).trim() : "";
+                            const explanation = row[4] ? String(row[4]).trim() : `正確正字為「${correctChar}」。`;
+                            const reward = row[5] ? (parseInt(row[5], 10) || 120) : 120;
+
+                            if (sentence && correctChar) {
+                                newParsed.push({
+                                    id: Date.now() + i + Math.random(),
+                                    category,
+                                    sentence,
+                                    wrongChar: wrongChar || "?",
+                                    correctChar,
+                                    explanation,
+                                    reward
+                                });
+                            }
+                        }
+
+                        if (newParsed.length > 0) {
+                            setQuestions([...questions, ...newParsed]);
+                            alert(`成功自 Excel 匯入 ${newParsed.length} 道題目並同步至雲端！`);
+                            e.target.value = "";
+                            setActiveTab("list");
+                        } else {
+                            alert("未解析到有效題目，請確保 Excel 表格格式包含：類別, 完整句子, 錯字, 正字, 解析說明, 獎勵金額");
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert("讀取 Excel 檔案失敗，請確保檔案格式為 .xlsx 或 .xls！");
+                    }
+                };
+                reader.readAsBinaryString(file);
+            };
+
+            // Excel Export Handler
+            const handleExportExcel = () => {
+                if (!questions || questions.length === 0) {
+                    alert("目前雲端題庫沒有題目可供匯出！");
+                    return;
+                }
+
+                const exportData = questions.map(q => ({
+                    "類別": q.category || "常用錯別字",
+                    "完整句子": q.sentence || "",
+                    "錯字": q.wrongChar || "",
+                    "正字": q.correctChar || "",
+                    "解析說明": q.explanation || "",
+                    "獎勵金額": q.reward || 120
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(exportData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "題庫");
+                const today = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(workbook, `改錯字大富翁題庫_${today}.xlsx`);
+            };
+
+            // CSV Batch Import Handler
+            const handleBatchCsvImport = () => {
+                if (!csvText.trim()) return;
+                const lines = csvText.trim().split("\n");
+                const newParsed = [];
+
+                lines.forEach((line, idx) => {
+                    const row = line.split(",").map(s => s.trim());
+                    if (row.length >= 4) {
+                        newParsed.push({
+                            id: Date.now() + idx + Math.random(),
+                            category: row[0] || "常用錯別字",
+                            sentence: row[1],
+                            wrongChar: row[2],
+                            correctChar: row[3],
+                            explanation: row[4] || `正確正字為「${row[3]}」。`,
+                            reward: parseInt(row[5], 10) || 130
+                        });
+                    }
+                });
+
+                if (newParsed.length > 0) {
+                    setQuestions([...questions, ...newParsed]);
+                    alert(`批次匯入成功！共新增 ${newParsed.length} 道題目。`);
+                    setCsvText("");
+                    setActiveTab("list");
+                } else {
+                    alert("匯入失敗！請確保格式為：類別,完整句子,錯字,正字,解析,獎勵");
+                }
+            };
+
+            // JSON Batch Import Handler
+            const handleBatchJsonImport = () => {
+                try {
+                    const parsed = JSON.parse(jsonText);
+                    if (Array.isArray(parsed)) {
+                        setQuestions([...questions, ...parsed.map((q, idx) => ({ ...q, id: Date.now() + idx }))]);
+                        alert(`成功匯入 ${parsed.length} 道 JSON 題目！`);
+                        setJsonText("");
+                        setActiveTab("list");
+                    } else {
+                        alert("格式錯誤！需為 JSON 陣列。");
+                    }
+                } catch (e) {
+                    alert("JSON 解析失敗，請檢查格式。");
+                }
+            };
+
+            const handleExportJSON = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(questions, null, 2));
+                const anchor = document.createElement('a');
+                anchor.setAttribute("href", dataStr);
+                anchor.setAttribute("download", `handwriting_monopoly_bank.json`);
+                document.body.appendChild(anchor);
+                anchor.click();
+                anchor.remove();
+            };
+
+            return (
+                <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-3 z-50">
+                    <div className="bg-slate-900 border border-amber-500/50 rounded-3xl p-5 max-w-2xl w-full h-[85vh] flex flex-col shadow-2xl">
+                        
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                            <h3 className="text-base font-black text-amber-400 flex items-center gap-2">
+                                <i className="fa-solid fa-user-shield"></i> 教師後台管理中心 (Firebase 即時連線)
+                            </h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white">
+                                <i className="fa-solid fa-xmark text-lg"></i>
+                            </button>
+                        </div>
+
+                        {!isAuthenticated ? (
+                            <form onSubmit={handleLoginAdmin} className="my-auto max-w-sm mx-auto w-full p-6 bg-slate-950 rounded-2xl border border-slate-800 text-center">
+                                <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl mx-auto mb-3">
+                                    <i className="fa-solid fa-lock"></i>
+                                </div>
+                                <h4 className="text-sm font-bold text-white mb-1">請輸入後台管理密碼</h4>
+                                <p className="text-[10px] text-slate-400 mb-4">預設密碼為 <code className="text-amber-300 font-bold">source88</code></p>
+
+                                <input
+                                    type="password"
+                                    required
+                                    placeholder="輸入密碼..."
+                                    value={passwordInput}
+                                    onChange={(e) => setPasswordInput(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white text-center mb-3"
+                                />
+
+                                {passwordError && (
+                                    <div className="text-xs text-rose-400 mb-3 font-bold">密碼不正確，請重新輸入！</div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs transition">
+                                    解鎖進入後台
+                                </button>
+                            </form>
+                        ) : (
+                            <div className="flex-1 flex flex-col overflow-hidden my-2">
+                                
+                                {/* Admin Tab Nav */}
+                                <div className="flex items-center gap-1.5 mb-3 border-b border-slate-800 pb-2 overflow-x-auto">
+                                    <button
+                                        onClick={() => setActiveTab('rooms')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                                            activeTab === 'rooms' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                        }`}>
+                                        <i className="fa-solid fa-person-shelter"></i> 房間現場監控
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('excel_io')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                                            activeTab === 'excel_io' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                        }`}>
+                                        <i className="fa-solid fa-file-excel"></i> Excel 匯入/匯出
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('csv_import')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                                            activeTab === 'csv_import' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                        }`}>
+                                        <i className="fa-solid fa-file-csv"></i> CSV 批次匯入
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('json_import')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                                            activeTab === 'json_import' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                        }`}>
+                                        <i className="fa-solid fa-code"></i> JSON 匯入/匯出
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('list')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                                            activeTab === 'list' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                        }`}>
+                                        <i className="fa-solid fa-list"></i> 題庫總覽 ({questions.length})
+                                    </button>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto pr-1">
+                                    
+                                    {/* 1. ROOM MONITOR TAB */}
+                                    {activeTab === 'rooms' && (
+                                        <div className="space-y-3">
+                                            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-center justify-between gap-2">
+                                                <div>
+                                                    <i className="fa-solid fa-eye text-amber-400 mr-1"></i> 老師可在此即時監控 Firebase 雲端房間，可刪除、清空或強制開局。
+                                                </div>
+                                                {rooms.length > 0 && (
+                                                    <button
+                                                        onClick={onClearAllRooms}
+                                                        className="px-2.5 py-1 bg-rose-900/80 hover:bg-rose-800 text-rose-200 text-[11px] font-bold rounded-lg border border-rose-700/80 transition shrink-0 flex items-center gap-1">
+                                                        <i className="fa-solid fa-broom"></i> 一鍵清空所有房間
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                {rooms.length === 0 ? (
+                                                    <div className="text-xs text-slate-500 text-center py-8">目前無線上房間</div>
+                                                ) : (
+                                                    rooms.map(r => (
+                                                        <div key={r.id} className="p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-2">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-xs font-bold text-white">{r.name}</span>
+                                                                    <span className="text-[10px] text-indigo-300 font-mono">({r.members.length}/{r.capacity}人)</span>
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                                                    成員: {r.members.map(m => m.name).join('、')}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        onLaunchGame(r);
+                                                                        onClose();
+                                                                    }}
+                                                                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow">
+                                                                    強制開局
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => onDeleteRoom(r.id)}
+                                                                    className="px-2.5 py-1.5 bg-rose-600/80 hover:bg-rose-600 text-white font-bold text-xs rounded-xl shadow border border-rose-500/40 transition flex items-center gap-1">
+                                                                    <i className="fa-solid fa-trash"></i> 刪除
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 2. EXCEL IMPORT / EXPORT TAB */}
+                                    {activeTab === 'excel_io' && (
+                                        <div className="space-y-4">
+                                            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300">
+                                                <p className="font-bold text-emerald-400 mb-1"><i className="fa-solid fa-file-excel mr-1"></i> Excel 檔案格式說明 (.xlsx / .xls)：</p>
+                                                <p className="text-[11px] font-mono text-slate-400">第一列可為標題列，直欄順序建議為：</p>
+                                                <p className="text-[11px] font-mono text-amber-300 mt-0.5">【A欄】類別 | 【B欄】完整句子 | 【C欄】錯字 | 【D欄】正字 | 【E欄】解析說明 | 【F欄】獎勵金額</p>
+                                                <p className="text-[10px] text-slate-500 mt-1">例如：常用錯別字 | 這件事情非同小客。 | 客 | 可 | 正確為非同小可 | 120</p>
+                                            </div>
+
+                                            {/* Excel Upload Area */}
+                                            <div className="p-4 bg-slate-950 rounded-2xl border-2 border-dashed border-emerald-500/50 text-center">
+                                                <i className="fa-solid fa-file-arrow-up text-3xl text-emerald-400 mb-2"></i>
+                                                <h4 className="text-xs font-bold text-white mb-1">選擇 Excel 檔案 (.xlsx, .xls) 匯入題庫</h4>
+                                                <p className="text-[10px] text-slate-400 mb-3">匯入後會自動批次追加至 Firebase 雲端資料庫</p>
+                                                <label className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-xl cursor-pointer shadow-lg transition">
+                                                    <i className="fa-solid fa-folder-open"></i> 瀏覽電腦中 Excel 檔案...
+                                                    <input
+                                                        type="file"
+                                                        accept=".xlsx, .xls"
+                                                        onChange={handleExcelFileSelect}
+                                                        className="hidden"
+                                                    />
+                                                </label>
+                                            </div>
+
+                                            {/* Excel Download Area */}
+                                            <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between">
+                                                <div>
+                                                    <div className="text-xs font-bold text-white">備份匯出當前雲端題庫</div>
+                                                    <div className="text-[10px] text-slate-400">將目前所有的 {questions.length} 道題目打包下載為 Excel 試算表檔</div>
+                                                </div>
+                                                <button
+                                                    onClick={handleExportExcel}
+                                                    disabled={questions.length === 0}
+                                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-extrabold rounded-xl shadow-lg transition flex items-center gap-1.5">
+                                                    <i className="fa-solid fa-file-arrow-down"></i> 匯出 Excel 檔 (.xlsx)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 3. CSV BATCH IMPORT */}
+                                    {activeTab === 'csv_import' && (
+                                        <div className="space-y-3">
+                                            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300">
+                                                <p className="font-bold text-amber-300 mb-1">CSV/純文字 批次貼入格式 (每行一道題)：</p>
+                                                <p className="text-[11px] font-mono text-slate-400">類別, 完整句子, 錯字, 正字, 解析說明, 獎勵金額</p>
+                                                <p className="text-[10px] text-slate-500 mt-1">例如：成語錯別字, 這件事情非同小客。, 客, 可, 正確為非同小可, 120</p>
+                                            </div>
+
+                                            <textarea
+                                                value={csvText}
+                                                onChange={(e) => setCsvText(e.target.value)}
+                                                placeholder="請在此貼上多行 CSV 格式題目..."
+                                                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white h-44 font-mono leading-relaxed"
+                                            />
+
+                                            <button
+                                                onClick={handleBatchCsvImport}
+                                                className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition">
+                                                <i className="fa-solid fa-file-import mr-1"></i> 確認批次匯入 CSV 題目至雲端
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* 4. JSON BATCH IMPORT / EXPORT */}
+                                    {activeTab === 'json_import' && (
+                                        <div className="space-y-3">
+                                            <textarea
+                                                value={jsonText}
+                                                onChange={(e) => setJsonText(e.target.value)}
+                                                placeholder="貼上 JSON 題目陣列..."
+                                                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white h-44 font-mono"
+                                            />
+
+                                            <div className="flex gap-2">
+                                                <button onClick={handleBatchJsonImport} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl">
+                                                    匯入 JSON 至雲端
+                                                </button>
+                                                <button onClick={handleExportJSON} className="flex-1 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl">
+                                                    備份匯出 JSON
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 5. QUESTION LIST VIEW & EDIT MODAL */}
+                                    {activeTab === 'list' && (
+                                        <div className="space-y-2">
+                                            
+                                            {/* Edit Question Form Box */}
+                                            {editingQuestion && (
+                                                <div className="p-3.5 bg-slate-950 rounded-2xl border-2 border-indigo-500/80 mb-3 space-y-2 shadow-xl animate-fade-in">
+                                                    <div className="flex items-center justify-between text-xs font-bold text-indigo-300 border-b border-slate-800 pb-1.5">
+                                                        <span><i className="fa-solid fa-pen-to-square mr-1"></i> 編輯題目內容</span>
+                                                        <button 
+                                                            onClick={() => setEditingQuestion(null)}
+                                                            className="text-slate-400 hover:text-rose-400 text-xs font-bold px-1.5">
+                                                            <i className="fa-solid fa-xmark mr-0.5"></i> 取消
+                                                        </button>
+                                                    </div>
+
+                                                    <form onSubmit={handleSaveEditQuestion} className="space-y-2.5 text-xs pt-1">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-400 mb-0.5 block">題目類別</label>
+                                                                <select
+                                                                    value={editingQuestion.category}
+                                                                    onChange={e => setEditingQuestion({...editingQuestion, category: e.target.value})}
+                                                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white text-xs focus:outline-none focus:border-indigo-400">
+                                                                    <option value="常用錯別字">常用錯別字</option>
+                                                                    <option value="成語錯別字">成語錯別字</option>
+                                                                    <option value="語文注音辨析">語文注音辨析</option>
+                                                                </select>
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-amber-300 mb-0.5 block">答對獲得獎勵金 ($)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={editingQuestion.reward || 120}
+                                                                    onChange={e => setEditingQuestion({...editingQuestion, reward: parseInt(e.target.value, 10) || 120})}
+                                                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white text-xs focus:outline-none focus:border-amber-400 font-mono"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-400 mb-0.5 block">完整句子 (含錯別字)</label>
+                                                            <input
+                                                                type="text"
+                                                                required
+                                                                value={editingQuestion.sentence}
+                                                                onChange={e => setEditingQuestion({...editingQuestion, sentence: e.target.value})}
+                                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white text-xs focus:outline-none focus:border-indigo-400"
+                                                            />
+                                                        </div>
+
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-rose-400 mb-0.5 block">句中錯字 (1字)</label>
+                                                                <input
+                                                                    type="text"
+                                                                    maxLength={1}
+                                                                    required
+                                                                    value={editingQuestion.wrongChar}
+                                                                    onChange={e => setEditingQuestion({...editingQuestion, wrongChar: e.target.value})}
+                                                                    className="w-full bg-slate-900 border border-rose-500/50 rounded-xl p-2 text-rose-200 text-xs text-center font-bold focus:outline-none"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-emerald-400 mb-0.5 block">應改正字 (1字)</label>
+                                                                <input
+                                                                    type="text"
+                                                                    maxLength={1}
+                                                                    required
+                                                                    value={editingQuestion.correctChar}
+                                                                    onChange={e => setEditingQuestion({...editingQuestion, correctChar: e.target.value})}
+                                                                    className="w-full bg-slate-900 border border-emerald-500/50 rounded-xl p-2 text-emerald-200 text-xs text-center font-bold focus:outline-none"
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[10px] font-bold text-slate-400 mb-0.5 block">解析說明</label>
+                                                            <input
+                                                                type="text"
+                                                                value={editingQuestion.explanation || ""}
+                                                                onChange={e => setEditingQuestion({...editingQuestion, explanation: e.target.value})}
+                                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white text-xs focus:outline-none focus:border-indigo-400"
+                                                            />
+                                                        </div>
+
+                                                        <div className="flex justify-end gap-2 pt-1">
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={() => setEditingQuestion(null)}
+                                                                className="px-3 py-1.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-700 transition">
+                                                                取消
+                                                            </button>
+                                                            <button 
+                                                                type="submit" 
+                                                                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-xl shadow-lg transition">
+                                                                <i className="fa-solid fa-floppy-disk mr-1"></i> 儲存修改並同步雲端
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            )}
+
+                                            {questions.length === 0 ? (
+                                                <div className="text-xs text-slate-500 text-center py-8">目前無題目，請使用 Excel、CSV 或 JSON 匯入題目</div>
+                                            ) : (
+                                                questions.map(q => (
+                                                    <div key={q.id} className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-2 hover:border-slate-700 transition">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[10px] font-bold shrink-0">
+                                                                    {q.category}
+                                                                </span>
+                                                                <span className="text-xs font-semibold text-white truncate">「{q.sentence}」</span>
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
+                                                                <span className="text-rose-400 font-bold">錯字: {q.wrongChar}</span>
+                                                                <span className="text-slate-600">➔</span>
+                                                                <span className="text-emerald-400 font-bold">正字: {q.correctChar}</span>
+                                                                <span className="text-amber-300 font-mono">(${q.reward || 120})</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <button 
+                                                                onClick={() => setEditingQuestion({ ...q })} 
+                                                                className="p-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/60 rounded-lg transition"
+                                                                title="修改題目內容">
+                                                                <i className="fa-solid fa-pen-to-square text-xs"></i>
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    if (window.confirm(`確定要刪除「${q.sentence}」嗎？`)) {
+                                                                        setQuestions(questions.filter(x => x.id !== q.id));
+                                                                    }
+                                                                }} 
+                                                                className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/60 rounded-lg transition"
+                                                                title="刪除題目">
+                                                                <i className="fa-solid fa-trash-can text-xs"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    )}
+
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="pt-2 border-t border-slate-800 text-right">
+                            <button onClick={onClose} className="px-4 py-1.5 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl">
+                                關閉管理後台
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
