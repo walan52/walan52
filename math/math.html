@@ -1,0 +1,2757 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>幾何周長大冒險：扇形與複合圓形挑戰（填充版）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 48%, #1d4ed8 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* 漂浮幾何背景裝飾動畫 */
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-14px) rotate(6deg); }
+    }
+    .float-shape {
+      animation: floatSlow 6s ease-in-out infinite;
+    }
+    .float-shape-delay {
+      animation: floatSlow 7.5s ease-in-out 1.5s infinite;
+    }
+
+    /* 答錯震動特效 */
+    @keyframes shakeCard {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-6px); }
+      80% { transform: translateX(6px); }
+    }
+    .animate-shake {
+      animation: shakeCard 0.45s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    /* 答對彈跳特效 */
+    @keyframes popIn {
+      0% { transform: scale(0.95); opacity: 0; }
+      70% { transform: scale(1.02); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.32s ease-out forwards;
+    }
+
+    /* 遊戲按鈕立體質感 */
+    .btn-3d {
+      transition: all 0.15s ease;
+      box-shadow: 0 4px 0 rgba(15, 23, 42, 0.25);
+    }
+    .btn-3d:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 rgba(15, 23, 42, 0.28);
+    }
+    .btn-3d:active:not(:disabled) {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 rgba(15, 23, 42, 0.25);
+    }
+
+    /* 填充輸入框狀態 */
+    .fill-input {
+      transition: all 0.18s ease;
+    }
+    .fill-correct {
+      background-color: #dcfce7 !important;
+      border-color: #16a34a !important;
+      color: #14532d !important;
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+    }
+    .fill-wrong {
+      background-color: #fee2e2 !important;
+      border-color: #dc2626 !important;
+      color: #7f1d1d !important;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.2);
+    }
+
+    /* 彩帶粒子畫布 */
+    #confettiCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    /* 計算紙手寫畫布防觸控捲動 */
+    #scratchpadCanvas {
+      touch-action: none;
+      cursor: crosshair;
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-blue-200">
+  <!-- 全螢幕彩帶特效畫布 -->
+  <canvas id="confettiCanvas"></canvas>
+
+  <!-- 背景幾何水印裝飾 -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden opacity-15 z-0">
+    <svg class="float-shape absolute top-10 left-8 w-32 h-32 text-sky-300" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3">
+      <path d="M50 50 L90 50 A40 40 0 0 0 50 10 Z" />
+    </svg>
+    <svg class="float-shape-delay absolute bottom-16 right-10 w-40 h-40 text-indigo-300" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3">
+      <circle cx="50" cy="50" r="38" />
+      <circle cx="50" cy="50" r="20" />
+    </svg>
+    <svg class="float-shape absolute top-1/2 right-1/4 w-24 h-24 text-amber-300" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3">
+      <rect x="20" y="20" width="60" height="60" rx="8" />
+      <path d="M20 80 A60 60 0 0 1 80 20" />
+    </svg>
+  </div>
+
+  <!-- 主容器 -->
+  <div id="mainContainer" class="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 transition-all duration-300">
+
+    <!-- ==================== 畫面 1：遊戲首頁與關卡選擇 ==================== -->
+    <section id="homeScreen" class="animate-pop">
+      <div class="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white/40 overflow-hidden">
+        <!-- 頂部冒險橫幅 -->
+        <div class="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-600 px-6 py-8 sm:px-10 sm:py-10 text-white relative overflow-hidden">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div>
+              <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-3.5 py-1 rounded-full text-xs sm:text-sm font-bold tracking-wider mb-3">
+                <span>🧭 數學幾何冒險學院</span>
+                <span>•</span>
+                <span>π = 3.14</span>
+                <span>•</span>
+                <span class="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full text-xs font-black">填充實戰版</span>
+              </div>
+              <h1 class="text-2xl sm:text-4xl font-black tracking-tight leading-tight drop-shadow">
+                幾何周長大冒險：<br class="sm:hidden" />扇形與複合圓形挑戰
+              </h1>
+              <p class="mt-2.5 text-blue-100 text-sm sm:text-base max-w-2xl">
+                完整收錄 40 道精選幾何圖形周長填充關卡！觀察高解析度動態幾何圖，在右側計算紙列式計算後直接填入答案，成為傳說中的幾何大宗師！
+              </p>
+            </div>
+
+            <!-- 玩家暱稱設定與戰績卡 -->
+            <div class="bg-slate-900/35 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/20 min-w-[250px]">
+              <label for="playerNameInput" class="block text-xs font-bold text-sky-200 uppercase tracking-wider mb-1.5">
+                冒險者暱稱
+              </label>
+              <div class="flex items-center gap-2">
+                <input
+                  id="playerNameInput"
+                  type="text"
+                  maxlength="12"
+                  placeholder="數學勇者"
+                  class="w-full px-3 py-2 rounded-xl bg-white text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+              <div class="mt-3 pt-3 border-t border-white/15 flex items-center justify-between text-xs sm:text-sm">
+                <span class="text-blue-100">🏆 歷史最高分</span>
+                <span id="bestScoreDisplay" class="font-black text-amber-300 text-base">0 分</span>
+              </div>
+              <div class="mt-1 flex items-center justify-between text-xs">
+                <span class="text-blue-200">🎖️ 最高稱號</span>
+                <span id="bestTitleDisplay" class="font-bold text-emerald-300">尚未挑戰</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 關卡模式選擇區 -->
+        <div class="p-6 sm:p-8">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg sm:text-xl font-black text-slate-800 flex items-center gap-2">
+              <span class="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 inline-flex items-center justify-center text-base">🗺️</span>
+              選擇冒險關卡
+            </h2>
+            <button id="homeSoundToggle" class="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-bold flex items-center gap-1.5 transition">
+              <span id="homeSoundIcon">🔊</span>
+              <span id="homeSoundText">音效：開啟</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+            <!-- 第一關 -->
+            <button onclick="startGame('stage1')" class="btn-3d text-left group bg-gradient-to-br from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 border-2 border-emerald-200 rounded-2xl p-5 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-black">STAGE 01 • 20 題</span>
+                  <span class="text-2xl group-hover:scale-110 transition-transform">🌲</span>
+                </div>
+                <h3 class="text-xl font-black text-emerald-950">第一關：扇形周長森林</h3>
+                <p class="text-sm text-emerald-800/80 mt-1.5 leading-relaxed">
+                  收錄第 1～20 題。從半圓、1/4 圓到各式圓心角（30°～270°），訓練「弧長＋兩條半徑」的精準計算力！
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-emerald-200/70 flex items-center justify-between text-xs font-bold text-emerald-700">
+                <span>難度：★☆☆ 基礎進階</span>
+                <span class="group-hover:translate-x-1 transition-transform">出發挑戰 →</span>
+              </div>
+            </button>
+
+            <!-- 第二關 -->
+            <button onclick="startGame('stage2')" class="btn-3d text-left group bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 rounded-2xl p-5 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-black">STAGE 02 • 20 題</span>
+                  <span class="text-2xl group-hover:scale-110 transition-transform">🏰</span>
+                </div>
+                <h3 class="text-xl font-black text-blue-950">第二關：複合圓形城堡</h3>
+                <p class="text-sm text-blue-800/80 mt-1.5 leading-relaxed">
+                  收錄第 21～40 題。操場跑道、太極陰陽、捆綁圓罐、勒洛三角形、倉庫拴羊等高階複合周長大考驗！
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-blue-200/70 flex items-center justify-between text-xs font-bold text-blue-700">
+                <span>難度：★★★ 魔王挑戰</span>
+                <span class="group-hover:translate-x-1 transition-transform">攻克城堡 →</span>
+              </div>
+            </button>
+
+            <!-- 終極全能挑戰賽（全部 40 題） -->
+            <button onclick="startGame('all40')" class="btn-3d text-left group bg-gradient-to-br from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border-2 border-amber-300 rounded-2xl p-5 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="px-3 py-1 rounded-full bg-amber-600 text-white text-xs font-black">ALL-STAR • 完整 40 題</span>
+                  <span class="text-2xl group-hover:scale-110 transition-transform">👑</span>
+                </div>
+                <h3 class="text-xl font-black text-amber-950">終極全能挑戰賽（全題庫）</h3>
+                <p class="text-sm text-amber-900/80 mt-1.5 leading-relaxed">
+                  一次制霸第 1～40 題完整試煉！適合考前總複習與追求滿分榮耀的幾何勇者。
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-amber-200 flex items-center justify-between text-xs font-bold text-amber-800">
+                <span>完整 40 題馬拉松</span>
+                <span class="group-hover:translate-x-1 transition-transform">開啟全能賽 →</span>
+              </div>
+            </button>
+
+            <!-- 終極全能挑戰賽（隨機 15 題快速賽） -->
+            <button onclick="startGame('quick15')" class="btn-3d text-left group bg-gradient-to-br from-purple-50 to-fuchsia-50 hover:from-purple-100 hover:to-fuchsia-100 border-2 border-purple-200 rounded-2xl p-5 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="px-3 py-1 rounded-full bg-purple-600 text-white text-xs font-black">BLITZ • 隨機 15 題</span>
+                  <span class="text-2xl group-hover:scale-110 transition-transform">⚡</span>
+                </div>
+                <h3 class="text-xl font-black text-purple-950">終極全能快速賽（隨機 15 題）</h3>
+                <p class="text-sm text-purple-900/80 mt-1.5 leading-relaxed">
+                  從 40 題題庫中隨機抽取 15 題混合出擊，節奏明快、隨時來一場腦力衝刺！
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-purple-200 flex items-center justify-between text-xs font-bold text-purple-700">
+                <span>隨機抽題 • 限時衝刺</span>
+                <span class="group-hover:translate-x-1 transition-transform">閃電開局 →</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- 成就獎盃展示列 -->
+          <div class="mt-6 bg-slate-50 rounded-2xl p-4 border border-slate-200">
+            <div class="text-xs font-black text-slate-500 uppercase tracking-wider mb-2.5">🏅 冒險成就獎盃櫃</div>
+            <div id="trophyGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 畫面 2：遊戲進行畫面 ==================== -->
+    <section id="gameScreen" class="hidden">
+      <!-- 頂部狀態列 -->
+      <div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-lg px-4 py-3 sm:px-6 sm:py-4 mb-4 border border-white/50">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <!-- 左側：返回與關卡名 -->
+          <div class="flex items-center gap-2.5">
+            <button onclick="confirmQuitGame()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-bold transition">
+              ← 撤退
+            </button>
+            <div>
+              <div id="stageBadge" class="text-xs font-black text-blue-600">第一關：扇形周長森林</div>
+              <div class="text-sm sm:text-base font-black text-slate-800">
+                第 <span id="qCurrentNum" class="text-blue-700">1</span> / <span id="qTotalNum">20</span> 題
+              </div>
+            </div>
+          </div>
+
+          <!-- 右側：愛心、連擊、分數、計時、音效 -->
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+            <!-- 愛心生命值 -->
+            <div class="flex items-center gap-1 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-xl" title="剩餘生命值（答錯扣一顆心，歸零仍可繼續練習或挑戰）">
+              <span id="heartsDisplay" class="text-sm sm:text-base tracking-tighter">❤️❤️❤️❤️❤️</span>
+            </div>
+
+            <!-- 連擊 Combo -->
+            <div id="comboBadge" class="hidden items-center gap-1 bg-amber-100 border border-amber-300 text-amber-800 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-black">
+              <span>🔥</span>
+              <span id="comboText">2 連擊!</span>
+            </div>
+
+            <!-- 即時得分 -->
+            <div class="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black text-blue-900">
+              ⭐ <span id="scoreDisplay">0</span> 分
+            </div>
+
+            <!-- 計時器 -->
+            <div class="bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold text-slate-700 tabular-nums">
+              ⏱️ <span id="timerDisplay">00:00</span>
+            </div>
+
+            <!-- 計算紙開關按鈕 -->
+            <button id="toggleScratchpadBtn" onclick="toggleScratchpad()" class="btn-3d px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs sm:text-sm font-black flex items-center gap-1.5">
+              <span>📝</span>
+              <span id="scratchpadToggleLabel">計算紙：開啟</span>
+            </button>
+
+            <!-- 音效開關 -->
+            <button id="gameSoundToggle" class="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold transition" title="切換音效">
+              <span id="gameSoundIcon">🔊</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 進度條 -->
+        <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden mt-3">
+          <div id="progressBar" class="h-full bg-gradient-to-r from-blue-600 to-sky-400 rounded-full transition-all duration-300" style="width: 5%"></div>
+        </div>
+      </div>
+
+      <!-- 主遊戲內容網格（桌機並排時：左側題目卡片、右側互動計算紙） -->
+      <div id="gameWorkspaceGrid" class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+      <!-- 主題目卡片 -->
+      <div id="questionCard" class="lg:col-span-7 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
+        <div class="grid grid-cols-1 md:grid-cols-12">
+          <!-- 左側：HTML5 Canvas 高解析度幾何圖形區 -->
+          <div class="md:col-span-5 bg-gradient-to-b from-slate-50 to-blue-50/60 p-4 sm:p-5 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-200/80">
+            <div class="w-full flex items-center justify-between text-xs font-bold text-slate-500 mb-2">
+              <span class="bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">📐 幾何示意圖</span>
+              <span id="qOrigNumber" class="text-slate-400">題庫 #1</span>
+            </div>
+            <div class="w-full max-w-[300px] aspect-[4/3] bg-white rounded-2xl border-2 border-blue-100 shadow-inner flex items-center justify-center p-2 relative">
+              <canvas id="geometryCanvas" class="w-full h-full block"></canvas>
+            </div>
+            <p class="mt-2.5 text-[11px] text-slate-400 text-center">
+              提示：藍色實線與圓弧為邊界，別漏算直線段！
+            </p>
+          </div>
+
+          <!-- 右側：題目文字、提示卡、填充題輸入區與解析 -->
+          <div class="md:col-span-7 p-5 sm:p-6 flex flex-col justify-between">
+            <div>
+              <!-- 題目標題與提示卡按鈕 -->
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <span id="categoryTag" class="inline-block px-3 py-1 rounded-lg bg-blue-100 text-blue-800 text-xs font-black">
+                  扇形周長計算
+                </span>
+                <div class="flex items-center gap-2">
+                  <button onclick="toggleScratchpad()" class="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-300 text-teal-800 text-xs font-black flex items-center gap-1 transition">
+                    <span>📝</span>
+                    <span id="cardScratchpadBtnText">收合計算紙</span>
+                  </button>
+                  <button id="hintBtn" onclick="useHintCard()" class="btn-3d shrink-0 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs font-black flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span>💡 公式提示卡</span>
+                    <span id="hintCountBadge" class="bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded-md text-xs">2</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 提示內容展開框 -->
+              <div id="hintBox" class="hidden mb-4 p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs sm:text-sm animate-pop">
+                <div class="font-black flex items-center gap-1.5 mb-1">
+                  <span>📜 幾何公式錦囊：</span>
+                </div>
+                <p id="hintText" class="leading-relaxed"></p>
+              </div>
+
+              <!-- 題目敘述 -->
+              <h2 id="questionText" class="text-lg sm:text-xl font-bold text-slate-900 leading-relaxed mb-5">
+                載入題目中...
+              </h2>
+
+              <!-- 填充題作答區 -->
+              <div id="fillBlankContainer" class="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 sm:p-5">
+                <label for="answerInput" class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                  ✏️ 請填入計算結果（可按 Enter 鍵直接送出）
+                </label>
+
+                <div class="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+                  <span id="answerPrefix" class="hidden text-sm sm:text-base font-black text-blue-800 bg-blue-100 px-3 py-2.5 rounded-xl shrink-0"></span>
+                  <div class="relative flex-1 min-w-[140px]">
+                    <input
+                      id="answerInput"
+                      type="text"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      placeholder="輸入數字..."
+                      class="fill-input w-full px-4 py-3 rounded-xl bg-white border-2 border-blue-300 text-lg sm:text-xl font-black text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/15"
+                    />
+                  </div>
+                  <span id="answerUnit" class="text-sm sm:text-base font-black text-slate-700 bg-white border border-slate-300 px-3 py-2.5 rounded-xl shrink-0">
+                    公分
+                  </span>
+                </div>
+
+                <!-- 快捷輸入按鈕與送出按鈕 -->
+                <div class="mt-3.5 flex flex-wrap items-center justify-between gap-2">
+                  <div id="quickPadBtns" class="flex items-center gap-1.5">
+                    <button type="button" onclick="appendAnswerChar('.')" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 text-xs font-black transition" title="輸入小數點">
+                      . 小數點
+                    </button>
+                    <button type="button" onclick="appendAnswerChar('/')" class="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 text-xs font-black transition" title="輸入分數斜線（例如 1/6）">
+                      / 分數線
+                    </button>
+                    <button type="button" onclick="clearAnswerInput()" class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 border border-slate-300 text-slate-600 hover:text-rose-700 text-xs font-bold transition">
+                      清空
+                    </button>
+                  </div>
+
+                  <button
+                    id="submitAnswerBtn"
+                    type="button"
+                    onclick="submitFillAnswer()"
+                    class="btn-3d w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black text-sm sm:text-base flex items-center justify-center gap-1.5"
+                  >
+                    <span>確認送出</span>
+                    <span>✓</span>
+                  </button>
+                </div>
+
+                <p id="inputHintMessage" class="hidden mt-2 text-xs font-bold text-amber-700"></p>
+              </div>
+            </div>
+
+            <!-- 解題小幫手卡片（作答後展開） -->
+            <div id="explanationBox" class="hidden mt-6 rounded-2xl border-2 p-4 sm:p-5 animate-pop">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <div id="feedbackHeader" class="font-black text-base sm:text-lg flex items-center gap-2"></div>
+                <span id="pointsEarnedBadge" class="text-xs font-black px-2.5 py-1 rounded-full"></span>
+              </div>
+              <div class="text-xs sm:text-sm text-slate-700 bg-white/80 rounded-xl p-3 border border-slate-200/80 leading-relaxed">
+                <span class="font-black text-blue-800">📝 解題小幫手：</span>
+                <span id="explanationText"></span>
+              </div>
+              <div class="mt-4 flex justify-end">
+                <button id="nextBtn" onclick="nextQuestion()" class="btn-3d px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base flex items-center gap-2">
+                  <span id="nextBtnText">下一題</span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 互動計算紙（Scratchpad）面板 ==================== -->
+      <aside id="scratchpadPanel" class="lg:col-span-5 bg-white rounded-3xl shadow-2xl border-2 border-teal-200 overflow-hidden animate-pop">
+        <!-- 計算紙頂部標題列 -->
+        <div class="bg-gradient-to-r from-teal-700 to-emerald-600 px-4 py-3 text-white flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">📝</span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black tracking-wide leading-tight">互動數學計算紙</h3>
+              <p class="text-[11px] text-teal-100">支援滑鼠、觸控手寫與快捷算式列式</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <!-- 桌機佈局切換（並排 / 下方展開） -->
+            <button id="layoutModeBtn" onclick="toggleScratchpadLayout()" class="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition" title="切換側邊並排或下方寬幅展開">
+              <span id="layoutModeIcon">◫</span>
+              <span id="layoutModeText">下方展開</span>
+            </button>
+            <!-- 方格線切換 -->
+            <button id="gridToggleBtn" onclick="toggleScratchpadGrid()" class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition" title="切換數學方格背景">
+              <span id="gridToggleText">▦ 方格：開</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 畫筆工具列 -->
+        <div class="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <!-- 顏色選擇 -->
+          <div class="flex items-center gap-1.5" role="group" aria-label="畫筆顏色">
+            <button onclick="setPenColor('#1e293b')" data-color="#1e293b" class="pen-color-btn w-6 h-6 rounded-full bg-slate-800 ring-2 ring-offset-1 ring-teal-500 transition" title="黑色畫筆"></button>
+            <button onclick="setPenColor('#1d4ed8')" data-color="#1d4ed8" class="pen-color-btn w-6 h-6 rounded-full bg-blue-700 opacity-75 hover:opacity-100 transition" title="藍色畫筆"></button>
+            <button onclick="setPenColor('#dc2626')" data-color="#dc2626" class="pen-color-btn w-6 h-6 rounded-full bg-red-600 opacity-75 hover:opacity-100 transition" title="紅色畫筆"></button>
+            <button onclick="setPenColor('#059669')" data-color="#059669" class="pen-color-btn w-6 h-6 rounded-full bg-emerald-600 opacity-75 hover:opacity-100 transition" title="綠色畫筆"></button>
+            <span class="h-4 w-px bg-slate-300 mx-0.5"></span>
+            <!-- 橡皮擦 -->
+            <button id="eraserBtn" onclick="toggleEraser()" class="px-2 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center gap-1 transition" title="橡皮擦">
+              <span>🧽</span>
+              <span>擦子</span>
+            </button>
+          </div>
+
+          <!-- 畫筆粗細與復原/清空 -->
+          <div class="flex items-center gap-1.5">
+            <div class="flex items-center bg-white rounded-lg border border-slate-300 p-0.5 text-[11px] font-bold">
+              <button onclick="setPenSize(2)" data-size="2" class="pen-size-btn px-2 py-0.5 rounded-md bg-teal-600 text-white transition">細</button>
+              <button onclick="setPenSize(4)" data-size="4" class="pen-size-btn px-2 py-0.5 rounded-md text-slate-600 hover:bg-slate-100 transition">中</button>
+              <button onclick="setPenSize(7)" data-size="7" class="pen-size-btn px-2 py-0.5 rounded-md text-slate-600 hover:bg-slate-100 transition">粗</button>
+            </div>
+            <button onclick="undoScratchpad()" class="px-2 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold transition" title="復原上一步">
+              ↩️ 上一步
+            </button>
+            <button onclick="clearScratchpad(true)" class="px-2 py-1 rounded-lg bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 text-xs font-bold transition" title="清空整張計算紙">
+              🗑️ 清空
+            </button>
+          </div>
+        </div>
+
+        <!-- 手寫塗鴉畫布區 -->
+        <div id="scratchpadCanvasWrap" class="relative w-full h-[270px] sm:h-[310px] bg-white">
+          <canvas id="scratchpadCanvas" class="w-full h-full block"></canvas>
+          <div id="scratchpadPlaceholder" class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-slate-300 select-none">
+            <span class="text-3xl mb-1">✍️</span>
+            <span class="text-xs font-bold">在此處自由手寫直式算式或草稿</span>
+          </div>
+        </div>
+
+        <!-- 快捷算式備忘與符號小工具列 -->
+        <div class="bg-slate-50 p-3 border-t border-slate-200 space-y-2">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-[11px] font-black text-slate-500 mr-0.5">快捷符號：</span>
+            <button onclick="insertFormulaToken(' × 3.14')" class="px-2 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-900 text-xs font-black transition">× 3.14</button>
+            <button onclick="insertFormulaToken(' ÷ 2')" class="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black transition">÷ 2</button>
+            <button onclick="insertFormulaToken(' × 1/4')" class="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black transition">× 1/4</button>
+            <button onclick="insertFormulaToken(' + ')" class="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black transition">+</button>
+            <button onclick="insertFormulaToken(' - ')" class="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black transition">-</button>
+            <button onclick="insertFormulaToken(' = ')" class="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-black transition">=</button>
+          </div>
+
+          <!-- 算式文字備忘與即時計算 -->
+          <div class="flex items-center gap-1.5">
+            <input
+              id="formulaMemoInput"
+              type="text"
+              placeholder="打字列式，例：10 * 2 * 3.14 / 2 + 20"
+              class="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+            <button onclick="evaluateFormulaMemo()" class="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-black shrink-0 transition" title="自動計算目前算式結果">
+              計算 =
+            </button>
+            <button onclick="clearFormulaMemo()" class="px-2.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold shrink-0 transition" title="清除算式列">
+              清除
+            </button>
+          </div>
+
+          <!-- 換題自動清空設定列 -->
+          <div class="pt-1 flex items-center justify-between text-[11px] text-slate-600">
+            <label class="inline-flex items-center gap-1.5 cursor-pointer select-none font-bold">
+              <input id="autoClearCheck" type="checkbox" checked class="rounded text-teal-600 focus:ring-teal-500 w-3.5 h-3.5" />
+              <span>切換下一題時自動清空計算紙</span>
+            </label>
+            <span class="text-slate-400">小數點對齊更不易算錯！</span>
+          </div>
+        </div>
+      </aside>
+
+      </div><!-- /gameWorkspaceGrid -->
+    </section>
+
+    <!-- ==================== 畫面 3：結算畫面與錯題回顧 ==================== -->
+    <section id="resultScreen" class="hidden animate-pop">
+      <div class="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-white/50 overflow-hidden">
+        <!-- 頂部榮耀橫幅 -->
+        <div class="bg-gradient-to-r from-indigo-800 via-blue-700 to-sky-600 p-6 sm:p-10 text-center text-white">
+          <div id="resultTrophyEmoji" class="text-5xl sm:text-6xl mb-3 drop-shadow">🏆</div>
+          <div class="inline-block px-4 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs sm:text-sm tracking-wider mb-2">
+            稱號評級：<span id="resultRankTitle">幾何大宗師</span>
+          </div>
+          <h2 class="text-2xl sm:text-4xl font-black tracking-tight">
+            <span id="resultPlayerName">數學勇者</span> 的冒險結算報告
+          </h2>
+          <p id="resultSubtitle" class="text-blue-100 text-sm sm:text-base mt-1.5">太厲害了！你成功完成了本次幾何周長填充挑戰！</p>
+        </div>
+
+        <!-- 四大數據卡片 -->
+        <div class="p-6 sm:p-8">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+            <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-center">
+              <div class="text-xs font-bold text-blue-600 mb-1">總得分</div>
+              <div id="resTotalScore" class="text-2xl sm:text-3xl font-black text-blue-950">0</div>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+              <div class="text-xs font-bold text-emerald-600 mb-1">答對率</div>
+              <div id="resAccuracy" class="text-2xl sm:text-3xl font-black text-emerald-950">0%</div>
+              <div id="resCorrectRatio" class="text-xs text-emerald-700 mt-0.5">0 / 0 題</div>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
+              <div class="text-xs font-bold text-amber-600 mb-1">最高連擊</div>
+              <div id="resMaxCombo" class="text-2xl sm:text-3xl font-black text-amber-950">0</div>
+            </div>
+            <div class="bg-purple-50 border border-purple-200 rounded-2xl p-4 text-center">
+              <div class="text-xs font-bold text-purple-600 mb-1">挑戰耗時</div>
+              <div id="resTimeUsed" class="text-2xl sm:text-3xl font-black text-purple-950 tabular-nums">00:00</div>
+            </div>
+          </div>
+
+          <!-- 操作按鈕列 -->
+          <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-8">
+            <button onclick="returnHome()" class="btn-3d px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-black text-sm sm:text-base">
+              🏠 返回關卡大廳
+            </button>
+            <button onclick="replayCurrentMode()" class="btn-3d px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base">
+              🔄 再玩一次本關
+            </button>
+            <button id="retryWrongBtn" onclick="startWrongQuestionsMode()" class="btn-3d hidden px-6 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base">
+              📖 只重練錯題（<span id="wrongCountBtnText">0</span> 題）
+            </button>
+          </div>
+
+          <!-- 錯題本複習清單 -->
+          <div id="wrongReviewSection" class="border-t-2 border-slate-100 pt-6">
+            <h3 class="text-lg sm:text-xl font-black text-slate-800 mb-4 flex items-center gap-2">
+              <span>📋 錯題本複習清單</span>
+              <span id="wrongBadgeCount" class="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-black">0 題</span>
+            </h3>
+            <div id="wrongListContainer" class="space-y-4">
+              <!-- 動態產生錯題卡片 -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 自訂確認撤退彈窗（絕不使用 confirm()） -->
+    <div id="quitModal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-pop text-center">
+        <div class="text-4xl mb-2">🧭</div>
+        <h3 class="text-xl font-black text-slate-900">確定要結束本局冒險嗎？</h3>
+        <p class="text-sm text-slate-600 mt-2">目前的闖關進度與連擊數將不會計入最高分紀錄喔！</p>
+        <div class="mt-6 grid grid-cols-2 gap-3">
+          <button onclick="closeQuitModal()" class="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm">
+            繼續闖關
+          </button>
+          <button onclick="confirmQuitAction()" class="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm">
+            返回首頁
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. Web Audio API 音效合成器（無需任何外部音效檔案）
+    // =========================================================================
+    const SoundFX = (() => {
+      let ctx = null;
+      let enabled = true;
+
+      function ensureContext() {
+        if (!ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) ctx = new AudioCtx();
+        }
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume();
+        }
+      }
+
+      function playTone(freq, type, duration, startTimeOffset = 0, gainVal = 0.18) {
+        if (!enabled) return;
+        ensureContext();
+        if (!ctx) return;
+
+        const now = ctx.currentTime + startTimeOffset;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.exponentialRampToValueAtTime(gainVal, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + duration + 0.02);
+      }
+
+      return {
+        isEnabled: () => enabled,
+        toggle: () => {
+          enabled = !enabled;
+          if (enabled) playTone(587.33, 'sine', 0.12, 0, 0.12);
+          return enabled;
+        },
+        click: () => playTone(520, 'sine', 0.08, 0, 0.1),
+        hint: () => {
+          playTone(659.25, 'triangle', 0.12, 0, 0.14);
+          playTone(880, 'triangle', 0.18, 0.09, 0.14);
+        },
+        correct: (combo = 1) => {
+          const boost = Math.min(combo - 1, 6) * 35;
+          playTone(523.25 + boost, 'triangle', 0.14, 0, 0.2);
+          playTone(659.25 + boost, 'triangle', 0.14, 0.09, 0.2);
+          playTone(783.99 + boost, 'triangle', 0.24, 0.18, 0.22);
+        },
+        wrong: () => {
+          playTone(230, 'sawtooth', 0.18, 0, 0.15);
+          playTone(175, 'sawtooth', 0.26, 0.14, 0.15);
+        },
+        victory: () => {
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((n, idx) => playTone(n, 'triangle', 0.22, idx * 0.11, 0.2));
+        }
+      };
+    })();
+
+    // =========================================================================
+    // 2. 完整 40 道幾何周長填充題庫（含標準答案數值、單位與提示公式）
+    // =========================================================================
+    const QUESTIONS_DB = [
+      // ---------------- 第一部分：扇形周長（第 1～20 題） ----------------
+      {
+        id: 1, stage: 1, category: '扇形周長森林',
+        text: '一個半徑為 10 公分的半圓，它的周長是多少公分？（圓周率以 3.14 計算）',
+        answerValue: 51.4,
+        answerDisplay: '51.4 公分',
+        unit: '公分',
+        hint: '半圓的周長 = 「圓周長的一半（半圓弧）」＋「一條直徑（2 × 半徑）」，千萬別忘了加上底部的直徑喔！',
+        explanation: '半圓周長 = 圓周長的一半 + 直徑 = 10 × 2 × 3.14 ÷ 2 + 10 × 2 = 31.4 + 20 = 51.4（公分）。',
+        fig: { type: 'sector', angle: 180, rLabel: 'r = 10 cm' }
+      },
+      {
+        id: 2, stage: 1, category: '扇形周長森林',
+        text: '如圖，一個半徑為 8 公分的 1/4 圓扇形，它的周長是多少公分？',
+        answerValue: 28.56,
+        answerDisplay: '28.56 公分',
+        unit: '公分',
+        hint: '1/4 圓扇形周長 = 圓周長 × 1/4 ＋ 兩條半徑（r × 2）。',
+        explanation: '1/4 圓周長 = 8 × 2 × 3.14 × 1/4 + 8 × 2 = 12.56 + 16 = 28.56（公分）。',
+        fig: { type: 'sector', angle: 90, rLabel: '8 cm', rightAngle: true }
+      },
+      {
+        id: 3, stage: 1, category: '扇形周長森林',
+        text: '如圖，一個圓心角為 60°、半徑為 12 公分的扇形，周長是多少公分？',
+        answerValue: 36.56,
+        answerDisplay: '36.56 公分',
+        unit: '公分',
+        hint: '圓心角 60° 佔整個圓（360°）的 60/360 = 1/6。扇形周長 = 弧長 ＋ 兩條半徑。',
+        explanation: '60° 為 60/360 = 1/6 圓。周長 = 12 × 2 × 3.14 × 1/6 + 12 × 2 = 12.56 + 24 = 36.56（公分）。',
+        fig: { type: 'sector', angle: 60, rLabel: '12 cm', angleLabel: '60°' }
+      },
+      {
+        id: 4, stage: 1, category: '扇形周長森林',
+        text: '一個直徑為 20 公分的半圓形紙板，它的周長是多少公分？',
+        answerValue: 51.4,
+        answerDisplay: '51.4 公分',
+        unit: '公分',
+        hint: '題目給的是「直徑 20 公分」喔！圓周長 = 直徑 × 3.14，半圓周長 = 圓周長 ÷ 2 ＋ 直徑。',
+        explanation: '半圓周長 = 20 × 3.14 ÷ 2 + 20 = 31.4 + 20 = 51.4（公分）。',
+        fig: { type: 'sector', angle: 180, dLabel: 'd = 20 cm' }
+      },
+      {
+        id: 5, stage: 1, category: '扇形周長森林',
+        text: '如圖，圓心角為 120°、半徑為 15 公分的扇形，它的周長是多少公分？',
+        answerValue: 61.4,
+        answerDisplay: '61.4 公分',
+        unit: '公分',
+        hint: '120° ÷ 360° = 1/3 圓。先算 1/3 圓弧長，再加上 2 條 15 公分的半徑。',
+        explanation: '120° 為 120/360 = 1/3 圓。周長 = 15 × 2 × 3.14 × 1/3 + 15 × 2 = 31.4 + 30 = 61.4（公分）。',
+        fig: { type: 'sector', angle: 120, rLabel: '15 cm', angleLabel: '120°' }
+      },
+      {
+        id: 6, stage: 1, category: '扇形周長森林',
+        text: '如圖，圓心角為 45°、半徑為 16 公分的扇形，周長是多少公分？',
+        answerValue: 44.56,
+        answerDisplay: '44.56 公分',
+        unit: '公分',
+        hint: '45° ÷ 360° = 1/8 圓。扇形周長 = 直徑 × 3.14 × 1/8 ＋ 半徑 × 2。',
+        explanation: '45° 為 45/360 = 1/8 圓。周長 = 16 × 2 × 3.14 × 1/8 + 16 × 2 = 12.56 + 32 = 44.56（公分）。',
+        fig: { type: 'sector', angle: 45, rLabel: '16 cm', angleLabel: '45°' }
+      },
+      {
+        id: 7, stage: 1, category: '扇形周長森林',
+        text: '如圖，圓心角為 72°、半徑為 10 公分的扇形，周長是多少公分？',
+        answerValue: 32.56,
+        answerDisplay: '32.56 公分',
+        unit: '公分',
+        hint: '72° ÷ 360° = 1/5 圓。算出 1/5 圓周長後，別忘了加上兩條半徑（20 公分）。',
+        explanation: '72° 為 72/360 = 1/5 圓。周長 = 10 × 2 × 3.14 × 1/5 + 10 × 2 = 12.56 + 20 = 32.56（公分）。',
+        fig: { type: 'sector', angle: 72, rLabel: '10 cm', angleLabel: '72°' }
+      },
+      {
+        id: 8, stage: 1, category: '扇形周長森林',
+        text: '如圖，一個 3/4 圓的扇形，半徑為 10 公分，它的周長是多少公分？',
+        answerValue: 67.1,
+        answerDisplay: '67.1 公分',
+        unit: '公分',
+        hint: '3/4 圓（270°）的邊界包含「3/4 圓弧」與「兩條垂直的半徑」。',
+        explanation: '3/4 圓周長 = 10 × 2 × 3.14 × 3/4 + 10 × 2 = 47.1 + 20 = 67.1（公分）。',
+        fig: { type: 'sector', angle: 270, rLabel: '10 cm', angleLabel: '270°' }
+      },
+      {
+        id: 9, stage: 1, category: '扇形周長森林',
+        text: '如圖，圓心角為 135°、半徑為 8 公分的扇形，周長是多少公分？',
+        answerValue: 34.84,
+        answerDisplay: '34.84 公分',
+        unit: '公分',
+        hint: '135° ÷ 360° = 3/8 圓（45° 的 3 倍）。弧長加上 2 條 8 公分的半徑即為周長。',
+        explanation: '135° 為 135/360 = 3/8 圓。周長 = 8 × 2 × 3.14 × 3/8 + 8 × 2 = 18.84 + 16 = 34.84（公分）。',
+        fig: { type: 'sector', angle: 135, rLabel: '8 cm', angleLabel: '135°' }
+      },
+      {
+        id: 10, stage: 1, category: '扇形周長森林',
+        text: '如圖，圓心角為 150°、半徑為 12 公分的扇形，周長是多少公分？',
+        answerValue: 55.4,
+        answerDisplay: '55.4 公分',
+        unit: '公分',
+        hint: '150° ÷ 360° = 5/12 圓。直徑為 24 公分，先乘 3.14 再乘 5/12 求出弧長，最後加 24。',
+        explanation: '150° 為 150/360 = 5/12 圓。周長 = 12 × 2 × 3.14 × 5/12 + 12 × 2 = 31.4 + 24 = 55.4（公分）。',
+        fig: { type: 'sector', angle: 150, rLabel: '12 cm', angleLabel: '150°' }
+      },
+      {
+        id: 11, stage: 1, category: '扇形周長森林',
+        text: '已知一個半圓的周長是 25.7 公分，請問這個半圓的半徑是多少公分？',
+        answerValue: 5,
+        answerDisplay: '5 公分',
+        unit: '公分',
+        hint: '設半徑為 r，半圓周長 = 3.14 × r ＋ 2 × r = 5.14 × r。用周長除以 5.14 就能反推半徑！',
+        explanation: '半圓周長 = r × 3.14 + 2r = 5.14r。25.7 ÷ 5.14 = 5（公分）。',
+        fig: { type: 'sector', angle: 180, rLabel: 'r = ?' }
+      },
+      {
+        id: 12, stage: 1, category: '扇形周長森林',
+        text: '已知一個 1/4 圓扇形的周長是 35.7 公分，請問它的半徑是多少公分？',
+        answerValue: 10,
+        answerDisplay: '10 公分',
+        unit: '公分',
+        hint: '設半徑為 r，1/4 圓周長 = (2 × 3.14 × 1/4)r ＋ 2r = 1.57r ＋ 2r = 3.57r。',
+        explanation: '1/4 圓周長 = 2r × 3.14 × 1/4 + 2r = 1.57r + 2r = 3.57r。35.7 ÷ 3.57 = 10（公分）。',
+        fig: { type: 'sector', angle: 90, rLabel: 'r = ?', rightAngle: true }
+      },
+      {
+        id: 13, stage: 1, category: '扇形周長森林',
+        text: '一個半徑為 10 公分的扇形，其周長為 35.7 公分，請問這個扇形的圓心角是幾度？',
+        answerValue: 90,
+        answerDisplay: '90 度',
+        unit: '度（°）',
+        hint: '先用「周長 － 兩條半徑」算出弧長，再看看這段弧長佔整個圓周長（20 × 3.14）的幾分之幾！',
+        explanation: '弧長 = 周長 - 兩半徑 = 35.7 - 20 = 15.7（公分）。圓周長 = 62.8 公分，15.7 ÷ 62.8 = 1/4，360° × 1/4 = 90°。',
+        fig: { type: 'sector', angle: 90, rLabel: '10 cm', angleLabel: '?°' }
+      },
+      {
+        id: 14, stage: 1, category: '扇形周長森林',
+        text: '一個半徑為 12 公分的扇形，其周長為 36.56 公分，這個扇形是幾分之幾圓？（請輸入分數，例如 1/4）',
+        answerValue: 1 / 6,
+        answerDisplay: '1/6 圓',
+        unit: '圓',
+        placeholder: '例如 1/4',
+        hint: '先把周長減去兩條半徑（12 × 2 = 24 公分）得到弧長，再用「弧長 ÷ 整圓周長」約分即可。',
+        explanation: '弧長 = 36.56 - 12 × 2 = 12.56（公分）。圓周長 = 24 × 3.14 = 75.36 公分，12.56 ÷ 75.36 = 1/6 圓。',
+        fig: { type: 'sector', angle: 60, rLabel: '12 cm' }
+      },
+      {
+        id: 15, stage: 1, category: '扇形周長森林',
+        text: '時鐘的分針長 10 公分，從下午 2:00 走到 2:20，分針掃過的扇形周長是多少公分？（四捨五入至小數點後第二位）',
+        answerValue: 40.93,
+        answerDisplay: '40.93 公分',
+        unit: '公分',
+        hint: '時鐘一圈 60 分鐘，20 分鐘走了 20/60 = 1/3 圈（圓心角 120°），半徑就是分針長度 10 公分。',
+        explanation: '20 分鐘走了 20/60 = 1/3 圈（120°）。周長 = 10 × 2 × 3.14 × 1/3 + 20 ≈ 20.93 + 20 = 40.93（公分）。',
+        fig: { type: 'clock120', rLabel: '10 cm', angleLabel: '120°' }
+      },
+      {
+        id: 16, stage: 1, category: '扇形周長森林',
+        text: '如圖，圓心角為 100°、半徑為 18 公分的扇形，它的周長是多少公分？',
+        answerValue: 67.4,
+        answerDisplay: '67.4 公分',
+        unit: '公分',
+        hint: '100° ÷ 360° = 5/18 圓。直徑 36 剛好是 18 的 2 倍，約分後計算超好算喔！',
+        explanation: '100° 為 100/360 = 5/18 圓。周長 = 18 × 2 × 3.14 × 5/18 + 18 × 2 = 31.4 + 36 = 67.4（公分）。',
+        fig: { type: 'sector', angle: 100, rLabel: '18 cm', angleLabel: '100°' }
+      },
+      {
+        id: 17, stage: 1, category: '扇形周長森林',
+        text: '把一個半徑 12 公分的圓形披薩平分成 8 等份，其中 1 片扇形披薩的周長是多少公分？',
+        answerValue: 33.42,
+        answerDisplay: '33.42 公分',
+        unit: '公分',
+        hint: '平分成 8 等份，每片就是 1/8 圓（圓心角 45°）。別忘了加上兩側切開的半徑！',
+        explanation: '1 等份為 1/8 圓。周長 = 12 × 2 × 3.14 × 1/8 + 12 × 2 = 9.42 + 24 = 33.42（公分）。',
+        fig: { type: 'sector', angle: 45, rLabel: '12 cm', angleLabel: '45°' }
+      },
+      {
+        id: 18, stage: 1, category: '扇形周長森林',
+        text: '如圖，圓心角為 240°、半徑為 9 公分的優弧扇形，它的周長是多少公分？',
+        answerValue: 55.68,
+        answerDisplay: '55.68 公分',
+        unit: '公分',
+        hint: '240° ÷ 360° = 2/3 圓。先算 2/3 個整圓周長，再加上兩條 9 公分的半徑。',
+        explanation: '240° 為 240/360 = 2/3 圓。周長 = 9 × 2 × 3.14 × 2/3 + 9 × 2 = 37.68 + 18 = 55.68（公分）。',
+        fig: { type: 'sector', angle: 240, rLabel: '9 cm', angleLabel: '240°' }
+      },
+      {
+        id: 19, stage: 1, category: '扇形周長森林',
+        text: '比較甲「半徑 10 公分的半圓」與乙「半徑 20 公分的 1/4 圓」，較長的那一個周長比另一個多出多少公分？',
+        answerValue: 20,
+        answerDisplay: '20 公分（乙較長）',
+        prefix: '相差',
+        unit: '公分',
+        hint: '甲與乙的「弧長」其實一樣長（都是 31.4 公分），關鍵差別在於兩者各自的直線邊界長度！',
+        explanation: '甲周長 = 20 × 3.14 ÷ 2 + 20 = 51.4（公分）；乙周長 = 40 × 3.14 × 1/4 + 40 = 71.4（公分）。乙較長，相差 71.4 - 51.4 = 20（公分）。',
+        fig: { type: 'compare19' }
+      },
+      {
+        id: 20, stage: 1, category: '扇形周長森林',
+        text: '如圖，圓心角為 30°、半徑為 24 公分的扇形，周長是多少公分？',
+        answerValue: 60.56,
+        answerDisplay: '60.56 公分',
+        unit: '公分',
+        hint: '30° ÷ 360° = 1/12 圓。直徑是 48 公分，48 × 1/12 = 4，算出弧長後再加上 48！',
+        explanation: '30° 為 30/360 = 1/12 圓。周長 = 24 × 2 × 3.14 × 1/12 + 24 × 2 = 12.56 + 48 = 60.56（公分）。',
+        fig: { type: 'sector', angle: 30, rLabel: '24 cm', angleLabel: '30°' }
+      },
+
+      // ---------------- 第二部分：複合型圓形周長（第 21～40 題） ----------------
+      {
+        id: 21, stage: 2, category: '複合圓形城堡',
+        text: '如圖，一個運動場由長 50 公尺、寬 20 公尺的長方形與左右兩個半圓組成，跑道最外圍一圈的周長是多少公尺？',
+        answerValue: 162.8,
+        answerDisplay: '162.8 公尺',
+        unit: '公尺',
+        hint: '把左右兩個半圓拼起來，剛好是一個直徑 20 公尺的完整圓形！再加上上下兩條 50 公尺的直線跑道（中間虛線不算外圍）。',
+        explanation: '左右兩個半圓合起來是一個直徑 20 公尺的整圓。周長 = 20 × 3.14 + 50 × 2 = 62.8 + 100 = 162.8（公尺）。',
+        fig: { type: 'track', len: '50 m', wid: '20 m' }
+      },
+      {
+        id: 22, stage: 2, category: '複合圓形城堡',
+        text: '如圖，在邊長 10 公分的正方形紙板內部，剪去一個最大的圓形，剩下灰色圖形的周長（含內外邊界）是多少公分？',
+        answerValue: 71.4,
+        answerDisplay: '71.4 公分',
+        unit: '公分',
+        hint: '挖洞後圖形的周長，必須把「外圍正方形的 4 條邊」與「內部圓形的圓周長」全部加起來！',
+        explanation: '剩下圖形的周長包含「外圍正方形周長」與「內部圓周長」：10 × 4 + 10 × 3.14 = 40 + 31.4 = 71.4（公分）。',
+        fig: { type: 'squareHoleCircle' }
+      },
+      {
+        id: 23, stage: 2, category: '複合圓形城堡',
+        text: '如圖，在邊長 10 公分的正方形中，以兩個對角為圓心畫出兩個 1/4 圓，重疊處形成一個葉片形，這個葉片形的周長是多少公分？',
+        answerValue: 31.4,
+        answerDisplay: '31.4 公分',
+        unit: '公分',
+        hint: '葉片形的邊界由「兩段半徑 10 公分的 1/4 圓弧」組成，兩段 1/4 圓弧合起來剛好是半個圓周長！',
+        explanation: '葉片形由兩段 1/4 圓弧組成，合起來剛好是半個圓周長：10 × 2 × 3.14 × 1/2 = 31.4（公分）。',
+        fig: { type: 'leaf' }
+      },
+      {
+        id: 24, stage: 2, category: '複合圓形城堡',
+        text: '如圖，一個同心圓環的外圓半徑為 10 公分、內圓半徑為 5 公分，這個圓環圖形的周長（內外圓周長總和）是多少公分？',
+        answerValue: 94.2,
+        answerDisplay: '94.2 公分',
+        unit: '公分',
+        hint: '甜甜圈狀圓環有內、外兩圈邊界，周長就是「外圓周長 ＋ 內圓周長」。',
+        explanation: '圓環周長 = 外圓周長 + 內圓周長 = 10 × 2 × 3.14 + 5 × 2 × 3.14 = 62.8 + 31.4 = 94.2（公分）。',
+        fig: { type: 'annulus' }
+      },
+      {
+        id: 25, stage: 2, category: '複合圓形城堡',
+        text: '如圖，直徑為 20 公分的圓形太極圖，塗色部分（半圓加上凸出與凹進的小半圓）的周長是多少公分？',
+        answerValue: 62.8,
+        answerDisplay: '62.8 公分',
+        unit: '公分',
+        hint: '沿著塗色區域走一圈：會經過「1 條直徑 20 的大半圓弧」以及「2 條直徑 10 的小半圓弧」！',
+        explanation: '塗色部分周長 = 大半圓弧長 + 兩個直徑 10 公分的小半圓弧長 = 20 × 3.14 ÷ 2 + 10 × 3.14 = 31.4 + 31.4 = 62.8（公分）。',
+        fig: { type: 'taichi' }
+      },
+      {
+        id: 26, stage: 2, category: '複合圓形城堡',
+        text: '如圖，一個半圓拱橋形圖案，外半圓半徑 10 公分、內半圓半徑 5 公分，這個拱橋形塗色部分的周長是多少公分？',
+        answerValue: 57.1,
+        answerDisplay: '57.1 公分',
+        unit: '公分',
+        hint: '拱橋形周長包含 4 個部分：外半圓弧 ＋ 內半圓弧 ＋ 左右兩側的橋墩直線段（10 - 5 = 5 公分，共有 2 段）。',
+        explanation: '周長 = 外半圓弧 + 內半圓弧 + 兩側線段 = 10 × 3.14 + 5 × 3.14 + (10 - 5) × 2 = 31.4 + 15.7 + 10 = 57.1（公分）。',
+        fig: { type: 'arch' }
+      },
+      {
+        id: 27, stage: 2, category: '複合圓形城堡',
+        text: '如圖，用一條繩子將 2 個直徑皆為 10 公分的圓形飲料罐緊緊捆在一起（打結處不計），所需繩子的最短長度是多少公分？',
+        answerValue: 51.4,
+        answerDisplay: '51.4 公分',
+        unit: '公分',
+        hint: '捆圓罐口訣：「轉角圓弧合起來永遠是 1 個整圓周長」＋「直線切線段（2 條直徑）」。',
+        explanation: '繩長 = 兩側半圓弧（合為 1 個整圓周長）+ 上下兩段直徑 = 10 × 3.14 + 10 × 2 = 31.4 + 20 = 51.4（公分）。',
+        fig: { type: 'cans2' }
+      },
+      {
+        id: 28, stage: 2, category: '複合圓形城堡',
+        text: '如圖，用一條繩子將 3 個直徑皆為 10 公分的圓罐排成三角形緊緊捆在一起（打結處不計），所需繩長是多少公分？',
+        answerValue: 61.4,
+        answerDisplay: '61.4 公分',
+        unit: '公分',
+        hint: '三個轉角各為 120° 圓弧，加起來剛好 360°（1 個整圓周長），再加上三條直線段（3 條直徑）！',
+        explanation: '三個轉角 120° 圓弧合起來剛好是 1 個整圓周長，加上 3 段直徑：10 × 3.14 + 10 × 3 = 31.4 + 30 = 61.4（公分）。',
+        fig: { type: 'cans3' }
+      },
+      {
+        id: 29, stage: 2, category: '複合圓形城堡',
+        text: '如圖，用一條繩子將 4 個直徑皆為 10 公分的圓罐排成 2×2 正方形緊緊捆在一起（打結處不計），所需繩長是多少公分？',
+        answerValue: 71.4,
+        answerDisplay: '71.4 公分',
+        unit: '公分',
+        hint: '四個轉角各是 1/4 圓弧（合為 1 個整圓周長），加上四邊的直線段（4 條直徑）。',
+        explanation: '四個角落 1/4 圓弧合起來是 1 個整圓周長，加上 4 段直徑：10 × 3.14 + 10 × 4 = 31.4 + 40 = 71.4（公分）。',
+        fig: { type: 'cans4' }
+      },
+      {
+        id: 30, stage: 2, category: '複合圓形城堡',
+        text: '如圖，將邊長 10 公分的正方形上方凸出一個半圓、下方凹進一個半圓，形成的新圖形周長是多少公分？',
+        answerValue: 51.4,
+        answerDisplay: '51.4 公分',
+        unit: '公分',
+        hint: '面積雖然可以割補成正方形，但「周長」不能抵消！上下兩段半圓弧都要算進邊界裡喔！',
+        explanation: '周長 = 左右兩邊直線 + 上下兩個直徑 10 公分的半圓弧 = 10 × 2 + 10 × 3.14 = 20 + 31.4 = 51.4（公分）。',
+        fig: { type: 'bumpDentSquare' }
+      },
+      {
+        id: 31, stage: 2, category: '複合圓形城堡',
+        text: '如圖，一個 1/4 圓環扇形跑道，內圓半徑 10 公尺、外圓半徑 20 公尺，這個 1/4 圓環的周長是多少公尺？',
+        answerValue: 67.1,
+        answerDisplay: '67.1 公尺',
+        unit: '公尺',
+        hint: '1/4 圓環周長 = 「外 1/4 圓弧」＋「內 1/4 圓弧」＋「兩端寬度線段（20 - 10 = 10 公尺，共 2 條）」。',
+        explanation: '周長 = 外弧 + 內弧 + 兩側線段 = 40 × 3.14 × 1/4 + 20 × 3.14 × 1/4 + 10 × 2 = 31.4 + 15.7 + 20 = 67.1（公尺）。',
+        fig: { type: 'quarterAnnulus' }
+      },
+      {
+        id: 32, stage: 2, category: '複合圓形城堡',
+        text: '如圖，以正三角形的三個頂點為圓心、邊長 12 公分為半徑畫弧所圍成的「勒洛三角形」，它的周長是多少公分？',
+        answerValue: 37.68,
+        answerDisplay: '37.68 公分',
+        unit: '公分',
+        hint: '正三角形每個內角是 60°，所以三段圓弧合起來的圓心角是 60° × 3 = 180°（半圓弧）！',
+        explanation: '由三段圓心角 60°、半徑 12 公分的弧組成，合起來是 180°（半圓）弧長：12 × 2 × 3.14 × 1/2 = 37.68（公分）。',
+        fig: { type: 'reuleaux' }
+      },
+      {
+        id: 33, stage: 2, category: '複合圓形城堡',
+        text: '如圖，在邊長 10 公分的正方形四條邊向外各畫一個半圓，形成一朵四葉花朵形，這個圖形最外圍的周長是多少公分？',
+        answerValue: 62.8,
+        answerDisplay: '62.8 公分',
+        unit: '公分',
+        hint: '題目問的是「最外圍的周長」，中間正方形的邊在內部不算外圍喔！外圍共有 4 個直徑 10 公分的半圓弧。',
+        explanation: '外圍由 4 個直徑 10 公分的半圓弧組成（等於 2 個整圓周長）：10 × 3.14 × 2 = 62.8（公分）。',
+        fig: { type: 'flower4' }
+      },
+      {
+        id: 34, stage: 2, category: '複合圓形城堡',
+        text: '如圖，在邊長 20 公分的正方形四個角落各畫一個半徑 10 公分的 1/4 圓，中間留下的灰色星形圖案周長是多少公分？',
+        answerValue: 62.8,
+        answerDisplay: '62.8 公分',
+        unit: '公分',
+        hint: '中間星形的四條彎曲邊界，正好是四個半徑 10 公分的 1/4 圓弧，合起來就是 1 個整圓周長！',
+        explanation: '中間星形由 4 段半徑 10 公分的 1/4 圓弧圍成，合起來剛好是 1 個整圓周長：10 × 2 × 3.14 = 62.8（公分）。',
+        fig: { type: 'innerStar' }
+      },
+      {
+        id: 35, stage: 2, category: '複合圓形城堡',
+        text: '如圖，一個邊長 10 公分的正方形相鄰兩邊各接上一個半圓，組成一個愛心形圖案，這個愛心形的周長是多少公分？',
+        answerValue: 51.4,
+        answerDisplay: '51.4 公分',
+        unit: '公分',
+        hint: '沿著愛心外圍繞一圈：左邊 1 條直線 ＋ 下邊 1 條直線 ＋ 右邊半圓弧 ＋ 上邊半圓弧。',
+        explanation: '周長 = 正方形的 2 條邊長 + 2 個直徑 10 公分的半圓弧 = 10 × 2 + 10 × 3.14 = 20 + 31.4 = 51.4（公分）。',
+        fig: { type: 'heart' }
+      },
+      {
+        id: 36, stage: 2, category: '複合圓形城堡',
+        text: '如圖，半徑 10 公分、圓心角 120° 的扇形切去三角形後剩下的灰色「弓形」，已知弦長為 17.3 公分，弓形的周長是多少公分？（四捨五入至小數點後第二位）',
+        answerValue: 38.23,
+        answerDisplay: '38.23 公分',
+        unit: '公分',
+        hint: '弓形的邊界由「120° 圓弧」與「一條弦長（17.3 公分）」所圍成。',
+        explanation: '弓形周長 = 120° 弧長 + 弦長 = 10 × 2 × 3.14 × 1/3 + 17.3 ≈ 20.93 + 17.3 = 38.23（公分）。',
+        fig: { type: 'segment' }
+      },
+      {
+        id: 37, stage: 2, category: '複合圓形城堡',
+        text: '如圖，在一座邊長 6 公尺的正方形倉庫角落，用一條長 10 公尺的繩子拴住一隻小羊，小羊在倉庫外能活動的草地範圍周長是多少公尺？',
+        answerValue: 71.66,
+        answerDisplay: '71.66 公尺',
+        unit: '公尺',
+        hint: '繩長 10m 大於牆長 6m，轉彎處會多出 2 個「半徑 4m 的 1/4 圓弧」，最後別忘了加上靠著倉庫的兩面牆邊（6m × 2）！',
+        explanation: '草地外圍周長 = 3/4 個半徑 10m 圓弧 + 2 個 1/4 半徑 4m 圓弧 + 兩面倉庫牆邊(6m×2) = 20×3.14×3/4 + 8×3.14×1/2 + 12 = 47.1 + 12.56 + 12 = 71.66（公尺）。',
+        fig: { type: 'sheepBarn' }
+      },
+      {
+        id: 38, stage: 2, category: '複合圓形城堡',
+        text: '如圖，一個直徑 20 公分的大半圓，下方接上一個直徑 10 公分的實心小半圓，並挖去另一個直徑 10 公分的空心小半圓，塗色部分周長是多少公分？',
+        answerValue: 62.8,
+        answerDisplay: '62.8 公分',
+        unit: '公分',
+        hint: '數一數塗色區域共有幾條曲線邊界：上方 1 條大半圓弧（直徑 20）＋ 下方 2 條小半圓弧（直徑各 10）。',
+        explanation: '周長 = 大半圓弧長 + 兩個直徑 10 公分的小半圓弧長 = 20 × 3.14 ÷ 2 + 10 × 3.14 = 31.4 + 31.4 = 62.8（公分）。',
+        fig: { type: 'waveSemi' }
+      },
+      {
+        id: 39, stage: 2, category: '複合圓形城堡',
+        text: '如圖，一個長 20 公分、寬 10 公分的長方形，兩端各接上一個直徑 10 公分的半圓，這個圖形的周長是多少公分？',
+        answerValue: 71.4,
+        answerDisplay: '71.4 公分',
+        unit: '公分',
+        hint: '左右兩端半圓合起來是 1 個直徑 10 公分的整圓，再加上長方形上下兩條 20 公分的長邊。',
+        explanation: '兩端半圓合為 1 個直徑 10 公分的整圓，加上長方形上下兩條長邊：10 × 3.14 + 20 × 2 = 31.4 + 40 = 71.4（公分）。',
+        fig: { type: 'track', len: '長 20 cm', wid: '寬 10 cm' }
+      },
+      {
+        id: 40, stage: 2, category: '複合圓形城堡',
+        text: '如圖，將半徑 10 公分的 1/4 圓與半徑 5 公分的 1/4 圓並排靠在一起，外圍組合圖形的周長是多少公分？',
+        answerValue: 43.55,
+        answerDisplay: '43.55 公分',
+        unit: '公分',
+        hint: '外圍總共有 4 段：大 1/4 圓弧 ＋ 小 1/4 圓弧 ＋ 底部總長（5 + 10）＋ 中間交界高低差（10 - 5）。',
+        explanation: '周長 = 大弧 + 小弧 + 底邊(10+5) + 中間高低差(10-5) = 20×3.14×1/4 + 10×3.14×1/4 + 15 + 5 = 15.7 + 7.85 + 20 = 43.55（公分）。',
+        fig: { type: 'twoQuarters' }
+      }
+    ];
+
+    // =========================================================================
+    // 3. 高解析度 HTML5 Canvas 幾何圖形繪製引擎
+    // =========================================================================
+    function renderGeometryFigure(fig) {
+      const canvas = document.getElementById('geometryCanvas');
+      if (!canvas) return;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 2;
+      const W = Math.max(260, Math.floor(rect.width - 16));
+      const H = Math.max(195, Math.floor(rect.height - 16));
+
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, W, H);
+
+      const FILL_BLUE = 'rgba(219, 234, 254, 0.88)';
+      const FILL_AMBER = 'rgba(254, 243, 199, 0.9)';
+      const FILL_GRAY = '#e2e8f0';
+      const STROKE_BLUE = '#1D4ED8';
+      const STROKE_RED = '#DC2626';
+      const TEXT_DARK = '#0f172a';
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      function drawLabel(text, x, y, color = TEXT_DARK, size = 13, bold = true) {
+        ctx.save();
+        ctx.font = `${bold ? '700' : '500'} ${size}px "Noto Sans TC", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+        ctx.strokeText(text, x, y);
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+        ctx.restore();
+      }
+
+      const cx = W / 2;
+      const cy = H / 2;
+
+      switch (fig.type) {
+        case 'sector': {
+          const deg = fig.angle;
+          const rad = (deg * Math.PI) / 180;
+          let ox = cx, oy = cy, r = Math.min(W, H) * 0.36;
+          let startA = 0, endA = -rad;
+
+          if (deg === 180) {
+            ox = cx; oy = cy + r * 0.42; r = Math.min(W * 0.38, H * 0.56);
+            startA = Math.PI; endA = 0;
+          } else if (deg === 90) {
+            ox = cx - r * 0.48; oy = cy + r * 0.48; r = Math.min(W, H) * 0.56;
+            startA = -Math.PI / 2; endA = 0;
+          } else if (deg <= 150) {
+            ox = cx - r * 0.35; oy = cy + r * 0.48; r = Math.min(W, H) * 0.56;
+            startA = -rad; endA = 0;
+          } else {
+            ox = cx; oy = cy; r = Math.min(W, H) * 0.35;
+            startA = 0; endA = -rad;
+          }
+
+          ctx.beginPath();
+          ctx.moveTo(ox, oy);
+          ctx.arc(ox, oy, r, startA, endA, deg !== 180 && deg !== 90);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          if (fig.rightAngle) {
+            const s = 14;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy - s);
+            ctx.lineTo(ox + s, oy - s);
+            ctx.lineTo(ox + s, oy);
+            ctx.strokeStyle = STROKE_RED;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          } else if (fig.angleLabel) {
+            const ar = 22;
+            ctx.beginPath();
+            ctx.arc(ox, oy, ar, startA, endA, deg !== 180 && deg !== 90);
+            ctx.strokeStyle = STROKE_RED;
+            ctx.lineWidth = 2.2;
+            ctx.stroke();
+            const midA = deg === 240 ? (Math.PI * 2 - rad / 2) : (deg === 270 ? Math.PI * 1.25 : -rad / 2);
+            drawLabel(fig.angleLabel, ox + Math.cos(midA) * (ar + 16), oy + Math.sin(midA) * (ar + 14), STROKE_RED, 12);
+          }
+
+          if (fig.dLabel) {
+            drawLabel(fig.dLabel, ox, oy + 16, TEXT_DARK, 13);
+          } else if (fig.rLabel) {
+            if (deg === 180) {
+              drawLabel(fig.rLabel, ox, oy + 16, TEXT_DARK, 13);
+            } else {
+              drawLabel(fig.rLabel, ox + r * 0.52, oy + 15, TEXT_DARK, 13);
+            }
+          }
+          break;
+        }
+
+        case 'clock120': {
+          const r = Math.min(W, H) * 0.37;
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.restore();
+
+          const startA = -Math.PI / 2;
+          const endA = startA + (120 * Math.PI) / 180;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, r, startA, endA, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, 18, startA, endA, false);
+          ctx.strokeStyle = STROKE_RED;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          drawLabel('120°', cx + 26, cy - 12, STROKE_RED, 12);
+          drawLabel('10 cm', cx + 32, cy + 28, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'compare19': {
+          const r1 = 38;
+          const x1 = cx - 56, y1 = cy + 16;
+          ctx.beginPath();
+          ctx.arc(x1, y1, r1, Math.PI, 0, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+          drawLabel('甲 r=10', x1, y1 + 16, TEXT_DARK, 12);
+
+          const r2 = 66;
+          const x2 = cx + 14, y2 = cy + 26;
+          ctx.beginPath();
+          ctx.moveTo(x2, y2);
+          ctx.arc(x2, y2, r2, -Math.PI / 2, 0, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_AMBER;
+          ctx.fill();
+          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = '#d97706';
+          ctx.stroke();
+          drawLabel('乙 r=20', x2 + r2 * 0.5, y2 + 16, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'track': {
+          const rw = W * 0.42;
+          const rh = H * 0.44;
+          const rad = rh / 2;
+          const x0 = cx - rw / 2;
+          const y0 = cy - rh / 2;
+
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x0 + rw, y0);
+          ctx.arc(x0 + rw, cy, rad, -Math.PI / 2, Math.PI / 2, false);
+          ctx.lineTo(x0, y0 + rh);
+          ctx.arc(x0, cy, rad, Math.PI / 2, -Math.PI / 2, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x0, y0); ctx.lineTo(x0, y0 + rh);
+          ctx.moveTo(x0 + rw, y0); ctx.lineTo(x0 + rw, y0 + rh);
+          ctx.strokeStyle = '#64748b';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.restore();
+
+          drawLabel(fig.len, cx, y0 - 14, TEXT_DARK, 13);
+          drawLabel(fig.wid, cx + 10, cy, STROKE_RED, 12);
+          break;
+        }
+
+        case 'squareHoleCircle': {
+          const s = Math.min(W, H) * 0.62;
+          const x0 = cx - s / 2, y0 = cy - s / 2;
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fillRect(x0, y0, s, s);
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.strokeRect(x0, y0, s, s);
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, s / 2, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('邊長 10 cm', cx, y0 + s + 15, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'leaf': {
+          const s = Math.min(W, H) * 0.6;
+          const x0 = cx - s / 2, y0 = cy - s / 2;
+          ctx.beginPath();
+          ctx.arc(x0, y0 + s, s, -Math.PI / 2, 0, false);
+          ctx.arc(x0 + s, y0, s, Math.PI / 2, Math.PI, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 1.6;
+          ctx.strokeRect(x0, y0, s, s);
+          ctx.restore();
+
+          drawLabel('10 cm', cx, y0 + s + 15, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'annulus': {
+          const R = Math.min(W, H) * 0.38;
+          const r = R * 0.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, R, 0, Math.PI * 2);
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(cx, cy); ctx.lineTo(cx - R, cy);
+          ctx.strokeStyle = '#059669'; ctx.lineWidth = 2.2; ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(cx, cy); ctx.lineTo(cx + r, cy);
+          ctx.strokeStyle = STROKE_RED; ctx.lineWidth = 2.2; ctx.stroke();
+
+          drawLabel('10', cx - R * 0.5, cy - 11, '#059669', 12);
+          drawLabel('5', cx + r * 0.5, cy - 11, STROKE_RED, 12);
+          break;
+        }
+
+        case 'taichi': {
+          const R = Math.min(W, H) * 0.36;
+          const r = R / 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, R, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, R, -Math.PI / 2, Math.PI / 2, false);
+          ctx.arc(cx, cy + r, r, Math.PI / 2, -Math.PI / 2, true);
+          ctx.arc(cx, cy - r, r, Math.PI / 2, -Math.PI / 2, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('直徑 20 cm', cx, cy + R + 15, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'arch': {
+          const R = Math.min(W * 0.4, H * 0.62);
+          const r = R * 0.5;
+          const oy = cy + R * 0.42;
+
+          ctx.beginPath();
+          ctx.arc(cx, oy, R, Math.PI, 0, false);
+          ctx.lineTo(cx + r, oy);
+          ctx.arc(cx, oy, r, 0, Math.PI, true);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('內 r=5 , 外 r=10', cx, oy + 16, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'cans2': {
+          const r = 34;
+          const c1 = cx - r, c2 = cx + r;
+          [c1, c2].forEach(x => {
+            ctx.beginPath();
+            ctx.arc(x, cy - 6, r, 0, Math.PI * 2);
+            ctx.fillStyle = FILL_BLUE;
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = STROKE_BLUE;
+            ctx.stroke();
+          });
+          ctx.beginPath();
+          ctx.moveTo(c1, cy - 6 - r);
+          ctx.lineTo(c2, cy - 6 - r);
+          ctx.arc(c2, cy - 6, r, -Math.PI / 2, Math.PI / 2, false);
+          ctx.lineTo(c1, cy - 6 + r);
+          ctx.arc(c1, cy - 6, r, Math.PI / 2, -Math.PI / 2, false);
+          ctx.closePath();
+          ctx.lineWidth = 3.2;
+          ctx.strokeStyle = STROKE_RED;
+          ctx.stroke();
+
+          drawLabel('d = 10 cm', cx, cy + r + 14, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'cans3': {
+          const r = 26;
+          const d = r * 2;
+          const h = (Math.sqrt(3) / 2) * d;
+          const top = { x: cx, y: cy - h * 0.58 - 4 };
+          const left = { x: cx - r, y: cy + h * 0.42 - 4 };
+          const right = { x: cx + r, y: cy + h * 0.42 - 4 };
+
+          [top, left, right].forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = FILL_BLUE;
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = STROKE_BLUE;
+            ctx.stroke();
+          });
+
+          ctx.beginPath();
+          ctx.arc(top.x, top.y, r, -Math.PI * 5 / 6, -Math.PI / 6, false);
+          ctx.arc(right.x, right.y, r, -Math.PI / 6, Math.PI / 2, false);
+          ctx.arc(left.x, left.y, r, Math.PI / 2, Math.PI * 7 / 6, false);
+          ctx.closePath();
+          ctx.lineWidth = 3.2;
+          ctx.strokeStyle = STROKE_RED;
+          ctx.stroke();
+
+          drawLabel('3 罐直徑皆 10 cm', cx, left.y + r + 16, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'cans4': {
+          const r = 25;
+          const centers = [
+            { x: cx - r, y: cy - r - 6 },
+            { x: cx + r, y: cy - r - 6 },
+            { x: cx + r, y: cy + r - 6 },
+            { x: cx - r, y: cy + r - 6 }
+          ];
+          centers.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.fillStyle = FILL_BLUE;
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = STROKE_BLUE;
+            ctx.stroke();
+          });
+
+          ctx.beginPath();
+          ctx.arc(centers[0].x, centers[0].y, r, Math.PI, -Math.PI / 2, false);
+          ctx.arc(centers[1].x, centers[1].y, r, -Math.PI / 2, 0, false);
+          ctx.arc(centers[2].x, centers[2].y, r, 0, Math.PI / 2, false);
+          ctx.arc(centers[3].x, centers[3].y, r, Math.PI / 2, Math.PI, false);
+          ctx.closePath();
+          ctx.lineWidth = 3.2;
+          ctx.strokeStyle = STROKE_RED;
+          ctx.stroke();
+
+          drawLabel('4 罐直徑皆 10 cm', cx, cy + r * 2 + 12, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'bumpDentSquare': {
+          const s = Math.min(W, H) * 0.46;
+          const x0 = cx - s / 2, y0 = cy - s * 0.25;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.arc(cx, y0, s / 2, Math.PI, 0, false);
+          ctx.lineTo(x0 + s, y0 + s);
+          ctx.arc(cx, y0 + s, s / 2, 0, Math.PI, true);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('10 cm', x0 + s + 26, y0 + s / 2, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'quarterAnnulus': {
+          const R = Math.min(W, H) * 0.64;
+          const r = R * 0.5;
+          const ox = cx - R * 0.45, oy = cy + R * 0.42;
+
+          ctx.beginPath();
+          ctx.arc(ox, oy, R, -Math.PI / 2, 0, false);
+          ctx.lineTo(ox + r, oy);
+          ctx.arc(ox, oy, r, 0, -Math.PI / 2, true);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('內 10 , 外 20', ox + R * 0.52, oy + 16, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'reuleaux': {
+          const s = Math.min(W, H) * 0.58;
+          const h = (Math.sqrt(3) / 2) * s;
+          const top = { x: cx, y: cy - h * 0.55 };
+          const left = { x: cx - s / 2, y: cy + h * 0.45 };
+          const right = { x: cx + s / 2, y: cy + h * 0.45 };
+
+          ctx.beginPath();
+          ctx.arc(left.x, left.y, s, -Math.PI / 3, 0, false);
+          ctx.arc(top.x, top.y, s, Math.PI / 3, (2 * Math.PI) / 3, false);
+          ctx.arc(right.x, right.y, s, Math.PI, (4 * Math.PI) / 3, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('正三角形邊長 12 cm', cx, left.y + 20, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'flower4': {
+          const s = Math.min(W, H) * 0.34;
+          const x0 = cx - s / 2, y0 = cy - s / 2;
+          ctx.beginPath();
+          ctx.arc(cx, y0, s / 2, Math.PI, 0, false);
+          ctx.arc(x0 + s, cy, s / 2, -Math.PI / 2, Math.PI / 2, false);
+          ctx.arc(cx, y0 + s, s / 2, 0, Math.PI, false);
+          ctx.arc(x0, cy, s / 2, Math.PI / 2, -Math.PI / 2, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = '#64748b';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(x0, y0, s, s);
+          ctx.restore();
+
+          drawLabel('邊長 10 cm', cx, y0 + s + s / 2 + 13, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'innerStar': {
+          const s = Math.min(W, H) * 0.62;
+          const r = s / 2;
+          const x0 = cx - r, y0 = cy - r;
+
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.lineWidth = 2.5;
+          ctx.strokeRect(x0, y0, s, s);
+
+          ctx.beginPath();
+          ctx.arc(x0, y0, r, 0, Math.PI / 2, false);
+          ctx.arc(x0, y0 + s, r, -Math.PI / 2, 0, false);
+          ctx.arc(x0 + s, y0 + s, r, Math.PI, -Math.PI / 2, false);
+          ctx.arc(x0 + s, y0, r, Math.PI / 2, Math.PI, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('正方形邊長 20 cm', cx, y0 + s + 15, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'heart': {
+          const s = Math.min(W, H) * 0.42;
+          const x0 = cx - s * 0.65, y0 = cy - s * 0.25;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.arc(x0 + s / 2, y0, s / 2, Math.PI, 0, false);
+          ctx.arc(x0 + s, y0 + s / 2, s / 2, -Math.PI / 2, Math.PI / 2, false);
+          ctx.lineTo(x0, y0 + s);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('邊長 10 cm', x0 + s / 2, y0 + s + 16, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'segment': {
+          const r = Math.min(W, H) * 0.45;
+          const oy = cy + r * 0.45;
+          const startA = -Math.PI * 5 / 6;
+          const endA = -Math.PI / 6;
+
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(cx, oy);
+          ctx.lineTo(cx + Math.cos(startA) * r, oy + Math.sin(startA) * r);
+          ctx.moveTo(cx, oy);
+          ctx.lineTo(cx + Math.cos(endA) * r, oy + Math.sin(endA) * r);
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+          ctx.restore();
+
+          ctx.beginPath();
+          ctx.arc(cx, oy, r, startA, endA, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('弦長 17.3 cm', cx, oy - r * 0.35 + 14, TEXT_DARK, 12);
+          drawLabel('r = 10', cx + 42, oy - 12, STROKE_RED, 11);
+          break;
+        }
+
+        case 'sheepBarn': {
+          const barn = 36;
+          const rope = 62;
+          const sub = rope - barn;
+          const bx = cx - 8, by = cy + 6;
+
+          ctx.beginPath();
+          ctx.moveTo(bx, by);
+          ctx.arc(bx, by, rope, Math.PI / 2, Math.PI, true);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(bx - barn, by);
+          ctx.arc(bx - barn, by, sub, Math.PI, -Math.PI / 2, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(bx, by + barn);
+          ctx.arc(bx, by + barn, sub, 0, Math.PI / 2, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = FILL_GRAY;
+          ctx.fillRect(bx - barn, by, barn, barn);
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = '#334155';
+          ctx.strokeRect(bx - barn, by, barn, barn);
+
+          drawLabel('倉庫', bx - barn / 2, by + barn / 2, '#1e293b', 11);
+          drawLabel('繩 10 m', bx + 44, by - 38, STROKE_RED, 12);
+          break;
+        }
+
+        case 'waveSemi': {
+          const R = Math.min(W, H) * 0.36;
+          const r = R / 2;
+          const oy = cy + 8;
+
+          ctx.beginPath();
+          ctx.arc(cx, oy, R, Math.PI, 0, false);
+          ctx.arc(cx + r, oy, r, 0, Math.PI, true);
+          ctx.arc(cx - r, oy, r, 0, Math.PI, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('大直徑 20 cm', cx, oy + r + 16, TEXT_DARK, 12);
+          break;
+        }
+
+        case 'twoQuarters': {
+          const R = Math.min(W, H) * 0.56;
+          const r = R * 0.5;
+          const jx = cx - 18, jy = cy + R * 0.42;
+
+          ctx.beginPath();
+          ctx.moveTo(jx, jy);
+          ctx.arc(jx, jy, r, Math.PI, -Math.PI / 2, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_AMBER;
+          ctx.fill();
+          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = '#d97706';
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(jx, jy);
+          ctx.arc(jx, jy, R, -Math.PI / 2, 0, false);
+          ctx.closePath();
+          ctx.fillStyle = FILL_BLUE;
+          ctx.fill();
+          ctx.lineWidth = 2.8;
+          ctx.strokeStyle = STROKE_BLUE;
+          ctx.stroke();
+
+          drawLabel('5 cm', jx - r / 2, jy + 15, TEXT_DARK, 12);
+          drawLabel('10 cm', jx + R / 2, jy + 15, TEXT_DARK, 12);
+          break;
+        }
+      }
+    }
+
+    // =========================================================================
+    // 4. 彩帶粒子慶祝動畫
+    // =========================================================================
+    const Confetti = (() => {
+      const canvas = document.getElementById('confettiCanvas');
+      const ctx = canvas.getContext('2d');
+      let particles = [];
+      let animId = null;
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      function launch(count = 45) {
+        const colors = ['#f59e0b', '#3b82f6', '#10b981', '#ec4899', '#8b5cf6'];
+        for (let i = 0; i < count; i++) {
+          particles.push({
+            x: window.innerWidth * (0.25 + Math.random() * 0.5),
+            y: window.innerHeight * 0.45,
+            vx: (Math.random() - 0.5) * 12,
+            vy: -Math.random() * 11 - 4,
+            size: Math.random() * 7 + 5,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            rot: Math.random() * 360,
+            vRot: (Math.random() - 0.5) * 14,
+            life: 75 + Math.random() * 25
+          });
+        }
+        if (!animId) loop();
+      }
+
+      function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.35;
+          p.rot += p.vRot;
+          p.life--;
+
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rot * Math.PI) / 180);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        });
+        particles = particles.filter(p => p.life > 0);
+        if (particles.length > 0) {
+          animId = requestAnimationFrame(loop);
+        } else {
+          animId = null;
+        }
+      }
+
+      return { launch };
+    })();
+
+    // =========================================================================
+    // 5. 遊戲狀態管理與填充題邏輯控制
+    // =========================================================================
+    const STORAGE_KEY = 'geometry_perimeter_adventure_fill_v1';
+
+    let savedStats = {
+      bestScore: 0,
+      bestTitle: '尚未挑戰',
+      trophies: {
+        stage1Clear: false,
+        stage2Clear: false,
+        combo10: false,
+        masterRank: false
+      }
+    };
+
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        savedStats = { ...savedStats, ...parsed, trophies: { ...savedStats.trophies, ...(parsed.trophies || {}) } };
+      }
+    } catch (e) {}
+
+    function saveStatsToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedStats));
+      } catch (e) {}
+    }
+
+    let gameState = {
+      mode: 'stage1',
+      modeTitle: '',
+      questions: [],
+      currentIndex: 0,
+      score: 0,
+      hearts: 5,
+      combo: 0,
+      maxCombo: 0,
+      hintsLeft: 2,
+      answered: false,
+      wrongRecords: [],
+      secondsElapsed: 0,
+      timerInterval: null
+    };
+
+    function formatTime(sec) {
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function updateHomeUI() {
+      document.getElementById('bestScoreDisplay').textContent = `${savedStats.bestScore} 分`;
+      document.getElementById('bestTitleDisplay').textContent = savedStats.bestTitle;
+
+      const trophies = [
+        { key: 'stage1Clear', icon: '🌲', name: '森林探索者', desc: '通過第一關' },
+        { key: 'stage2Clear', icon: '🏰', name: '城堡征服者', desc: '通過第二關' },
+        { key: 'combo10', icon: '🔥', name: '十連擊神射手', desc: '達成 10 連擊' },
+        { key: 'masterRank', icon: '👑', name: '幾何大宗師', desc: '單局答對率 ≥ 90%' }
+      ];
+
+      const grid = document.getElementById('trophyGrid');
+      grid.innerHTML = trophies.map(t => {
+        const unlocked = savedStats.trophies[t.key];
+        return `
+          <div class="p-2.5 rounded-xl border ${unlocked ? 'bg-amber-50 border-amber-300 text-amber-950' : 'bg-white border-slate-200 text-slate-400 opacity-65'} flex items-center gap-2">
+            <span class="text-xl">${unlocked ? t.icon : '🔒'}</span>
+            <div>
+              <div class="font-black">${t.name}</div>
+              <div class="text-[11px]">${t.desc}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 音效按鈕同步
+    function syncSoundButtons() {
+      const on = SoundFX.isEnabled();
+      document.getElementById('homeSoundIcon').textContent = on ? '🔊' : '🔇';
+      document.getElementById('homeSoundText').textContent = on ? '音效：開啟' : '音效：靜音';
+      document.getElementById('gameSoundIcon').textContent = on ? '🔊' : '🔇';
+    }
+    document.getElementById('homeSoundToggle').addEventListener('click', () => {
+      SoundFX.toggle();
+      syncSoundButtons();
+    });
+    document.getElementById('gameSoundToggle').addEventListener('click', () => {
+      SoundFX.toggle();
+      syncSoundButtons();
+    });
+
+    // 洗牌工具函式
+    function shuffleArray(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    // 解析使用者輸入的數字或分數（支援小數、整數、a/b 分數、帶分數 a b/c）
+    function parseNumericAnswer(rawStr) {
+      if (!rawStr) return NaN;
+      let s = String(rawStr)
+        .trim()
+        // 全形轉半形數字與符號
+        .replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+        .replace(/．/g, '.')
+        .replace(/／/g, '/')
+        // 去除常見中文單位或空格
+        .replace(/(公分|公尺|度|圓|cm|m|°)/gi, '')
+        .trim();
+
+      if (!s) return NaN;
+
+      // 帶分數格式：例如 "1 1/2"
+      const mixedMatch = s.match(/^([+-]?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+      if (mixedMatch) {
+        const whole = Number(mixedMatch[1]);
+        const num = Number(mixedMatch[2]);
+        const den = Number(mixedMatch[3]);
+        if (den === 0) return NaN;
+        return whole >= 0 ? whole + num / den : whole - num / den;
+      }
+
+      // 簡單分數格式：例如 "1/6" 或 "2/12"
+      const fracMatch = s.match(/^([+-]?\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+      if (fracMatch) {
+        const num = Number(fracMatch[1]);
+        const den = Number(fracMatch[2]);
+        if (den === 0) return NaN;
+        return num / den;
+      }
+
+      // 純數字格式
+      if (/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(s)) {
+        return Number(s);
+      }
+
+      return NaN;
+    }
+
+    function startGame(mode, customQuestions = null) {
+      SoundFX.click();
+      let qList = [];
+      let title = '';
+
+      if (mode === 'stage1') {
+        qList = QUESTIONS_DB.filter(q => q.stage === 1);
+        title = '第一關：扇形周長森林';
+      } else if (mode === 'stage2') {
+        qList = QUESTIONS_DB.filter(q => q.stage === 2);
+        title = '第二關：複合圓形城堡';
+      } else if (mode === 'all40') {
+        qList = [...QUESTIONS_DB];
+        title = '終極全能挑戰賽（40 題）';
+      } else if (mode === 'quick15') {
+        qList = shuffleArray(QUESTIONS_DB).slice(0, 15);
+        title = '終極全能快速賽（隨機 15 題）';
+      } else if (mode === 'wrongOnly' && customQuestions) {
+        qList = [...customQuestions];
+        title = '錯題本特訓重練';
+      }
+
+      gameState = {
+        mode,
+        modeTitle: title,
+        questions: qList,
+        currentIndex: 0,
+        score: 0,
+        hearts: 5,
+        combo: 0,
+        maxCombo: 0,
+        hintsLeft: 2,
+        answered: false,
+        wrongRecords: [],
+        secondsElapsed: 0,
+        timerInterval: null
+      };
+
+      document.getElementById('homeScreen').classList.add('hidden');
+      document.getElementById('resultScreen').classList.add('hidden');
+      document.getElementById('gameScreen').classList.remove('hidden');
+
+      document.getElementById('stageBadge').textContent = title;
+      document.getElementById('qTotalNum').textContent = qList.length;
+
+      if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+      document.getElementById('timerDisplay').textContent = '00:00';
+      gameState.timerInterval = setInterval(() => {
+        gameState.secondsElapsed++;
+        document.getElementById('timerDisplay').textContent = formatTime(gameState.secondsElapsed);
+      }, 1000);
+
+      renderCurrentQuestion();
+    }
+
+    function updateStatusHeader() {
+      const total = gameState.questions.length;
+      const cur = gameState.currentIndex + 1;
+      document.getElementById('qCurrentNum').textContent = cur;
+      document.getElementById('scoreDisplay').textContent = gameState.score;
+
+      const heartsStr = '❤️'.repeat(Math.max(0, gameState.hearts)) + '🤍'.repeat(Math.max(0, 5 - gameState.hearts));
+      document.getElementById('heartsDisplay').textContent = heartsStr;
+
+      const comboBadge = document.getElementById('comboBadge');
+      if (gameState.combo >= 2) {
+        comboBadge.classList.remove('hidden');
+        comboBadge.classList.add('inline-flex');
+        document.getElementById('comboText').textContent = `${gameState.combo} 連擊!`;
+      } else {
+        comboBadge.classList.add('hidden');
+        comboBadge.classList.remove('inline-flex');
+      }
+
+      const pct = Math.round((cur / total) * 100);
+      document.getElementById('progressBar').style.width = `${pct}%`;
+
+      const hintBtn = document.getElementById('hintBtn');
+      document.getElementById('hintCountBadge').textContent = gameState.hintsLeft;
+      hintBtn.disabled = gameState.hintsLeft <= 0 || gameState.answered;
+    }
+
+    function renderCurrentQuestion() {
+      gameState.answered = false;
+      const q = gameState.questions[gameState.currentIndex];
+      updateStatusHeader();
+
+      document.getElementById('qOrigNumber').textContent = `題庫 #${q.id}`;
+      document.getElementById('categoryTag').textContent = q.category;
+      document.getElementById('questionText').textContent = `${gameState.currentIndex + 1}. ${q.text}`;
+
+      // 隱藏提示卡與解析卡
+      document.getElementById('hintBox').classList.add('hidden');
+      document.getElementById('explanationBox').classList.add('hidden');
+
+      // 重設填充題輸入框與狀態
+      const input = document.getElementById('answerInput');
+      const submitBtn = document.getElementById('submitAnswerBtn');
+      const prefixEl = document.getElementById('answerPrefix');
+      const unitEl = document.getElementById('answerUnit');
+      const inputHint = document.getElementById('inputHintMessage');
+
+      input.value = '';
+      input.disabled = false;
+      input.placeholder = q.placeholder || '輸入數字...';
+      input.className = 'fill-input w-full px-4 py-3 rounded-xl bg-white border-2 border-blue-300 text-lg sm:text-xl font-black text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-500/15';
+
+      if (q.prefix) {
+        prefixEl.textContent = q.prefix;
+        prefixEl.classList.remove('hidden');
+      } else {
+        prefixEl.classList.add('hidden');
+      }
+
+      unitEl.textContent = q.unit || '公分';
+      submitBtn.disabled = false;
+      inputHint.classList.add('hidden');
+
+      // 繪製對應幾何圖形並聚焦輸入框
+      requestAnimationFrame(() => {
+        renderGeometryFigure(q.fig);
+        input.focus();
+      });
+    }
+
+    // 填充框快捷字元與鍵盤 Enter 支援
+    function appendAnswerChar(ch) {
+      if (gameState.answered) return;
+      SoundFX.click();
+      const input = document.getElementById('answerInput');
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? input.value.length;
+      input.value = input.value.slice(0, start) + ch + input.value.slice(end);
+      input.focus();
+      input.setSelectionRange(start + ch.length, start + ch.length);
+    }
+
+    function clearAnswerInput() {
+      if (gameState.answered) return;
+      SoundFX.click();
+      const input = document.getElementById('answerInput');
+      input.value = '';
+      document.getElementById('inputHintMessage').classList.add('hidden');
+      input.focus();
+    }
+
+    document.getElementById('answerInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!gameState.answered) {
+          submitFillAnswer();
+        } else {
+          nextQuestion();
+        }
+      }
+    });
+
+    // 視窗尺寸改變時重新繪製目前題目的 Canvas
+    window.addEventListener('resize', () => {
+      if (!document.getElementById('gameScreen').classList.contains('hidden')) {
+        const q = gameState.questions[gameState.currentIndex];
+        if (q) renderGeometryFigure(q.fig);
+        if (typeof Scratchpad !== 'undefined') Scratchpad.resizePreserve();
+      }
+    });
+
+    function useHintCard() {
+      if (gameState.hintsLeft <= 0 || gameState.answered) return;
+      const hintBox = document.getElementById('hintBox');
+      if (!hintBox.classList.contains('hidden')) return;
+
+      SoundFX.hint();
+      gameState.hintsLeft--;
+      const q = gameState.questions[gameState.currentIndex];
+      document.getElementById('hintText').textContent = q.hint;
+      hintBox.classList.remove('hidden');
+      updateStatusHeader();
+    }
+
+    function submitFillAnswer() {
+      if (gameState.answered) return;
+
+      const input = document.getElementById('answerInput');
+      const inputHint = document.getElementById('inputHintMessage');
+      const rawVal = input.value.trim();
+      const parsedNum = parseNumericAnswer(rawVal);
+
+      if (!rawVal || Number.isNaN(parsedNum)) {
+        SoundFX.click();
+        inputHint.textContent = '⚠️ 請先輸入有效的數字或分數（例如 51.4 或 1/6）再送出喔！';
+        inputHint.classList.remove('hidden');
+        input.focus();
+        return;
+      }
+
+      inputHint.classList.add('hidden');
+      gameState.answered = true;
+      input.disabled = true;
+      document.getElementById('submitAnswerBtn').disabled = true;
+
+      const q = gameState.questions[gameState.currentIndex];
+      // 允許極小浮點誤差（0.015 以內，相容分數約分或小數點後兩位）
+      const isCorrect = Math.abs(parsedNum - q.answerValue) <= 0.015;
+
+      const card = document.getElementById('questionCard');
+      const expBox = document.getElementById('explanationBox');
+      const feedbackHeader = document.getElementById('feedbackHeader');
+      const pointsBadge = document.getElementById('pointsEarnedBadge');
+
+      if (isCorrect) {
+        input.classList.add('fill-correct');
+        gameState.combo++;
+        if (gameState.combo > gameState.maxCombo) gameState.maxCombo = gameState.combo;
+        const comboBonus = Math.min((gameState.combo - 1) * 20, 100);
+        const gained = 100 + comboBonus;
+        gameState.score += gained;
+
+        SoundFX.correct(gameState.combo);
+        Confetti.launch(gameState.combo >= 3 ? 65 : 35);
+
+        expBox.className = 'mt-6 rounded-2xl border-2 border-emerald-300 bg-emerald-50/90 p-4 sm:p-5 animate-pop';
+        feedbackHeader.innerHTML = `<span class="text-emerald-700">🎉 答對了！標準答案就是 ${q.answerDisplay}！</span>`;
+        pointsBadge.className = 'text-xs font-black px-2.5 py-1 rounded-full bg-emerald-600 text-white';
+        pointsBadge.textContent = comboBonus > 0 ? `+${gained} 分（含連擊 +${comboBonus}）` : `+100 分`;
+      } else {
+        input.classList.add('fill-wrong');
+        gameState.combo = 0;
+        gameState.hearts = Math.max(0, gameState.hearts - 1);
+        gameState.wrongRecords.push({
+          question: q,
+          userAnswerText: `${rawVal} ${q.unit || ''}`.trim()
+        });
+
+        SoundFX.wrong();
+        card.classList.remove('animate-shake');
+        void card.offsetWidth;
+        card.classList.add('animate-shake');
+
+        expBox.className = 'mt-6 rounded-2xl border-2 border-rose-300 bg-rose-50/90 p-4 sm:p-5 animate-pop';
+        feedbackHeader.innerHTML = `<span class="text-rose-700">💡 再接再厲！正確答案是 ${q.answerDisplay}</span>`;
+        pointsBadge.className = 'text-xs font-black px-2.5 py-1 rounded-full bg-rose-600 text-white';
+        pointsBadge.textContent = '愛心 -1';
+      }
+
+      document.getElementById('explanationText').textContent = q.explanation;
+      const isLast = gameState.currentIndex === gameState.questions.length - 1;
+      document.getElementById('nextBtnText').textContent = isLast ? '查看冒險結算' : '下一題';
+      expBox.classList.remove('hidden');
+
+      updateStatusHeader();
+    }
+
+    function nextQuestion() {
+      SoundFX.click();
+      if (gameState.currentIndex < gameState.questions.length - 1) {
+        gameState.currentIndex++;
+        const autoClear = document.getElementById('autoClearCheck');
+        if (autoClear && autoClear.checked && typeof Scratchpad !== 'undefined') {
+          Scratchpad.clear(false);
+          clearFormulaMemo();
+        }
+        renderCurrentQuestion();
+      } else {
+        finishGame();
+      }
+    }
+
+    function finishGame() {
+      if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+      SoundFX.victory();
+      Confetti.launch(110);
+
+      const total = gameState.questions.length;
+      const wrongCount = gameState.wrongRecords.length;
+      const correctCount = total - wrongCount;
+      const accuracy = Math.round((correctCount / total) * 100);
+
+      // 評定稱號
+      let rankTitle = '幾何見習生';
+      let trophyEmoji = '🎖️';
+      if (accuracy >= 95) {
+        rankTitle = '傳說幾何大宗師';
+        trophyEmoji = '👑';
+      } else if (accuracy >= 80) {
+        rankTitle = '圓周計算小達人';
+        trophyEmoji = '🏆';
+      } else if (accuracy >= 60) {
+        rankTitle = '扇形冒險騎士';
+        trophyEmoji = '⚔️';
+      }
+
+      // 更新最高分與成就獎盃
+      if (gameState.score > savedStats.bestScore) {
+        savedStats.bestScore = gameState.score;
+        savedStats.bestTitle = rankTitle;
+      }
+      if (gameState.mode === 'stage1' && accuracy >= 60) savedStats.trophies.stage1Clear = true;
+      if (gameState.mode === 'stage2' && accuracy >= 60) savedStats.trophies.stage2Clear = true;
+      if (gameState.maxCombo >= 10) savedStats.trophies.combo10 = true;
+      if (accuracy >= 90 && total >= 15) savedStats.trophies.masterRank = true;
+      saveStatsToStorage();
+
+      const playerName = (document.getElementById('playerNameInput').value || '').trim() || '數學勇者';
+      document.getElementById('resultPlayerName').textContent = playerName;
+      document.getElementById('resultRankTitle').textContent = rankTitle;
+      document.getElementById('resultTrophyEmoji').textContent = trophyEmoji;
+      document.getElementById('resTotalScore').textContent = `${gameState.score} 分`;
+      document.getElementById('resAccuracy').textContent = `${accuracy}%`;
+      document.getElementById('resCorrectRatio').textContent = `${correctCount} / ${total} 題`;
+      document.getElementById('resMaxCombo').textContent = `${gameState.maxCombo} 連擊`;
+      document.getElementById('resTimeUsed').textContent = formatTime(gameState.secondsElapsed);
+
+      // 錯題本清單
+      const retryBtn = document.getElementById('retryWrongBtn');
+      const wrongList = document.getElementById('wrongListContainer');
+      document.getElementById('wrongBadgeCount').textContent = `${wrongCount} 題`;
+
+      if (wrongCount === 0) {
+        retryBtn.classList.add('hidden');
+        wrongList.innerHTML = `
+          <div class="p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-center text-emerald-900 font-bold">
+            🌟 太神啦！本局 100% 全對，沒有任何錯題！
+          </div>
+        `;
+      } else {
+        retryBtn.classList.remove('hidden');
+        document.getElementById('wrongCountBtnText').textContent = wrongCount;
+        wrongList.innerHTML = gameState.wrongRecords.map((rec, i) => `
+          <div class="p-4 sm:p-5 rounded-2xl bg-rose-50/60 border border-rose-200">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <span class="text-xs font-black px-2.5 py-0.5 rounded-md bg-rose-600 text-white">錯題 ${i + 1}（題庫 #${rec.question.id}）</span>
+              <span class="text-xs font-bold text-slate-500">${rec.question.category}</span>
+            </div>
+            <p class="font-bold text-slate-900 text-sm sm:text-base mb-2.5">${rec.question.text}</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm mb-2.5">
+              <div class="px-3 py-2 rounded-xl bg-rose-100 text-rose-900 font-bold">
+                ❌ 你的填答：${rec.userAnswerText}
+              </div>
+              <div class="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-900 font-bold">
+                ✅ 正確答案：${rec.question.answerDisplay}
+              </div>
+            </div>
+            <div class="text-xs sm:text-sm text-slate-700 bg-white p-3 rounded-xl border border-slate-200 leading-relaxed">
+              <span class="font-black text-blue-700">📝 算式解析：</span>${rec.question.explanation}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('gameScreen').classList.add('hidden');
+      document.getElementById('resultScreen').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function startWrongQuestionsMode() {
+      const wrongQs = gameState.wrongRecords.map(r => r.question);
+      if (wrongQs.length > 0) {
+        startGame('wrongOnly', wrongQs);
+      }
+    }
+
+    function replayCurrentMode() {
+      if (gameState.mode === 'wrongOnly') {
+        startGame('wrongOnly', gameState.questions);
+      } else {
+        startGame(gameState.mode);
+      }
+    }
+
+    function returnHome() {
+      SoundFX.click();
+      if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+      updateHomeUI();
+      document.getElementById('gameScreen').classList.add('hidden');
+      document.getElementById('resultScreen').classList.add('hidden');
+      document.getElementById('homeScreen').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function confirmQuitGame() {
+      SoundFX.click();
+      document.getElementById('quitModal').classList.remove('hidden');
+    }
+    function closeQuitModal() {
+      SoundFX.click();
+      document.getElementById('quitModal').classList.add('hidden');
+    }
+    function confirmQuitAction() {
+      document.getElementById('quitModal').classList.add('hidden');
+      returnHome();
+    }
+
+    // =========================================================================
+    // 6. 互動計算紙（Canvas Scratchpad）與快捷算式小幫手模組
+    // =========================================================================
+    const Scratchpad = (() => {
+      const canvas = document.getElementById('scratchpadCanvas');
+      const wrap = document.getElementById('scratchpadCanvasWrap');
+      const placeholder = document.getElementById('scratchpadPlaceholder');
+      const ctx = canvas.getContext('2d');
+
+      let isOpen = true;
+      let isWideBottom = false;
+      let showGrid = true;
+      let isDrawing = false;
+      let isEraser = false;
+      let penColor = '#1e293b';
+      let penSize = 2;
+
+      let strokes = [];
+      let currentStroke = null;
+      let logicalW = 360;
+      let logicalH = 290;
+
+      function syncCanvasSize() {
+        if (!wrap || wrap.offsetParent === null) return;
+        const rect = wrap.getBoundingClientRect();
+        if (rect.width < 20 || rect.height < 20) return;
+        const dpr = window.devicePixelRatio || 2;
+        logicalW = rect.width;
+        logicalH = rect.height;
+        canvas.width = Math.floor(logicalW * dpr);
+        canvas.height = Math.floor(logicalH * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        redrawAll();
+      }
+
+      function drawGridBackground() {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, logicalW, logicalH);
+        if (!showGrid) return;
+
+        const step = 22;
+        ctx.save();
+        ctx.beginPath();
+        for (let x = step; x < logicalW; x += step) {
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, logicalH);
+        }
+        for (let y = step; y < logicalH; y += step) {
+          ctx.moveTo(0, y);
+          ctx.lineTo(logicalW, y);
+        }
+        ctx.strokeStyle = '#e0f2fe';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, 22);
+        ctx.lineTo(logicalW, 22);
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.25)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawSingleStroke(s) {
+        if (!s || s.points.length === 0) return;
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = s.eraser ? '#ffffff' : s.color;
+        ctx.lineWidth = s.eraser ? s.size * 4.5 : s.size;
+
+        ctx.beginPath();
+        const p0 = s.points[0];
+        ctx.moveTo(p0.nx * logicalW, p0.ny * logicalH);
+        if (s.points.length === 1) {
+          ctx.lineTo(p0.nx * logicalW + 0.1, p0.ny * logicalH + 0.1);
+        } else {
+          for (let i = 1; i < s.points.length; i++) {
+            const pt = s.points[i];
+            ctx.lineTo(pt.nx * logicalW, pt.ny * logicalH);
+          }
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function redrawAll() {
+        drawGridBackground();
+        for (const s of strokes) {
+          drawSingleStroke(s);
+        }
+        if (placeholder) {
+          placeholder.style.display = strokes.length > 0 ? 'none' : 'flex';
+        }
+      }
+
+      function getNormPos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+        const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+        const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+        const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+        return {
+          nx: rect.width > 0 ? x / rect.width : 0,
+          ny: rect.height > 0 ? y / rect.height : 0
+        };
+      }
+
+      function startDraw(evt) {
+        if (evt.button !== undefined && evt.button !== 0) return;
+        evt.preventDefault();
+        isDrawing = true;
+        const pos = getNormPos(evt);
+        currentStroke = {
+          color: penColor,
+          size: penSize,
+          eraser: isEraser,
+          points: [pos]
+        };
+        strokes.push(currentStroke);
+        if (placeholder) placeholder.style.display = 'none';
+        drawSingleStroke(currentStroke);
+      }
+
+      function moveDraw(evt) {
+        if (!isDrawing || !currentStroke) return;
+        evt.preventDefault();
+        const pos = getNormPos(evt);
+        const pts = currentStroke.points;
+        const prev = pts[pts.length - 1];
+        pts.push(pos);
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = currentStroke.eraser ? '#ffffff' : currentStroke.color;
+        ctx.lineWidth = currentStroke.eraser ? currentStroke.size * 4.5 : currentStroke.size;
+        ctx.beginPath();
+        ctx.moveTo(prev.nx * logicalW, prev.ny * logicalH);
+        ctx.lineTo(pos.nx * logicalW, pos.ny * logicalH);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function endDraw() {
+        if (!isDrawing) return;
+        isDrawing = false;
+        currentStroke = null;
+        if (isEraser && showGrid) {
+          redrawAll();
+        }
+      }
+
+      canvas.addEventListener('mousedown', startDraw);
+      canvas.addEventListener('mousemove', moveDraw);
+      window.addEventListener('mouseup', endDraw);
+
+      canvas.addEventListener('touchstart', startDraw, { passive: false });
+      canvas.addEventListener('touchmove', moveDraw, { passive: false });
+      window.addEventListener('touchend', endDraw);
+
+      return {
+        init: () => {
+          syncCanvasSize();
+        },
+        resizePreserve: () => {
+          syncCanvasSize();
+        },
+        togglePanel: () => {
+          isOpen = !isOpen;
+          const panel = document.getElementById('scratchpadPanel');
+          const qCard = document.getElementById('questionCard');
+          const topLabel = document.getElementById('scratchpadToggleLabel');
+          const cardLabel = document.getElementById('cardScratchpadBtnText');
+
+          if (isOpen) {
+            panel.classList.remove('hidden');
+            qCard.className = isWideBottom
+              ? 'lg:col-span-12 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden'
+              : 'lg:col-span-7 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden';
+            topLabel.textContent = '計算紙：開啟';
+            cardLabel.textContent = '收合計算紙';
+            requestAnimationFrame(() => {
+              syncCanvasSize();
+              const q = gameState.questions[gameState.currentIndex];
+              if (q) renderGeometryFigure(q.fig);
+            });
+          } else {
+            panel.classList.add('hidden');
+            qCard.className = 'lg:col-span-12 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden';
+            topLabel.textContent = '計算紙：關閉';
+            cardLabel.textContent = '開啟計算紙';
+            requestAnimationFrame(() => {
+              const q = gameState.questions[gameState.currentIndex];
+              if (q) renderGeometryFigure(q.fig);
+            });
+          }
+        },
+        toggleLayout: () => {
+          isWideBottom = !isWideBottom;
+          const panel = document.getElementById('scratchpadPanel');
+          const qCard = document.getElementById('questionCard');
+          const layoutText = document.getElementById('layoutModeText');
+          const layoutIcon = document.getElementById('layoutModeIcon');
+
+          if (isWideBottom) {
+            qCard.className = 'lg:col-span-12 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden';
+            panel.className = 'lg:col-span-12 bg-white rounded-3xl shadow-2xl border-2 border-teal-200 overflow-hidden animate-pop';
+            layoutText.textContent = '側邊並排';
+            layoutIcon.textContent = '◫';
+          } else {
+            qCard.className = 'lg:col-span-7 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden';
+            panel.className = 'lg:col-span-5 bg-white rounded-3xl shadow-2xl border-2 border-teal-200 overflow-hidden animate-pop';
+            layoutText.textContent = '下方展開';
+            layoutIcon.textContent = '⬓';
+          }
+          requestAnimationFrame(() => {
+            syncCanvasSize();
+            const q = gameState.questions[gameState.currentIndex];
+            if (q) renderGeometryFigure(q.fig);
+          });
+        },
+        toggleGrid: () => {
+          showGrid = !showGrid;
+          document.getElementById('gridToggleText').textContent = showGrid ? '▦ 方格：開' : '□ 方格：關';
+          redrawAll();
+        },
+        setColor: (color) => {
+          penColor = color;
+          isEraser = false;
+          document.getElementById('eraserBtn').classList.remove('bg-amber-100', 'border-amber-400', 'text-amber-900');
+          document.querySelectorAll('.pen-color-btn').forEach(btn => {
+            if (btn.dataset.color === color) {
+              btn.classList.add('ring-2', 'ring-offset-1', 'ring-teal-500');
+              btn.classList.remove('opacity-75');
+            } else {
+              btn.classList.remove('ring-2', 'ring-offset-1', 'ring-teal-500');
+              btn.classList.add('opacity-75');
+            }
+          });
+        },
+        setSize: (size) => {
+          penSize = size;
+          isEraser = false;
+          document.getElementById('eraserBtn').classList.remove('bg-amber-100', 'border-amber-400', 'text-amber-900');
+          document.querySelectorAll('.pen-size-btn').forEach(btn => {
+            if (Number(btn.dataset.size) === size) {
+              btn.className = 'pen-size-btn px-2 py-0.5 rounded-md bg-teal-600 text-white transition';
+            } else {
+              btn.className = 'pen-size-btn px-2 py-0.5 rounded-md text-slate-600 hover:bg-slate-100 transition';
+            }
+          });
+        },
+        toggleEraser: () => {
+          isEraser = !isEraser;
+          const btn = document.getElementById('eraserBtn');
+          if (isEraser) {
+            btn.classList.add('bg-amber-100', 'border-amber-400', 'text-amber-900');
+          } else {
+            btn.classList.remove('bg-amber-100', 'border-amber-400', 'text-amber-900');
+          }
+        },
+        undo: () => {
+          if (strokes.length > 0) {
+            strokes.pop();
+            redrawAll();
+          }
+        },
+        clear: (withSound = true) => {
+          if (withSound) SoundFX.click();
+          strokes = [];
+          redrawAll();
+        }
+      };
+    })();
+
+    function toggleScratchpad() {
+      SoundFX.click();
+      Scratchpad.togglePanel();
+    }
+    function toggleScratchpadLayout() {
+      SoundFX.click();
+      Scratchpad.toggleLayout();
+    }
+    function toggleScratchpadGrid() {
+      SoundFX.click();
+      Scratchpad.toggleGrid();
+    }
+    function setPenColor(c) {
+      SoundFX.click();
+      Scratchpad.setColor(c);
+    }
+    function setPenSize(s) {
+      SoundFX.click();
+      Scratchpad.setSize(s);
+    }
+    function toggleEraser() {
+      SoundFX.click();
+      Scratchpad.toggleEraser();
+    }
+    function undoScratchpad() {
+      SoundFX.click();
+      Scratchpad.undo();
+    }
+    function clearScratchpad(withSound = true) {
+      Scratchpad.clear(withSound);
+    }
+
+    // 快捷算式輸入與安全求值
+    function insertFormulaToken(token) {
+      SoundFX.click();
+      const input = document.getElementById('formulaMemoInput');
+      if (!input) return;
+      const start = input.selectionStart ?? input.value.length;
+      const end = input.selectionEnd ?? input.value.length;
+      input.value = input.value.slice(0, start) + token + input.value.slice(end);
+      const nextCursor = start + token.length;
+      input.focus();
+      input.setSelectionRange(nextCursor, nextCursor);
+    }
+
+    function evaluateFormulaMemo() {
+      SoundFX.click();
+      const input = document.getElementById('formulaMemoInput');
+      if (!input || !input.value.trim()) return;
+      const leftExpr = input.value.split('=')[0];
+      const normalized = leftExpr
+        .replace(/×/g, '*')
+        .replace(/÷/g, '/')
+        .replace(/（/g, '(')
+        .replace(/）/g, ')')
+        .trim();
+
+      if (!/^[0-9+\-*/().\s]+$/.test(normalized)) return;
+      try {
+        const result = Function(`"use strict"; return (${normalized});`)();
+        if (typeof result === 'number' && Number.isFinite(result)) {
+          const rounded = Math.round(result * 10000) / 10000;
+          input.value = `${leftExpr.trim()} = ${rounded}`;
+        }
+      } catch (e) {}
+    }
+
+    function clearFormulaMemo() {
+      const input = document.getElementById('formulaMemoInput');
+      if (input) input.value = '';
+    }
+
+    // 監聽 startGame 啟動時同步初始化計算紙畫布尺寸
+    const _origStartGame = startGame;
+    startGame = function(mode, customQuestions = null) {
+      _origStartGame(mode, customQuestions);
+      Scratchpad.clear(false);
+      clearFormulaMemo();
+      requestAnimationFrame(() => {
+        Scratchpad.init();
+      });
+    };
+
+    // 初始化首頁成就與戰績
+    updateHomeUI();
+    syncSoundButtons();
+  </script>
+</body>
+</html>
